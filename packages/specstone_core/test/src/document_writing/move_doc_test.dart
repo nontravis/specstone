@@ -2618,11 +2618,7 @@ void main() {
         docFile(root, story2).writeAsStringSync(
           writeIn(
             root,
-            (s) => withApprovalHash(
-              withPersona,
-              s.docTypeAt(story2),
-              statusesOutside: s.project.statusesOutsideApproval,
-            ),
+            (s) => withApprovalHash(withPersona, s.docTypeAt(story2)),
           ),
         );
         expect(await staleDocs(root), isEmpty);
@@ -3066,11 +3062,7 @@ void main() {
       docFile(root, projectDoc).writeAsStringSync(
         writeIn(
           root,
-          (s) => withApprovalHash(
-            approvedText,
-            s.docTypeAt(projectDoc),
-            statusesOutside: s.project.statusesOutsideApproval,
-          ),
+          (s) => withApprovalHash(approvedText, s.docTypeAt(projectDoc)),
         ),
       );
       final before = approvedHash(root, projectDoc);
@@ -3201,6 +3193,7 @@ void main() {
               projectRoot: root,
               docsRoot: Directory('${root.path}/docs'),
               homeDirectory: testHome(),
+              trust: trustOf(root),
               warn: lines.add,
             );
             WriteStep(
@@ -3494,32 +3487,12 @@ void main() {
         final before = approvedValue(root, flutterLogin);
         rename(root, 'user_story:login/reset_password', 'recover');
         expect(holdsApproval(root, flutterLogin), isTrue);
-        // At the shipped pins the rewritten entries all stay outside the hash.
+        // The rewritten entries all stay outside the hash.
         expect(approvedValue(root, flutterLogin), before);
         expect(approvedValue(root, jasprLogin), staleHash);
         expect(holdsApproval(root, jasprLogin), isFalse);
         expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
         expect(readDoc(root, jasprLogin), isNot(contains('draft: true')));
-      });
-
-      test('below the statuses pin, a rename stamps the hash the rewritten statuses give a record whose approval held', () async {
-        final root = await twinProject();
-        pinStatusesBelow(root);
-        final below = statusesBelowResolver;
-        stampApproved(root, flutterLogin, templates: below);
-        final before = approvedValue(root, flutterLogin);
-        writeIn(
-          root,
-          templates: below,
-          (s) => answerRename(
-            s,
-            'user_story:login/reset_password',
-            slug: 'recover',
-          ),
-        );
-        expect(holdsApproval(root, flutterLogin, templates: below), isTrue);
-        expect(approvedValue(root, flutterLogin), isNot(before));
-        expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
       });
     });
   });

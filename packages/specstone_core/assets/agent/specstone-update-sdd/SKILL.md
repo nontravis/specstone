@@ -41,8 +41,8 @@ specstone check <type>:<name> --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 `<folder>` is the path `folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
 
 - **0 or 1:** go on. Its file's findings on the target are the baseline for step 3.
-- **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
-  or they keep using the old skills. Stop: run nothing more, and read or write no doc.
+- **78, `project_not_found`:** tell the Owner no Specstone project is found here; `specstone init` starts one.
+  Stop: run nothing more, and read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
 Never check for `.specstone/` first: the CLI looks in each folder upward, and a look at the working directory alone

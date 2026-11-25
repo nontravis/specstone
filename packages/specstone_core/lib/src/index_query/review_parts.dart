@@ -672,7 +672,6 @@ _DocView _oldViewOf(DraftView draft, String text) {
     docPath: draft.docPath,
     bytes: utf8.encode(text),
     match: type == null ? const NoDocType() : MatchedDocType(type),
-    statusesOutside: false,
   );
   return _DocView(parsed.doc, parsed.content, type);
 }

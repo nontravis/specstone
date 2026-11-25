@@ -2,7 +2,6 @@ import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/release_version.dart';
-import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -15,23 +14,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:yaml/yaml.dart';
 
-const _featureFolder = 'prds/features/{slug}/f{nn}_{slug}';
-const _storyFolder = '$_featureFolder/us{nn}_{slug}';
-const _specFolder = 'specs/{slug}/f{nn}_{slug}';
-
-/// The path pattern of each doc type a grouped tree overrides.
-const _groupedPaths = {
-  'feature': '$_featureFolder/FEATURE.md',
-  'user_story': '$_storyFolder/USER_STORY.md',
-  'fr': '$_storyFolder/fr{nn}_{slug}.md',
-  'nf': '$_storyFolder/nf{nn}_{slug}.md',
-  'architecture': '$_specFolder/ARCHITECTURE.md',
-  'api': '$_specFolder/API.md',
-  'integration': '$_specFolder/INTEGRATION.md',
-  'security': '$_specFolder/SECURITY.md',
-  'implementation': '$_specFolder/IMPLEMENTATION.md',
-};
-
 /// Singular doc types print and write first in this order.
 const _draftOrder = [
   'project',
@@ -41,10 +23,6 @@ const _draftOrder = [
   'gnfr',
   'tech_stack',
 ];
-
-final _idRun = RegExp('[a-z0-9]+');
-final _plainId = RegExp(r'^[a-z][a-z0-9_]*$');
-const _yamlWords = {'true', 'false', 'null'};
 
 /// Returns the `config.yaml` text pinning each of [pins].
 ///
@@ -113,68 +91,6 @@ String _targetLines(CodeTarget target) {
       '    code_root: ${_stringScalar(target.codeRoot)}\n';
 }
 
-/// Returns the `covers:` block of the spec folder [legacyFolder], or null.
-///
-/// Lists the Code path of every [specMap] row naming [legacyFolder], in row
-/// order, skipping empty paths. `label` is the line the dry run prints for the
-/// block.
-({String block, String label})? coversOf(
-  String legacyFolder,
-  List<SpecMapRow> specMap,
-) {
-  final paths = [
-    for (final row in specMap)
-      if (row.specPath == legacyFolder && row.codePath.isNotEmpty) row.codePath,
-  ];
-  if (paths.isEmpty) return null;
-  return (
-    block: listBlockOf('covers', paths),
-    label: paths.length == 1
-        ? 'covers (1 path)'
-        : 'covers (${paths.length} paths)',
-  );
-}
-
-/// Returns the project-layer `path:` overrides of a grouped tree.
-///
-/// Keys are `.specstone/templates/<id>.yaml`; the group is the first `{slug}`.
-Map<String, String> groupedPathOverrides() => {
-  for (final MapEntry(:key, :value) in _groupedPaths.entries)
-    '$projectTemplatesFolder/$key.yaml': 'path: $value\n',
-};
-
-/// Returns the gnfr section override for [headers], null when empty.
-///
-/// Each header is a single-quoted YAML scalar. Its id is the lowercased
-/// `[a-z0-9]` runs joined by `_`, `category_<n>` (n the 1-based position) when
-/// none remain, and suffixed `_2`, `_3`, ... to the first id no earlier header
-/// took, so ids stay unique for any header list.
-///
-/// [carriedIds] are the section ids the carried gnfr already holds; they
-/// count as taken, so an override adds a section and never replaces one.
-MapEntry<String, String>? gnfrOverride(
-  List<String> headers, {
-  Set<String> carriedIds = const {},
-}) {
-  if (headers.isEmpty) return null;
-  final used = {...carriedIds};
-  final sections = <String>[];
-  for (final (index, header) in headers.indexed) {
-    final base = _sectionId(header) ?? 'category_${index + 1}';
-    var id = base;
-    for (var suffix = 2; !used.add(id); suffix++) {
-      id = '${base}_$suffix';
-    }
-    sections.add(
-      '  - id: ${_sectionIdScalar(id)}\n    header: ${_quoted(header)}\n',
-    );
-  }
-  return MapEntry(
-    '$projectTemplatesFolder/gnfr.yaml',
-    'sections:\n${sections.join()}',
-  );
-}
-
 /// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`,
 /// project spec doc types excluded.
 ///
@@ -238,18 +154,8 @@ List<DocTypeLayer> parseOverrides(Map<String, String> files) {
   ];
 }
 
-/// Returns the lowercased `[a-z0-9]` runs of [header] joined by `_`, or null.
-String? _sectionId(String header) {
-  final runs = _idRun.allMatches(header.toLowerCase());
-  return runs.isEmpty ? null : runs.map((run) => run[0]).join('_');
-}
-
 /// Returns [text] as a single-quoted YAML scalar, `'` doubled.
 String _quoted(String text) => "'${text.replaceAll("'", "''")}'";
-
-/// Returns the section [id] as written when YAML reads a string, else quoted.
-String _sectionIdScalar(String id) =>
-    _plainId.hasMatch(id) && !_yamlWords.contains(id) ? id : _quoted(id);
 
 /// Returns [text] as written when plain YAML reads back the same string,
 /// else quoted.

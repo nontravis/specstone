@@ -1,17 +1,12 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
-import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
-import 'package:specstone_core/src/document_writing/write_fault.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -45,37 +40,19 @@ const _draftPaths = [
 /// Runs `init` on [root] and returns its status with the printed lines.
 Future<(int, List<String>)> _run(
   Directory root, {
-  OwnerConfirmation confirmation = OwnerConfirmation.missing,
-  List<String?> answers = const [],
-  RunGit runGit = _noGit,
-  String? planHash,
   List<String>? warnings,
 }) async {
   final out = StringBuffer();
-  var call = 0;
   final status = await runInit(
     InitRequest(
       workingDirectory: root,
       homeDirectory: testHome(),
       templates: TemplateResolver(),
-      confirmation: confirmation,
-      readLine: () => call++ < answers.length ? answers[call - 1] : null,
       out: out,
-      planHash: planHash,
-      runGit: runGit,
       warn: (warnings ?? <String>[]).add,
     ),
   );
   return (status, out.toString().split('\n')..removeLast());
-}
-
-/// Fails the test: the scaffold path starts no git process (E06).
-ProcessResult _noGit(
-  List<String> arguments, {
-  required String workingDirectory,
-  Map<String, String>? environment,
-}) {
-  throw StateError('init must start no git process: git $arguments');
 }
 
 /// A `CLAUDE.md` whose block imports the `.specstone/AGENT.md` it lacks.
@@ -983,436 +960,19 @@ void main() {
     }
   });
 
-  test('a legacy folder enters the migrate '
-      'run at its git checks', () async {
-    final root = await gitFixture(acmeLegacy);
-
-    final (status, lines) = await _run(
-      root,
-      confirmation: OwnerConfirmation.prompt,
-      answers: ['y'],
-      runGit: runRealGit,
-    );
-
-    expect(status, 0);
-    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
-        .trim()
-        .split('\n');
-    expect(subjects, hasLength(3));
-    expect(lines.first, startsWith('legacy migration: '));
-    expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('init on a legacy tree stamps each typed doc it leaves and keeps the '
-      'created draft', () async {
-    final root = await gitFixture(acmeLegacy);
-
-    final (status, _) = await _run(
-      root,
-      confirmation: OwnerConfirmation.prompt,
-      answers: ['y'],
-      runGit: runRealGit,
-    );
-
-    expect(status, 0);
-    expect(
-      _read(root, 'docs/prds/features/f01_login/FEATURE.md'),
-      startsWith('---\napproved: "'),
-    );
-    expect(
-      _read(root, 'docs/specs/TECH_STACK.md'),
-      startsWith('---\ndraft: true'),
-    );
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('init on a '
-      'legacy tree writes the agent files in commit 2', () async {
-    final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
-
-    final (status, lines) = await _run(
-      root,
-      confirmation: OwnerConfirmation.prompt,
-      answers: ['y'],
-      runGit: runRealGit,
-    );
-
-    expect(status, 0);
-    final names =
-        (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
-                as String)
-            .trim()
-            .split('\n');
-    expect(names, containsAll(['.specstone/AGENT.md', 'CLAUDE.md']));
-    expect(
-      names,
-      containsAll([for (final file in renderHostFiles()) file.path]),
-    );
-    expect(names, contains('.claude/settings.json'));
-    expect(
-      _read(root, 'CLAUDE.md'),
-      contains('<!-- BEGIN specstone v$specstoneVersion -->'),
-    );
-    expect(lines, contains('  agent files: ${2 + skillFileCount} files'));
-  }, skip: hasGit ? null : 'git is not available');
-
-  test("a legacy folder under --yes with migrate's dry-run plan hash "
-      'applies the migrate run with no prompt', () async {
-    final root = await gitFixture(acmeLegacy);
-    final dryRun = StringBuffer();
-    await runMigrate(
-      MigrateRequest(
-        workingDirectory: root,
-        homeDirectory: testHome(),
-        templates: TemplateResolver(),
-        dryRun: true,
-        confirmation: OwnerConfirmation.missing,
-        readLine: () => null,
-        out: dryRun,
-      ),
-    );
-    final dryLines = dryRun.toString().split('\n');
-    final hash = dryLines[dryLines.length - 3].substring('plan '.length);
-
-    final (status, lines) = await _run(
-      root,
-      confirmation: OwnerConfirmation.given,
-      runGit: runRealGit,
-      planHash: hash,
-    );
-
-    expect(status, 0);
-    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
-        .trim()
-        .split('\n');
-    expect(subjects, hasLength(3));
-    expect(lines.first, startsWith('legacy migration: '));
-    expect(lines.any((line) => line.contains('apply? [y/N] ')), isFalse);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('a legacy folder under --yes with a stale plan hash refuses '
-      'plan_mismatch and writes nothing', () async {
-    final root = await gitFixture(acmeLegacy);
-    final legacy = _bytesUnder(root);
-
-    await expectLater(
-      () => _run(
-        root,
-        confirmation: OwnerConfirmation.given,
-        runGit: runRealGit,
-        planHash: '000000000000',
-      ),
-      throwsA(
-        isA<MigrateFault>().having(
-          (f) => f.code,
-          'code',
-          MigrateFaultCode.planMismatch,
-        ),
-      ),
-    );
-    expect(_bytesUnder(root), legacy);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('a legacy folder without a terminal prints the '
-      'plan, then refuses owner_terminal_required', () async {
-    final root = await gitFixture(acmeLegacy);
-    final legacy = _bytesUnder(root);
-
-    final out = StringBuffer();
-    await expectLater(
-      () => runInit(
-        InitRequest(
-          workingDirectory: root,
-          homeDirectory: testHome(),
-          templates: TemplateResolver(),
-          confirmation: OwnerConfirmation.missing,
-          readLine: () => null,
-          out: out,
-          runGit: runRealGit,
-        ),
-      ),
-      throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.ownerTerminalRequired)
-            .having((f) => f.exitStatus, 'exitStatus', 77)
-            .having(
-              (f) => f.message,
-              'message',
-              'migrate applies only at an interactive terminal, or with '
-                  "--yes after the Owner's ok in the chat",
-            ),
-      ),
-    );
-    expect(out.toString(), startsWith('legacy migration: '));
-    expect(_bytesUnder(root), legacy);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('the legacy entry from the folder holding the docs '
-      'link plans code_root as migrate does', () async {
-    final tree = await writeTree(
-      linkedAcme({
-        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
-        'code/lib/a.dart': 'class A {}\n',
-        // Git for Windows may store a link as a file; the plan needs none.
-        '.gitignore': 'code/docs\n',
-      }),
-    );
-    if (!linkCodeDocs(tree)) return;
-    commitRepo(Directory('${tree.path}/ws'));
-    final out = StringBuffer();
-    locateSetupTrust(
-      Directory('${tree.path}/ws/code'),
-      homeDirectory: testHome(),
-    ).record();
-
-    await expectLater(
-      () => runInit(
-        InitRequest(
-          workingDirectory: Directory('${tree.path}/ws/code'),
-          homeDirectory: testHome(),
-          templates: TemplateResolver(),
-          confirmation: OwnerConfirmation.missing,
-          readLine: () => null,
-          out: out,
-          runGit: runRealGit,
-        ),
-      ),
-      throwsA(
-        isA<WriteFault>().having(
-          (f) => f.code,
-          'code',
-          WriteFaultCode.ownerTerminalRequired,
-        ),
-      ),
-    );
-    expect(
-      out.toString(),
-      matches(
-        RegExp(
-          r'\n  \.specstone/config\.yaml: .*; code_root code \(1 of 2 paths\)\n',
-        ),
-      ),
-    );
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('init on a legacy root reached through a docs link '
-      'infers the same code_root as migrate run from that folder', () async {
-    final tree = await writeTree({
-      ...linkedAcme({
-        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
-        '.gitignore': 'code/docs\n',
-      }),
-      // The code sits above the project root, at the repository top.
-      'lib/a.dart': 'class A {}\n',
-    });
-    if (!linkCodeDocs(tree)) return;
-    commitRepo(tree);
-    final code = Directory('${tree.path}/ws/code');
-    locateSetupTrust(code, homeDirectory: testHome()).record();
-    final initOut = StringBuffer();
-    final migrateOut = StringBuffer();
-
-    await expectLater(
-      () => runInit(
-        InitRequest(
-          workingDirectory: code,
-          homeDirectory: testHome(),
-          templates: TemplateResolver(),
-          confirmation: OwnerConfirmation.missing,
-          readLine: () => null,
-          out: initOut,
-          runGit: runRealGit,
-        ),
-      ),
-      throwsA(isA<WriteFault>()),
-    );
-    expect(
-      await runMigrate(
-        MigrateRequest(
-          workingDirectory: code,
-          homeDirectory: testHome(),
-          templates: TemplateResolver(),
-          dryRun: true,
-          confirmation: OwnerConfirmation.missing,
-          readLine: () => null,
-          out: migrateOut,
-          runGit: runRealGit,
-        ),
-      ),
-      0,
-    );
-
-    final line = RegExp(
-      r'\n  \.specstone/config\.yaml: .*; code_root (\S+) \(1 of 2 paths\)\n',
-    );
-    expect(line.firstMatch(initOut.toString())?.group(1), '..');
-    expect(
-      line.firstMatch(migrateOut.toString())?.group(1),
-      line.firstMatch(initOut.toString())?.group(1),
-    );
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('the legacy entry refuses untrusted roots before any '
-      'git call', () async {
-    final tree = await writeTree(linkedAcme({}));
-    if (!linkCodeDocs(tree)) return;
-    final calls = <List<String>>[];
-
-    await expectLater(
-      () => _run(
-        Directory('${tree.path}/ws/code'),
-        confirmation: OwnerConfirmation.prompt,
-        answers: ['y'],
-        runGit: (arguments, {required workingDirectory, environment}) {
-          calls.add(arguments);
-          return runRealGit(arguments, workingDirectory: workingDirectory);
-        },
-      ),
-      throwsA(
-        isA<RenderFault>().having(
-          (f) => f.code,
-          'code',
-          RenderFaultCode.outputNotWritable,
-        ),
-      ),
-    );
-    expect(calls, isEmpty);
-  });
-
-  test('the legacy entry through an untrusted docs link refuses with exit '
-      '73, naming the journal, with the trust text, and writes '
-      'nothing', () async {
-    final tree = await writeTree(linkedAcme({}));
-    if (!linkCodeDocs(tree)) return;
-    final code = Directory('${tree.path}/ws/code');
-    final before = _bytesUnder(tree);
-
-    await expectLater(
-      () => _run(code, confirmation: OwnerConfirmation.prompt, answers: ['y']),
-      throwsA(
-        isA<RenderFault>()
-            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-            .having((f) => f.exitStatus, 'exit', 73)
-            .having((f) => f.file, 'file', MoveJournal.journalPath)
-            .having(
-              (f) => f.message,
-              'message',
-              'cannot write .specstone/trash/journal.json: the project folder '
-                  '${Directory('${tree.path}/ws').resolveSymbolicLinksSync()} '
-                  'was reached through the docs link in '
-                  '${code.resolveSymbolicLinksSync()}; run specstone trust at '
-                  'a terminal to allow it',
-            ),
-      ),
-    );
-
-    expect(_bytesUnder(tree), before);
-  });
-
-  test('the legacy entry refuses a dirty tree before the '
-      'plan prints', () async {
-    final root = await gitFixture(acmeLegacy);
-    File('${root.path}/notes.txt').writeAsStringSync('x\n');
-    final out = StringBuffer();
-
-    await expectLater(
-      () => runInit(
-        InitRequest(
-          workingDirectory: root,
-          homeDirectory: testHome(),
-          templates: TemplateResolver(),
-          confirmation: OwnerConfirmation.prompt,
-          readLine: () => 'y',
-          out: out,
-          runGit: runRealGit,
-        ),
-      ),
-      throwsA(
-        isA<MigrateFault>().having(
-          (f) => f.code,
-          'code',
-          MigrateFaultCode.workingTreeDirty,
-        ),
-      ),
-    );
-    expect(out.toString(), isEmpty);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('the legacy entry outside a git work tree, or in a '
-      'repository with no first commit, refuses git_work_tree_required '
-      'before the plan prints', () async {
-    final outside = await writeTree(acmeLegacy);
-    final unborn = await writeTree(acmeLegacy);
-    expect(git(unborn, ['init', '-q']).exitCode, 0);
-
-    for (final root in [outside, unborn]) {
-      final out = StringBuffer();
-
-      await expectLater(
-        () => runInit(
-          InitRequest(
-            workingDirectory: root,
-            homeDirectory: testHome(),
-            templates: TemplateResolver(),
-            confirmation: OwnerConfirmation.prompt,
-            readLine: () => 'y',
-            out: out,
-            runGit: runRealGit,
-          ),
-        ),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.gitWorkTreeRequired,
-          ),
-        ),
-      );
-
-      expect(out.toString(), isEmpty);
-    }
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('a refused commit in the legacy entry is git_failed, '
-      'exit 75, and the journal stays', () async {
-    final root = await gitFixture(acmeLegacy);
-
-    await expectLater(
-      () => _run(
-        root,
-        confirmation: OwnerConfirmation.prompt,
-        answers: ['y'],
-        runGit: (arguments, {required workingDirectory, environment}) =>
-            arguments.first == 'commit'
-            ? ProcessResult(0, 1, '', 'error: commit refused\n')
-            : runRealGit(arguments, workingDirectory: workingDirectory),
-      ),
-      throwsA(
-        isA<MigrateFault>()
-            .having((f) => f.code, 'code', MigrateFaultCode.gitFailed)
-            .having((f) => f.exitStatus, 'exitStatus', 75),
-      ),
-    );
-    expect(MoveJournal.pendingMigrate(root), isTrue);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('git that cannot start in the legacy entry is '
-      'git_work_tree_required', () async {
+  test('a folder holding an old context doc and no config gets the six '
+      'drafts and the config, and the doc stays', () async {
     final root = await writeTree(acmeLegacy);
 
-    await expectLater(
-      () => _run(
-        root,
-        confirmation: OwnerConfirmation.prompt,
-        runGit: (arguments, {required workingDirectory, environment}) =>
-            throw const ProcessException('git', []),
-      ),
-      throwsA(
-        isA<MigrateFault>().having(
-          (f) => f.code,
-          'code',
-          MigrateFaultCode.gitWorkTreeRequired,
-        ),
-      ),
+    final (status, lines) = await _run(root);
+
+    expect(status, 0);
+    expect(lines, contains(_configLine()));
+    expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
+    expect(
+      File('${root.path}/docs/prds/d01_context.md').existsSync(),
+      isTrue,
+      reason: 'the old context doc stays as the Owner left it',
     );
   });
 

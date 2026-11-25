@@ -206,21 +206,29 @@ void main() {
       }
     });
 
-    test('a command refused on a pin prints the refusal alone', () async {
-      final root = await writeTree({
-        '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
-          RegExp(r'prd-core: \S+'),
-          'prd-core: 1.0.0',
-        ),
-        ..._staleAgentMd,
-      });
+    for (final (pin, refusal) in [
+      ('1.0.0', 'prd-core 1.0.0 is below'),
+      ('99.0.0', 'Pack prd-core is pinned at 99.0.0'),
+    ]) {
+      test(
+        'a command refused on the pin $pin prints the refusal alone',
+        () async {
+          final root = await writeTree({
+            '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+              RegExp(r'prd-core: \S+'),
+              'prd-core: $pin',
+            ),
+            ..._staleAgentMd,
+          });
 
-      final result = await run(root, ['guide', 'fr']);
+          final result = await run(root, ['guide', 'fr']);
 
-      expect(result.exitCode, isNonZero);
-      expect(result.stderr, contains('Pack prd-core is pinned at 1.0.0'));
-      expect(result.stderr, isNot(contains(_lead)));
-    });
+          expect(result.exitCode, isNonZero);
+          expect(result.stderr, contains(refusal));
+          expect(result.stderr, isNot(contains(_lead)));
+        },
+      );
+    }
   });
 
   group('a project whose root agent files are current', () {

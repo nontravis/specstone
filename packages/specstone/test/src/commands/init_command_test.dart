@@ -5,8 +5,6 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
-import '../../../../specstone_core/test/helpers/git_repo.dart';
-import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/skill_files.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
@@ -19,15 +17,6 @@ String _closingLines() {
       'prd-core ${versions['prd-core']}, '
       'software-tech ${versions['software-tech']}\n'
       'trust the Specstone hook in Codex: open /hooks in a trusted project\n';
-}
-
-/// Returns the hash on the `plan <hash>` line `migrate --dry-run` prints in
-/// [root].
-Future<String> _dryRunPlanHash(Directory root) async {
-  final (:runner, :out, :err) = writeRunner(root);
-  expect(await runner.run(['migrate', '--dry-run']), 0);
-  final lines = out.toString().split('\n');
-  return lines[lines.length - 3].substring('plan '.length);
 }
 
 void main() {
@@ -166,79 +155,19 @@ void main() {
     );
   });
 
-  test('init on a legacy folder with neither a terminal nor --yes '
-      'exits 77 naming both ways', () async {
-    final root = await gitFixture(acmeLegacy);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['init']), 77);
-    expect(out.toString(), startsWith('legacy migration: '));
-    expect(
-      err.toString(),
-      'migrate applies only at an interactive terminal, or with --yes after '
-      "the Owner's ok in the chat\n",
-    );
-  }, skip: hasGit ? null : 'git is not available');
-
-  for (final (args, message) in [
-    (
-      ['--yes'],
-      '--yes needs --plan <hash>, the plan line specstone migrate '
-          '--dry-run prints.',
-    ),
-    (['--plan', '1a2b3c4d5e6f'], '--plan goes only with --yes.'),
-  ]) {
-    test('init ${args.join(' ')} is a usage error, exit 64', () async {
+  test(
+    'init --yes --plan is a usage error, exit 64, and writes nothing',
+    () async {
       final root = await writeTree({'keep.txt': 'x\n'});
       final (:runner, :out, :err) = writeRunner(root);
 
-      expect(await runner.run(['init', ...args]), 64);
+      expect(await runner.run(['init', '--yes', '--plan', '000000000000']), 64);
       expect(out.toString(), isEmpty);
-      expect(err.toString(), startsWith('$message\n'));
+      expect(err.toString(), contains('"--yes"'));
+      expect(err.toString(), contains('Usage: specstone init'));
       expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
-    });
-  }
-
-  test("init --yes --plan with migrate's dry-run hash applies the "
-      'legacy run with no terminal and no prompt', () async {
-    final root = await gitFixture(acmeLegacy);
-    final hash = await _dryRunPlanHash(root);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['init', '--yes', '--plan', hash]), 0);
-    expect(err.toString(), isEmpty);
-    expect(out.toString(), isNot(contains('apply? [y/N] ')));
-    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
-        .trim()
-        .split('\n');
-    expect(subjects, hasLength(3));
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('init --yes --plan with a hash the legacy plan no longer matches '
-      'exits 75 with the plan_mismatch message and writes nothing', () async {
-    final root = await gitFixture(acmeLegacy);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['init', '--yes', '--plan', '000000000000']), 75);
-
-    expect(out.toString(), isNot(contains('apply? [y/N] ')));
-    expect(
-      err.toString(),
-      'the plan is not the one the Owner saw in the dry run; run specstone '
-      'migrate --dry-run again, show it, and ask for a new ok\n',
-    );
-    expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('init --yes --plan on an empty folder sets up the drafts as '
-      'init does; no plan applies there', () async {
-    final root = await writeTree({'keep.txt': 'x\n'});
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['init', '--yes', '--plan', '000000000000']), 0);
-    expect(err.toString(), isEmpty);
-    expect(out.toString(), endsWith(_closingLines()));
-  });
+    },
+  );
 
   test('init takes no argument', () async {
     final root = await writeTree({'keep.txt': 'x\n'});

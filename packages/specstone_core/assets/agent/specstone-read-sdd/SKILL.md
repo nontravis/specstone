@@ -53,8 +53,8 @@ exit status:
      Read each by its own range, a part over one host read in consecutive parts, and no read of them is a doc read.
      In `query`, read the parts of its one file.
    - Once the index lists docs only, search the files for a section's `## ` header.
-2. **78 with `project_not_found`:** tell the Owner the project is still on the old format: `specstone migrate` moves it,
-   or they keep the old skills. Then stop: run nothing more; read and write no doc.
+2. **78 with `project_not_found`:** tell the Owner no Specstone project is found here; `specstone init` starts one.
+   Then stop: run nothing more; read and write no doc.
 3. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
 That call is also the project gate: never look for `.specstone/` first. A session in a subfolder needs the project

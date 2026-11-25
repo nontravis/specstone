@@ -488,7 +488,6 @@ List<PlannedDoc> plannedDocsOf(
       docPath: docPath,
       bytes: utf8.encode(text),
       match: MatchedDocType(place.docType, target: place.placedIn),
-      statusesOutside: session.project.statusesOutsideApproval,
     );
     created.add(
       PlannedDoc(

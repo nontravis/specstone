@@ -27,10 +27,3 @@ String _withoutTrailingBlanks(String lf) {
 /// The hash is [baseHashOf] over [upstreamText], so one function holds the
 /// recipe.
 String fingerprintOf(String block) => baseHashOf(upstreamText(block));
-
-/// Returns the 1.1.0 fingerprint of [block], taken before layout.
-///
-/// Only the upgrade's stamp pass may call it, to match an entry stamped
-/// before 1.2.0.
-String legacyFingerprintOf(String block) =>
-    baseHashOf(_withoutTrailingBlanks(toLf(block)));

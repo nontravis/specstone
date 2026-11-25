@@ -11,6 +11,14 @@ const bareOutFlag = 'bare-out';
 /// The options no bare `--out` file name lists as a flag.
 const Set<String> _notOutFlags = {'out', 'json', 'target', bareOutFlag};
 
+/// The faults that refuse a command on a pack pin, so no stale-files line
+/// follows them.
+const Set<FaultCode> _pinRefusals = {
+  FaultCode.packPinBelowFloor,
+  FaultCode.packPinNewer,
+  FaultCode.packPinOlder,
+};
+
 /// Base class of every Specstone command.
 ///
 /// Sends usage to the runner's `out` sink; `Command.printUsage` writes to the
@@ -111,9 +119,7 @@ abstract class SpecstoneCommand extends Command<int> {
     List<String> warnings = const [],
   }) {
     specstoneRunner.recordFault();
-    if (fault is TemplateFault &&
-        (fault.code == FaultCode.packPinOlder ||
-            fault.code == FaultCode.packPinNewer)) {
+    if (fault is TemplateFault && _pinRefusals.contains(fault.code)) {
       specstoneRunner.recordPinRefusal();
     }
     if (asJson) {

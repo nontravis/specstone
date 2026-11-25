@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:markdown/markdown.dart';
 import 'package:specstone/src/command_runner.dart';
@@ -138,12 +139,19 @@ Directory agentAssetsRoot() => Directory.fromUri(
 /// `frontmatter` is the text before `body`, its fences included, or null when
 /// the file has none; for a Codex TOML file it is everything before the
 /// `developer_instructions` value, and `body` is that value unescaped.
-typedef ContentFile = ({
-  String path,
-  String body,
-  String? frontmatter,
-  bool isSkillFile,
-});
+final class ContentFile {
+  const new({
+    required this.path,
+    required this.body,
+    required this.frontmatter,
+    required this.isSkillFile,
+  });
+
+  final String path;
+  final String body;
+  final String? frontmatter;
+  final bool isSkillFile;
+}
 
 /// Returns the skill and agent sources and every host's render of them.
 List<ContentFile> contentFiles() => [
@@ -188,7 +196,7 @@ ContentFile _contentFile(
     _ when path.endsWith('.md') => _markdownParts(text),
     _ => (null, text),
   };
-  return (
+  return ContentFile(
     path: path,
     body: body,
     frontmatter: frontmatter,
@@ -415,41 +423,35 @@ Set<String> shippedDocTypes() {
   }
 }
 
-/// The doc types outside `prd-core` that the shipped packs define, drop, or
-/// fold, each with its path file name.
+/// The doc types outside `prd-core` that the shipped packs define, plus the
+/// retired ones, each with its path file name.
 final class PackDocTypes {
   new(this.fileNameById);
 
   /// Reads the types from the packs the binary carries.
-  ///
-  /// A pack's type files give each `id` and `path`; each `merge_doc` `from` and
-  /// `drop_doc_type` of a `pack.yaml` gives a folded or dropped type. A type
-  /// `prd-core` defines is left out.
-  factory shipped() {
-    final foreign = <String, String?>{};
-    final core = <String>{};
-    void add(Object? node, {required bool isCore}) {
-      if (node is! YamlMap || node['id'] is! String) return;
-      final id = node['id'] as String;
-      if (isCore) {
-        core.add(id);
-        return;
-      }
-      final fileName = _fileNameOf(node['path']);
-      foreign[id] = fileName ?? foreign[id];
-    }
+  factory shipped() => PackDocTypes.fromPackFiles(shippedPackFiles);
 
-    for (final entry in shippedPackFiles.entries) {
+  /// Reads the types from [packFiles], keyed `<pack>/<file>`.
+  ///
+  /// A pack's type files give each `id` and `path`; [_retiredDocTypes] seeds
+  /// the types no pack ships. A type `prd-core` defines is left out.
+  factory fromPackFiles(Map<String, Uint8List> packFiles) {
+    final foreign = <String, String?>{..._retiredDocTypes};
+    final core = <String>{};
+    for (final entry in packFiles.entries) {
       final segments = entry.key.split('/');
       if (segments.length != _packFileSegments ||
-          !segments.last.endsWith('.yaml')) {
+          !segments.last.endsWith('.yaml') ||
+          segments.last == 'pack.yaml') {
         continue;
       }
-      final yaml = loadYaml(utf8.decode(entry.value));
-      if (segments.last == 'pack.yaml') {
-        _foldedAndDropped(yaml).forEach((node) => add(node, isCore: false));
+      final node = loadYaml(utf8.decode(entry.value));
+      if (node is! YamlMap || node['id'] is! String) continue;
+      final id = node['id'] as String;
+      if (segments.first == _corePackName) {
+        core.add(id);
       } else {
-        add(yaml, isCore: segments.first == _corePackName);
+        foreign[id] = _fileNameOf(node['path']) ?? foreign[id];
       }
     }
     return PackDocTypes(
@@ -465,18 +467,18 @@ final class PackDocTypes {
 const _corePackName = 'prd-core';
 const _packFileSegments = 2;
 
-Iterable<Object?> _foldedAndDropped(Object? pack) sync* {
-  if (pack is! YamlMap || pack['migrations'] is! YamlList) return;
-  for (final migration in pack['migrations'] as YamlList) {
-    final steps = migration is YamlMap ? migration['steps'] : null;
-    if (steps is! YamlList) continue;
-    for (final step in steps.whereType<YamlMap>()) {
-      final merged = step['merge_doc'];
-      if (merged is YamlMap) yield merged['from'];
-      yield step['drop_doc_type'];
-    }
-  }
-}
+/// The types no 2.0.0 pack ships, each with its path file name; `topic` has
+/// none, as its path holds `{slug}`.
+const _retiredDocTypes = <String, String?>{
+  'error': 'ERROR.md',
+  'project_error': 'ERROR.md',
+  'domain': 'DOMAIN.md',
+  'project_domain': 'DOMAIN.md',
+  'project_integration': 'INTEGRATION.md',
+  'auth': 'AUTH.md',
+  'project_auth': 'AUTH.md',
+  'topic': null,
+};
 
 String? _fileNameOf(Object? path) {
   if (path is! String) return null;
@@ -617,7 +619,12 @@ Iterable<String> _proseTexts(String markdown) sync* {
   yield* walk(_parse(markdown));
 }
 
-typedef _Code = ({String text, bool isBlock});
+final class _Code {
+  const new(this.text, {required this.isBlock});
+
+  final String text;
+  final bool isBlock;
+}
 
 /// Returns each code block (fenced or indented) and inline code span of
 /// [markdown], in text order.
@@ -627,9 +634,9 @@ List<_Code> _codeOf(String markdown) {
     for (final node in nodes.whereType<Element>()) {
       switch (node.tag) {
         case 'pre':
-          found.add((text: node.textContent, isBlock: true));
+          found.add(_Code(node.textContent, isBlock: true));
         case 'code':
-          found.add((text: node.textContent, isBlock: false));
+          found.add(_Code(node.textContent, isBlock: false));
         default:
           walk(node.children ?? const []);
       }

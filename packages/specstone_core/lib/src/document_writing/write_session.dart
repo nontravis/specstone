@@ -533,7 +533,8 @@ final class WriteSession {
 /// up holds the journal of an unfinished `specstone migrate`.
 ///
 /// The walk ends at the first folder holding the project config or at the
-/// filesystem root. It needs no config, so a legacy tree is refused too.
+/// filesystem root. It needs no config, so a folder with no config is refused
+/// too.
 /// Nothing is replayed. A journal no run on this machine wrote, its digest
 /// absent under [homeDirectory], is refused as untrusted first.
 void refuseMigratePending(

@@ -215,6 +215,7 @@ JournalTarget _target(Directory root) => JournalTarget(
   projectRoot: root,
   docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
   homeDirectory: testHome(),
+  trust: trustOf(root),
 );
 
 /// Writes [files] as a git work tree with one commit.
@@ -1046,6 +1047,7 @@ void main() {
         projectRoot: project,
         docsRoot: Directory('${project.path}/docs'),
         homeDirectory: testHome(),
+        trust: trustOf(project),
       );
 
       for (final path in ['../notes.md', '../.git/config', '../CLAUDE.md']) {
@@ -1074,6 +1076,7 @@ void main() {
         projectRoot: base,
         docsRoot: Directory('${base.path}/docs'),
         homeDirectory: testHome(),
+        trust: trustOf(base),
       );
       writeJournal(
         base,
@@ -1159,6 +1162,7 @@ void main() {
         projectRoot: root,
         docsRoot: Directory('${root.path}/docs'),
         homeDirectory: testHome(),
+        trust: trustOf(root),
         warn: lines.add,
       ),
     );
@@ -1196,6 +1200,7 @@ void main() {
         projectRoot: root,
         docsRoot: Directory('${root.path}/docs'),
         homeDirectory: testHome(),
+        trust: trustOf(root),
         warn: lines.add,
       ),
     );
@@ -1400,6 +1405,7 @@ void main() {
         projectRoot: root,
         docsRoot: Directory('${root.path}${Platform.pathSeparator}docs'),
         homeDirectory: testHome(),
+        trust: trustOf(root),
         runGit: (arguments, {required workingDirectory, environment}) {
           calls.add(arguments);
           return runRealGit(arguments, workingDirectory: workingDirectory);
@@ -1834,6 +1840,7 @@ void main() {
                 projectRoot: root,
                 docsRoot: root,
                 homeDirectory: testHome(),
+                trust: trustOf(root),
                 runGit: (arguments, {required workingDirectory, environment}) =>
                     arguments.first == 'log'
                     ? ProcessResult(0, 0, '', '')
@@ -1864,6 +1871,7 @@ void main() {
         projectRoot: root,
         docsRoot: root,
         homeDirectory: testHome(),
+        trust: trustOf(root),
         runGit: (arguments, {required workingDirectory, environment}) =>
             arguments.first == 'log'
             ? ProcessResult(0, 0, '', '')

@@ -12,9 +12,10 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
-import '../../helpers/legacy_fixture.dart';
+import '../../helpers/legacy_fixture.dart' show commitRepo, gitFixture;
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/upgrade_fixture.dart';
 import '../../helpers/write_fixture.dart' show testHome;
 
 final String? _skip = !hasGit
@@ -48,14 +49,14 @@ RunGit _migrateOlderGit([String version = 'git version 2.37.0']) =>
     _guardedOlderGit(version, migrateCommand);
 
 /// Builds a clone whose `evil/` folder is a committed git dir laid out as a
-/// work tree's `.git`, holding a legacy project, with `config` set to
+/// work tree's `.git`, holding an upgrade project, with `config` set to
 /// [configLines]; `docs` at the clone root links to `evil/docs`.
 ///
 /// Returns the clone, the root `migrate` runs from.
 Future<Directory> _evilClone(List<(String, String)> configLines) async {
   final base = await writeTree({
     'clone/keep.txt': '',
-    for (final MapEntry(:key, :value) in acmeLegacy.entries)
+    for (final MapEntry(:key, :value) in upgradeFiles().entries)
       'clone/evil/$key': value,
   });
   final clone = Directory('${base.path}/clone');
@@ -93,11 +94,12 @@ Future<Directory> _evilClone(List<(String, String)> configLines) async {
 Future<int> _migrate(
   Directory root,
   StringBuffer out, {
+  required Directory home,
   RunGit? runGit,
 }) async => await runMigrate(
   MigrateRequest(
     workingDirectory: root,
-    homeDirectory: testHome(),
+    homeDirectory: home,
     templates: TemplateResolver(),
     dryRun: false,
     confirmation: OwnerConfirmation.prompt,
@@ -122,10 +124,13 @@ Matcher _refusesAsNoWorkTree({String again = 'specstone migrate'}) => throwsA(
 
 void main() {
   late File marker;
+  late Directory home;
 
   setUp(() async {
     final scratch = await writeTree({'keep.txt': ''});
     marker = File('${scratch.path}/PWNED');
+    // The trust record below and the run share this one home.
+    home = acmeInTestHome();
   });
 
   final configs = {
@@ -149,7 +154,7 @@ void main() {
       final clone = await _evilClone(value(marker));
 
       await expectLater(
-        () => _migrate(clone, StringBuffer()),
+        () => _migrate(clone, StringBuffer(), home: home),
         _refusesAsNoWorkTree(),
       );
 
@@ -161,7 +166,12 @@ void main() {
       final clone = await _evilClone(value(marker));
 
       await expectLater(
-        () => _migrate(clone, StringBuffer(), runGit: _migrateOlderGit()),
+        () => _migrate(
+          clone,
+          StringBuffer(),
+          home: home,
+          runGit: _migrateOlderGit(),
+        ),
         _refusesAsNoWorkTree(),
       );
 
@@ -174,7 +184,12 @@ void main() {
       final evil = Directory('${clone.path}/evil');
 
       await expectLater(
-        () => _migrate(clone, StringBuffer(), runGit: _migrateOlderGit()),
+        () => _migrate(
+          clone,
+          StringBuffer(),
+          home: home,
+          runGit: _migrateOlderGit(),
+        ),
         _refusesAsNoWorkTree(),
         reason: 'the plan hash starts no git; the preflight refuses the clone',
       );
@@ -203,6 +218,7 @@ void main() {
         () => _migrate(
           clone,
           StringBuffer(),
+          home: home,
           runGit: _migrateOlderGit('not a version line'),
         ),
         _refusesAsNoWorkTree(),
@@ -214,7 +230,7 @@ void main() {
 
   group('a repository the project really lives in still runs', () {
     test('a normal work tree passes on a git before 2.38', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = await gitFixture(upgradeFiles());
 
       expect(
         () => requireGitWorkTree(root, _migrateOlderGit()),
@@ -224,7 +240,7 @@ void main() {
     }, skip: _skip);
 
     test('a linked work tree passes on a git before 2.38', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = await gitFixture(upgradeFiles());
       final scratch = Directory.systemTemp.createTempSync('specstone_wt_');
       addTearDown(() => scratch.deleteSync(recursive: true));
       final linked = Directory('${scratch.path}/linked');
@@ -238,7 +254,7 @@ void main() {
     }, skip: _skip);
 
     test('a project in a submodule passes on a git before 2.38', () async {
-      final inner = await gitFixture(acmeLegacy);
+      final inner = await gitFixture(upgradeFiles());
       final outer = await gitFixture({'keep.txt': ''});
       expect(
         git(outer, [
@@ -263,7 +279,7 @@ void main() {
 
     test('a project in a subfolder of a work tree passes', () async {
       final root = await gitFixture({
-        for (final MapEntry(:key, :value) in acmeLegacy.entries)
+        for (final MapEntry(:key, :value) in upgradeFiles().entries)
           'sub/$key': value,
       });
 

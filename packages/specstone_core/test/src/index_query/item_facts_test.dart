@@ -43,7 +43,6 @@ void main() {
     docPath: path,
     bytes: bytes ?? utf8.encode(text),
     match: matcher.match(path),
-    statusesOutside: true,
     idPrefixes: idPrefixes,
   );
   ItemFacts factsOf(String path, String text) =>
@@ -905,7 +904,6 @@ void main() {
       docPath: 'n.md',
       bytes: utf8.encode(text),
       match: MatchedDocType(noteType),
-      statusesOutside: true,
     ).content.itemFacts;
 
     test('a string value stores its sentences as one item and adds no item '

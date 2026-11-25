@@ -931,11 +931,7 @@ void main() {
     final docType = (run.project.matcher.match(
       'prds/features/f05_rendering/FEATURE.md',
     ) as MatchedDocType).docType;
-    String hashOf(String text) => approvalHashOf(
-      toLf(text),
-      docType,
-      statusesOutside: run.project.statusesOutsideApproval,
-    );
+    String hashOf(String text) => approvalHashOf(toLf(text), docType);
     final hash = hashOf(_featureOutOfOrder);
     final approved = '---\napproved: "$hash"\n---\n$_featureOutOfOrder';
     _file(run, _feature).writeAsStringSync(approved);

@@ -188,46 +188,15 @@ final _allowed = <_Allowed>[
     r"""RegExp(r'^### ([0-9]+[a-z]*)\. (.+)$'""",
     '`_stepHeading`: a StepNumber is no item ID.',
   ),
-  // Legacy readers: they read the pre-1.2.0 layout on purpose.
-  _core(
-    'setup_migration/legacy_rewrites.dart',
-    r"""RegExp(r'^- \*\*Human:\*\* (.+)$'""",
-    'Legacy reader of the pre-1.2.0 `**Human:**` line.',
-  ),
-  _core(
-    'setup_migration/legacy_rewrites.dart',
-    r"""RegExp('^${RegExp.escape(block.key)}(?=\\s*:)'""",
-    'Legacy reader: finds a frontmatter key line by name.',
-  ),
-  _core(
-    'setup_migration/legacy_tree.dart',
-    r"""RegExp(r'^:?-+:?$'""",
-    'Legacy reader: table delimiter cell, no reference.',
-  ),
   _core(
     'setup_migration/upgrade_plan.dart',
     r"""RegExp('^${RegExp.escape(block.key)}(?=\\s*:)'""",
     'Upgrade reader: finds a frontmatter key line by name.',
   ),
   _core(
-    'setup_migration/shared_copies_step.dart',
-    r"""RegExp(r'^\s*[\x27"]?fields[\x27"]?\s*:\s*(#.*)?$'""",
-    'Strip reader: checks a YAML `fields:` key line stands alone.',
-  ),
-  _core(
     'setup_migration/merge_doc_step.dart',
     ".indexOf(':'",
     'Merge reader: takes the text after a YAML key colon, no reference.',
-  ),
-  _core(
-    'setup_migration/models/label_tree.dart',
-    r"""RegExp( r'^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#{1,6}[ \t]+)?' r'(?:\|[ \t]*)?(?:\*\*|__|`)?' '${RegExp.escape(itemId)}(?![A-Za-z0-9])'""",
-    'Label pass reader: finds the line that declares an item ID.',
-  ),
-  _core(
-    'setup_migration/api_heading_labels.dart',
-    r"""RegExp(r'^###[ \t]+(`[^`]+`)[ \t]+—[ \t]+(.+?)[ \t]*$'""",
-    'Upgrade reader: splits an api operation heading at its dash.',
   ),
   // File-system paths, not references.
   _core(
@@ -419,38 +388,7 @@ final _rules = <_Rule>[
     remedy: 'Read the label through doc_model/number_label.dart.',
     pattern: _labelRead,
     exempt: {_lib('doc_model/number_label.dart')},
-    allowed: [
-      (
-        file: _lib('setup_migration/legacy_moves.dart'),
-        snippet: r"""RegExp( r'^(us\d+_[^/]+)/(?:(USER_STORY\.md)'""",
-        reason: 'Legacy story folder name in a legacy tree, no label text.',
-      ),
-      (
-        file: _lib('setup_migration/legacy_plan.dart'),
-        snippet: r"""RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$'""",
-        reason: 'Legacy FR file name in a legacy tree path, no label text.',
-      ),
-      (
-        file: _lib('setup_migration/first_fingerprints.dart'),
-        snippet: r"""RegExp( r'^us(\d+)(?:_([a-z0-9_]+))?/fr(\d+)(?:_([a-z0-9_]+))?$'""",
-        reason: 'Legacy story and FR folder names in a 1.1.0 entry, no label.',
-      ),
-      (
-        file: _lib('setup_migration/first_fingerprints.dart'),
-        snippet: r"""RegExp( r'^.*/us(\d+)_([^/]+)/functional_requirements/fr(\d+)_(.+)\.md$'""",
-        reason: 'Legacy FR file path in a legacy tree, no label text.',
-      ),
-      (
-        file: _lib('setup_migration/models/label_tree.dart'),
-        snippet: r"""RegExp(r'^us(\d+)_([a-z0-9_]+)$'""",
-        reason: 'Story folder name of a doc path, no label text.',
-      ),
-      (
-        file: _lib('setup_migration/models/label_tree.dart'),
-        snippet: r"""RegExp(r'^fr(\d+)_([a-z0-9_]+)\.md$'""",
-        reason: 'FR file name of a doc path, no label text.',
-      ),
-    ],
+    allowed: [],
     appliesTo: _everySource,
   ),
   (
@@ -462,13 +400,7 @@ final _rules = <_Rule>[
       r'''\x27`\x27|"`"|\x27~~~\x27|"~~~"|`{3}|0x60\b|0x7[Ee]\b''',
     ),
     exempt: {},
-    allowed: [
-      (
-        file: _lib('setup_migration/api_heading_labels.dart'),
-        snippet: "'`'",
-        reason: 'Unwraps one backtick pair of a table cell, no label.',
-      ),
-    ],
+    allowed: [],
     appliesTo: _readsLabels,
   ),
   (
@@ -489,35 +421,6 @@ final _rules = <_Rule>[
       r'''|loadYaml\w*\([^;)]*[aA]pproved''',
     ),
     exempt: {_approvalFile, _lib('index_query/indexed_doc.dart')},
-    allowed: [],
-    appliesTo: _everySource,
-  ),
-  (
-    name: 'the pin table of the approval stamps is read by two functions',
-    remedy:
-        'Ask stampsHaveRun in approval.dart; do not compare pins to '
-        'agentFilesSince again.',
-    pattern: RegExp(r'\bagentFilesSince\b'),
-    exempt: {_lib('setup_migration/agent_targets.dart'), _approvalFile},
-    allowed: [
-      (
-        file: _lib('setup_migration/upgrade_plan.dart'),
-        snippet: 'agentFilesSince',
-        reason:
-            'runsOneTimePasses reads the one version table stampsHaveRun '
-            'reads, to tell a pin that crosses it.',
-      ),
-    ],
-    appliesTo: _everySource,
-  ),
-  (
-    name: 'the 1.1.0 fingerprint is taken only by the stamp pass',
-    remedy: 'Call legacyFingerprintOf from setup_migration/stamp_pass.dart.',
-    pattern: RegExp(r'\blegacyFingerprintOf\b'),
-    exempt: {
-      _lib('consistency_check/fingerprint.dart'),
-      _lib('setup_migration/stamp_pass.dart'),
-    },
     allowed: [],
     appliesTo: _everySource,
   ),

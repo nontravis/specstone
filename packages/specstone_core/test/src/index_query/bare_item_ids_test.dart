@@ -33,7 +33,6 @@ List<BareItemId> _stored(List<int> bytes) => parseIndexedDoc(
     MergedSet(docTypes: [recordDocType(sections: const [])]),
     targetNames: const [],
   ).match(_recordPath),
-  statusesOutside: true,
   idPrefixes: {..._prefixes, scenarioRefPrefix},
 ).content.lineFacts.bareItemIds;
 

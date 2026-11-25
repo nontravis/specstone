@@ -6,15 +6,11 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_run.dart'
     show runCheck;
-import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
-    show fileCodeFingerprint, legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
-import 'package:specstone_core/src/doc_model/records_root.dart'
-    show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
@@ -33,18 +29,12 @@ import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentCursorPath, agentMdText, importBlock;
-import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    show agentFilesSince;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart'
     show MigrateRequest, runMigrate;
-import 'package:specstone_core/src/setup_migration/record_placement.dart'
-    show typeBeforeMoves;
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/models/migration_step.dart'
-    show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
@@ -54,37 +44,23 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart'
-    show checkOf, withApprovalHashes, writeCheckProject;
 import '../../helpers/git_repo.dart' show commitAll, git, hasGit;
 import '../../helpers/legacy_fixture.dart' show commitRepo;
-import '../../helpers/override_link_fixture.dart'
-    show
-        domainDoc,
-        linkKinds,
-        loginDomain,
-        overrideOfRoot,
-        rootAddress,
-        rootDomain,
-        rootFingerprint;
 import '../../helpers/posix_modes.dart';
-import '../../helpers/record_fixture.dart'
-    show oneTargetConfig, recordLayer, recordText, twinConfig;
+import '../../helpers/record_fixture.dart' show oneTargetConfig, twinConfig;
 import '../../helpers/rulebook_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart' show testHome;
 
-/// The approval hash by the rule of the pins an upgrade here starts from,
-/// which the stamp pass hashes by: every record fixture pins the shipped
-/// `software-tech` beside the pack it upgrades.
+/// The approval hash of [lf], the one the stamp pass hashes by.
 String _approvalHashBefore(String lf, MergedDocType? type) =>
-    approvalHashOf(lf, type, statusesOutside: shippedStatusesOutside);
+    approvalHashOf(lf, type);
 
 /// [lf] stamped with [_approvalHashBefore].
 String _stampedBefore(String lf, MergedDocType? type) =>
-    withApprovalHash(lf, type, statusesOutside: shippedStatusesOutside);
+    withApprovalHash(lf, type);
 
 const _runbookDoc = '''
 ---
@@ -163,29 +139,83 @@ PlannedRewrite _rewriteAt(RunPlan plan, String path) =>
 
 void main() {
   _agentFilesTests();
-  _renumberTests();
-  _labelTests();
+  _keepIdsAndLabelsTests();
   _stampTests();
-  _moveToRecordTests();
-  _moveListFieldTests();
   _treeMoveTests();
   _planInputTests();
   _testNameTests();
-  _codeStampTests();
-  _citeTests();
   _bulletLinesTests();
   _dropSectionTests();
-  _renameTechnicalDiagramTests();
   _renameStampTests();
   _addedPinsTests();
-  _dropDefaultLinesTests();
   _dropSharedLinesTests();
   _markRetrimTests();
-  _sharedCopiesTests();
   _matrixFoldTests();
   _mergeDocTests();
   _dropDocTypeTests();
   _relinkTests();
+
+  test('the --dry-run --json plans of an add over twin targets and of a '
+      'merge_doc step hold only the keys api:setup_migration/upgrade_packs '
+      'lists', () async {
+    Future<Set<String>> keysOf(
+      Directory project, {
+      Directory? home,
+      List<String> adds = const [],
+    }) async {
+      final root = _canonical(project);
+      commitRepo(root);
+      final out = StringBuffer();
+      final status = await runMigrate(
+        MigrateRequest(
+          workingDirectory: root,
+          homeDirectory: home ?? testHome(),
+          templates: TemplateResolver(),
+          dryRun: true,
+          asJson: true,
+          confirmation: OwnerConfirmation.prompt,
+          addedPacks: adds,
+          readLine: () => null,
+          warningLog: [],
+          out: out,
+        ),
+      );
+      expect(status, 0);
+      return (jsonDecode(out.toString()) as Map<String, Object?>).keys.toSet();
+    }
+
+    final added = await keysOf(
+      await _foldProject({
+        _foldFlutterRecord: _foldRecord(_foldEdgeRows),
+        _foldJasprRecord: _foldRecord(_foldEdgeRows),
+        'docs/specs/skills/review.md':
+            '# Review\n\n\n\n## Purpose\n\nReviews.\n',
+      }, config: twinConfig()),
+      adds: const ['agent-skills'],
+    );
+    final merge = await _mergeFixture(
+      overrides: const {_mergeLayerPath: 'sections: [{id: gone}]\n'},
+    );
+    final merged = await keysOf(merge.project, home: merge.home);
+
+    expect(
+      {...added, ...merged},
+      {
+        'plan',
+        'dirty',
+        'warnings',
+        'formatLayout',
+        'agentFiles',
+        'stamps',
+        'steps',
+        'mentions',
+        'keptLayers',
+        'matrixRows',
+        'addedPins',
+        'typedByAdd',
+      },
+    );
+  }, skip: hasGit ? null : 'git is not available');
 
   test('a dry run over a project holding a layer file of a doc type a '
       'merge_doc step folds prints its plan', () async {
@@ -206,20 +236,6 @@ void main() {
     final plan = _plan(fixture);
 
     expect(plan.toText(), contains('acme'));
-  });
-
-  test('agentFilesSince stays at the fixed versions, none past a shipped '
-      'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
-    final shipped = shippedPackVersions();
-    for (final entry in agentFilesSince.entries) {
-      final carried = PackVersion.parse(
-        shipped[entry.key]!,
-        file: 'shipped_pack_files',
-        key: entry.key,
-      );
-      expect(carried.compareTo(entry.value), greaterThanOrEqualTo(0));
-    }
-    expect(agentFilesSince['software-tech'].toString(), '1.4.0');
   });
 
   test('a move onto a staying doc refuses before anything '
@@ -708,7 +724,7 @@ sections:
     );
   });
 
-  test('an upgrade past the one-time run re-stamps an approved '
+  test('an upgrade re-stamps an approved '
       'doc its steps rewrite, so it stays approved', () async {
     final draftFixture = await _fixture(overrides: const {});
     final set = TemplateResolver().resolveCarried(
@@ -1232,24 +1248,22 @@ sections:
 
   test('verification: '
       'no plan line joins several paths', () async {
-    final plan = _planAt(await _belowSinceTree(_e18Docs()));
+    final plan = _planAt(await _oldPinsTree(_e18Docs()));
 
     final counted = RegExp(
       r'^  (format layout: \d+ docs'
-      r'|number labels: \d+ rewrites in \d+ files; left: \d+'
-      r'|renumber ids: \d+ IDs in \d+ docs(; not fully rewritten: \d+)?'
       r'|stamps: \d+ approval hashes, \d+ fingerprints(; skipped: \d+)?'
       r'|agent files: \d+ files'
       r'|mentions: \d+'
       r'|from \S+: .+: \d+ docs'
-      r'(; (\S+: )?\d+ entries)*(; unreadable: \d+)?)$',
+      r'(; (\S+: )?\d+ entries)*)$',
     );
     final passLines = plan
         .toText()
         .split('\n')
         .where(
           (line) => RegExp(
-            '^  (format layout:|number labels:|renumber ids:|stamps:'
+            '^  (format layout:|stamps:'
             '|agent files:|mentions:|from )',
           ).hasMatch(line),
         );
@@ -1442,10 +1456,9 @@ List<String> _stampRewrites(RunPlan plan) => [
     if (rewrite.path == '.specstone/config.yaml') rewrite.text,
 ];
 const _staleBlock = '$_begin\nold rules\n<!-- END specstone -->\n';
-const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
 
-/// Pins that sit past every one-time pass but below the cite rule's versions.
-const _betweenSinces = 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n';
+/// Pins older than the shipped versions.
+const _oldPins = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
 
 Directory _canonical(Directory directory) =>
     Directory(directory.resolveSymbolicLinksSync());
@@ -1458,116 +1471,55 @@ RunPlan _planAt(Directory project) => planUpgradeRun(
 
 void _agentFilesTests() {
   group('agent files step', () {
-    test('a pin below agentFilesSince writes every agent file once, '
-        'the Owner rules kept', () async {
+    test('a pin moving from its floor to a later version over a root whose '
+        'CLAUDE.md block the Owner deleted writes no block and no Cursor '
+        'rules file', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': _belowSince,
+        '.specstone/config.yaml': _oldPins,
         'CLAUDE.md': '# Owner rules\n',
       });
 
       final plan = _planAt(project);
 
-      final agents = plan.agentFiles!;
-      expect(agents.rootWrites.map((write) => write.path), [
-        '.specstone/AGENT.md',
-        'CLAUDE.md',
-        ...skillPaths(),
-      ]);
-      expect(agents.rootWrites[1].text, startsWith('# Owner rules\n'));
-      expect(agents.rootWrites[1].text, contains(_begin));
+      final writes = plan.agentFiles?.rootWrites ?? const [];
+      expect(writes.map((write) => write.path), isNot(contains('CLAUDE.md')));
       expect(
-        plan.toText(),
-        contains('agent files: ${2 + skillFileCount} files\n'),
+        writes.map((write) => write.path),
+        isNot(contains('.cursor/rules/specstone.mdc')),
       );
-      expect(plan.lists.agentFiles, [
-        '.specstone/AGENT.md',
-        'CLAUDE.md',
-        ...skillPaths(),
-      ]);
+      expect(plan.lists.agentFiles, isEmpty);
     });
 
-    test('software-tech moving up from 1.3.0 with prd-core already '
-        'at 1.7.0 writes every agent file once', () async {
+    test('a pin moving from the 1.8.0 and 1.6.0 floor to a later version '
+        'leaves an opted-out group unwritten and prints no cites line, its '
+        'JSON object holding no cites key', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _oldPins,
+        'CLAUDE.md': '# Owner rules\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles?.isEmpty ?? true, isTrue);
+      expect(plan.lists.agentFiles, isEmpty);
+      expect(plan.toText(), isNot(contains('cites:')));
+      expect(plan.lists.toJson(), isNot(contains('cites')));
+    });
+
+    test('a pin moving up gives a listed top no skill '
+        'write', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
-            'packs:\n  prd-core: 1.7.0\n  software-tech: 1.3.0\n',
-        'CLAUDE.md': '# Owner rules\n',
-      });
-
-      final plan = _planAt(project);
-
-      expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
-        '.specstone/AGENT.md',
-        'CLAUDE.md',
-        ...skillPaths(),
-      ]);
-      expect(
-        plan.toText(),
-        contains(
-          'software-tech 1.3.0 -> ${shippedPackVersions()['software-tech']}',
-        ),
-      );
-    });
-
-    test('a pin between agentFilesSince and the cite rule writes '
-        'every skill and agent file once and gains no block', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml': _betweenSinces,
-        'CLAUDE.md': '# Owner rules\n',
-      });
-
-      final plan = _planAt(project);
-
-      final agents = plan.agentFiles!;
-      expect(agents.rootWrites.map((write) => write.path), skillPaths());
-      expect(agents.topWrites, isEmpty);
-      expect(plan.toText(), contains('  agent files: $skillFileCount files\n'));
-      expect(plan.lists.agentFiles, skillPaths());
-    });
-
-    test('the one-time write reaches a listed top, its files '
-        'outside the root files', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml':
-            '$_betweenSinces'
+            '$_oldPins'
             'code_root: code\nagent_file_roots:\n  - code\n',
         'code/.git/HEAD': 'ref: refs/heads/main\n',
       });
 
       final plan = _planAt(project);
 
-      final agents = plan.agentFiles!;
-      expect(agents.rootWrites.map((write) => write.path), skillPaths());
-      expect(agents.topWrites.map((write) => write.path), skillPaths('code/'));
-      expect(agents.topWrites.every((write) => write.isAtTop), isTrue);
-      expect(agents.addedRoots, isEmpty);
-      expect(
-        plan.toText(),
-        contains('  agent files: ${2 * skillFileCount} files\n'),
-      );
-    });
-
-    test('commit 2 holds the root files and none of a top', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml':
-            '$_betweenSinces'
-            'code_root: code\nagent_file_roots:\n  - code\n',
-        'code/.git/HEAD': 'ref: refs/heads/main\n',
-      });
-
-      final plan = _planAt(project);
-
-      final steps = plan.journalSteps(
-        base: 'x',
-        projectRoot: _canonical(project),
-      );
-      final commit2 = steps.whereType<CommitStep>().last;
-      expect(commit2.paths, containsAll(skillPaths()));
-      expect(commit2.paths, isNot(contains(skillPaths('code/').first)));
-      expect(
-        steps.whereType<CreateStep>().map((step) => step.path),
-        containsAll(skillPaths('code/')),
-      );
+      expect(plan.agentFiles, isNotNull);
+      expect(plan.agentFiles!.topWrites, isEmpty);
+      expect(plan.lists.agentFiles, isEmpty);
     });
 
     test('pins equal and one hand-edited skill file is the '
@@ -1657,24 +1609,6 @@ void _agentFilesTests() {
       });
 
       expect(_planAt(project).agentFiles?.isEmpty ?? true, isTrue);
-    });
-
-    test('the one-time upgrade writes the Codex hooks file with the Codex '
-        'group, never trashed', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml': _betweenSinces,
-        'CLAUDE.md': '# Owner rules\n',
-      });
-
-      final plan = _planAt(project);
-
-      final write = plan.agentFiles!.rootWrites.singleWhere(
-        (write) => write.path == codexHooksFilePath,
-      );
-      expect(write.isNew, isTrue);
-      expect(write.text, codexHooksFileText);
-      expect(plan.lists.agentFiles, contains(codexHooksFilePath));
-      expect(plan.agentFiles!.trash, isEmpty);
     });
 
     for (final (name, stale) in [
@@ -1789,7 +1723,7 @@ void _agentFilesTests() {
       final outer = _canonical(
         await writeTree({
           'proj/.specstone/config.yaml':
-              '${_belowSince}agent_file_roots:\n  - ../other\n',
+              '${_oldPins}agent_file_roots:\n  - ../other\n',
           'other/.git/HEAD': 'ref: refs/heads/main\n',
         }),
       );
@@ -1891,21 +1825,6 @@ void _agentFilesTests() {
       expect(plan.lists.agentFiles, files);
       expect(plan.toText(), contains('  agent files: 2 files\n'));
       expect(plan.lists.toJson()['agentFiles'], files);
-    });
-
-    test('a pin equal to agentFilesSince refreshes, never the '
-        'one-time write', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml': shippedPinsConfig(),
-        'AGENTS.md': '# Owner rules\n',
-      });
-
-      final plan = _planAt(project);
-
-      // Refresh-only: no rules file gains a block and no file is created.
-      expect(plan.agentFiles!.rootWrites, isEmpty);
-      expect(plan.agentFiles!.topWrites, isEmpty);
-      expect(plan.agentFiles!.addedRoots, isEmpty);
     });
 
     test('a later upgrade never adds a deleted block or the rules '
@@ -2085,7 +2004,7 @@ void _agentFilesTests() {
         'keeps every other key', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
-            '${_belowSince}code_root: code\nagent_files_version: 1.0.0\n',
+            '${_oldPins}code_root: code\nagent_files_version: 1.0.0\n',
         'code/lib/a.dart': 'class A {}\n',
       });
 
@@ -2145,7 +2064,7 @@ void _agentFilesTests() {
 
     test('a stamp above the running Version stays as it is', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': '${_belowSince}agent_files_version: 9.0.0\n',
+        '.specstone/config.yaml': '${_oldPins}agent_files_version: 9.0.0\n',
       });
 
       final text = _stampRewrites(_planAt(project)).single;
@@ -2155,7 +2074,7 @@ void _agentFilesTests() {
 
     test('a refused AGENT.md write leaves the stamp as it was', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': '${_belowSince}agent_files_version: 1.0.0\n',
+        '.specstone/config.yaml': '${_oldPins}agent_files_version: 1.0.0\n',
         'CLAUDE.md': _importingClaude,
       });
       final outside = await writeTree({'outside/keep': 'x\n'});
@@ -2240,62 +2159,15 @@ void _agentFilesTests() {
         '<!-- BEGIN specstone v0.0.1 -->',
       );
       final project = await writeTree({
-        '.specstone/config.yaml': _betweenSinces,
+        '.specstone/config.yaml': _oldPins,
         '.specstone/AGENT.md': agentMdText,
         'CLAUDE.md': '# Owner rules\n\n$olderBlock',
       });
 
       final plan = _planAt(project);
 
-      expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
-        ...skillPaths(),
-      ]);
+      expect(plan.agentFiles?.rootWrites ?? const [], isEmpty);
       expect(plan.lists.agentFiles, isNot(contains('CLAUDE.md')));
-    });
-
-    test('a prd-core pin below 1.7.0 alone writes every agent file once, '
-        'as the one-time upgrade', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: 1.6.0\n'
-            '  software-tech: ${shippedPackVersions()['software-tech']}\n',
-        'CLAUDE.md': '# Owner rules\n',
-      });
-
-      final plan = _planAt(project);
-
-      final paths = ['.specstone/AGENT.md', 'CLAUDE.md', ...skillPaths()];
-      expect(plan.agentFiles!.rootWrites.map((write) => write.path), paths);
-      expect(plan.lists.agentFiles, paths);
-      expect(plan.toText(), contains('prd-core 1.6.0 -> '));
-      expect('  agent files:'.allMatches(plan.toText()), hasLength(1));
-      expect(
-        plan.toText(),
-        contains('  agent files: ${2 + skillFileCount} files\n'),
-      );
-    });
-
-    test('the one-time write at a listed top lands in that work tree, '
-        'outside both commits', () async {
-      final project = _canonical(
-        await writeTree({
-          '.specstone/config.yaml':
-              '${_belowSince}code_root: code\nagent_file_roots:\n  - code\n',
-          'code/.git/HEAD': 'ref: refs/heads/main\n',
-        }),
-      );
-
-      final plan = _planAt(project);
-
-      final topPaths = plan.agentFiles!.topWrites.map((write) => write.path);
-      expect(topPaths, skillPaths('code/'));
-      final steps = plan.journalSteps(base: 'x', projectRoot: project);
-      final commit2 = steps.whereType<CommitStep>().last;
-      expect(commit2.paths.where((path) => path.startsWith('code/')), isEmpty);
-      expect(
-        steps.whereType<CreateStep>().map((step) => step.path),
-        containsAll([for (final path in topPaths) endsWith(path)]),
-      );
     });
 
     test('a later upgrade leaves a deleted rules file deleted while it '
@@ -2316,10 +2188,10 @@ void _agentFilesTests() {
       expect(plan.lists.agentFiles, isNot(contains(agentCursorPath)));
     });
 
-    test('an import block with a missing AGENT.md and an older pin has '
+    test('an import block with a missing AGENT.md has '
         'commit 2 write it', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': _betweenSinces,
+        '.specstone/config.yaml': _oldPins,
         'CLAUDE.md': _importingClaude,
       });
 
@@ -2327,7 +2199,6 @@ void _agentFilesTests() {
 
       expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
         '.specstone/AGENT.md',
-        ...skillPaths(),
       ]);
       final commit2 = plan
           .journalSteps(base: 'x', projectRoot: _canonical(project))
@@ -2391,7 +2262,7 @@ void _agentFilesTests() {
 
     test('a malformed block refuses before the plan returns', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': _belowSince,
+        '.specstone/config.yaml': _oldPins,
         'AGENTS.md': '$_begin\nbody\n',
       });
 
@@ -2412,7 +2283,6 @@ void _agentFilesTests() {
 const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
 const _topicPath = 'specs/topics/doc_model.md';
 const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
-const _renumbered = '### Scenario 3 — [edge] lettered\n\n- **Given** g';
 
 const _topic = '''
 # Doc model
@@ -2463,16 +2333,25 @@ Map<String, String> _e18Docs({String topic = _topic}) => {
       '`../topics/doc_model.md` RULE-7a\n',
 };
 
-/// The project at [_belowSince] holding [docs], with the charter layer that
+/// The project at [_oldPins] holding [docs], with the charter layer that
 /// types its `specs/topics/` docs.
-Future<Directory> _belowSinceTree(Map<String, String> docs) => writeTree({
-  '.specstone/config.yaml': _belowSince,
+Future<Directory> _oldPinsTree(Map<String, String> docs) => writeTree({
+  '.specstone/config.yaml': _oldPins,
   charterLayerFile: charterLayer,
   for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
 });
 
-String _docText(RunPlan plan, String docPath) =>
-    _withoutStamp(_stampedDocText(plan, docPath));
+/// The text of [docPath] the plan writes, else the text it leaves on disk in
+/// [project].
+String _docText(RunPlan plan, Directory project, String docPath) {
+  final path = 'docs/$docPath';
+  final rewrites = plan.rewrites.where((rewrite) => rewrite.path == path);
+  return _withoutStamp(
+    rewrites.isEmpty
+        ? File('${project.path}/$path').readAsStringSync()
+        : rewrites.single.text,
+  );
+}
 
 String _stampedDocText(RunPlan plan, String docPath) =>
     _rewriteAt(plan, 'docs/$docPath').text;
@@ -2489,246 +2368,39 @@ String _withoutStamp(String text) => text
     .replaceAll(_approvedLine, '')
     .replaceFirstMapped(_emptyFrontmatter, (match) => match.group(1)!);
 
-void _renumberTests() {
-  group('renumber pass', () {
-    test('the upgrade renumbers each lettered ID once and rewrites '
-        'every reference, listed on one renumber ids line', () async {
-      final plan = _planAt(await _belowSinceTree(_e18Docs()));
+void _keepIdsAndLabelsTests() {
+  group('lettered IDs and number labels', () {
+    test('an upgrade from below the floor prints no renumber or label line, '
+        'holds no numberLabels or renumberIds key, and leaves the IDs and '
+        'labels as written', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _oldPins,
+        charterLayerFile: charterLayer,
+        for (final MapEntry(:key, :value) in _e18Docs().entries)
+          'docs/$key': value,
+        'docs/$_labelFeature': '# A\n',
+        'docs/specs/topics/labelled.md':
+            '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
+      });
+
+      final plan = _planAt(project);
 
       final text = plan.toText();
-      const line = '  renumber ids: 2 IDs in 5 docs\n';
-      expect(text, contains(line));
-      expect(plan.lists.renumberIds, [
-        '$_storyPath Scenario 6a -> Scenario 3',
-        '$_topicPath RULE-7a -> RULE-31',
-        _storyPath,
-        'prds/features/f01_a/us01_b/fr01_c.md',
-        'prds/features/f01_a/us01_b/fr02_g.md',
-        'specs/f01_a/ARCHITECTURE.md',
-        _topicPath,
-      ]);
-      expect(text.indexOf(line), lessThan(text.indexOf('  format layout: ')));
-      expect(text.indexOf(line), lessThan(text.indexOf('  agent files: ')));
+      expect(text, isNot(contains('renumber ids')));
+      expect(text, isNot(contains('number labels')));
+      final json = plan.lists.toJson();
+      expect(json, isNot(contains('numberLabels')));
+      expect(json, isNot(contains('renumberIds')));
       expect(
-        _docText(plan, _topicPath),
-        contains('- **RULE-31** — Lettered.\n'),
+        _docText(plan, project, _topicPath),
+        contains('- **RULE-7a** — Lettered.\n'),
       );
-      expect(_docText(plan, _storyPath), contains('$_renumbered\n'));
+      expect(_docText(plan, project, _storyPath), contains('### Scenario 6a'));
       expect(
-        _docText(plan, 'prds/features/f01_a/us01_b/fr01_c.md'),
-        allOf(
-          startsWith(
-            '---\ntraced_from:\n  - S3\nconfirmed:\n'
-            '  - S3 ${fingerprintOf(_renumbered)}\n---\n',
-          ),
-          // The cite pass after the renumber pass links the renumbered ID; a
-          // lettered ID is no item ID, so its cite links the doc alone.
-          contains(
-            '[RULE-31](../../../../specs/topics/doc_model.md#rules)\n'
-            '[charter:other_topic](../../../../specs/topics/other_topic.md) RULE-7a\n',
-          ),
-        ),
-      );
-      expect(
-        _docText(plan, 'specs/f01_a/ARCHITECTURE.md'),
-        contains(
-          '[rules](../topics/doc_model.md) RULE-31\n'
-          '[RULE-31](../topics/doc_model.md#rules)\n',
-        ),
+        _docText(plan, project, 'specs/topics/labelled.md'),
+        contains('See F-01 US-01 FR-01 and FR-09.\n'),
       );
     });
-
-    test('an untyped doc, whose links check reads too, takes '
-        'the new slug of a renumbered heading it links', () async {
-      const notesPath = 'prds/notes.md';
-      const link = 'See [it](features/f01_a/us01_b/USER_STORY.md#scenario-';
-      final plan = _planAt(
-        await _belowSinceTree({
-          ..._e18Docs(),
-          notesPath: '# Notes\n\n${link}6a--edge-lettered).\n',
-        }),
-      );
-
-      expect(
-        _docText(plan, notesPath),
-        '# Notes\n\n${link}3--edge-lettered).\n',
-      );
-      expect(plan.toText(), contains('  renumber ids: 2 IDs in 6 docs\n'));
-      expect(plan.lists.renumberIds, contains(notesPath));
-    });
-
-    test('a confirmed entry already suspect keeps its fingerprint '
-        'and takes the new label', () async {
-      final plan = _planAt(await _belowSinceTree(_e18Docs()));
-
-      expect(
-        _docText(plan, 'prds/features/f01_a/us01_b/fr02_g.md'),
-        startsWith(
-          '---\ntraced_from:\n  - S3\nconfirmed:\n  - S3 000000000000\n',
-        ),
-      );
-    });
-
-    test('the plan hash changes with the renumbered set', () async {
-      final both = await _belowSinceTree(_e18Docs());
-      final storyOnly = await _belowSinceTree(
-        _e18Docs(topic: _topic.replaceFirst('RULE-7a', 'RULE-7')),
-      );
-
-      final bothPlan = _planAt(both);
-      final storyOnlyPlan = _planAt(storyOnly);
-
-      expect(storyOnlyPlan.toText(), isNot(contains('RULE-7a -> RULE-31')));
-      expect(_hashOf(bothPlan), isNot(_hashOf(storyOnlyPlan)));
-    });
-
-    test('lettered and plain scenarios renumber to their positions in '
-        'document order', () async {
-      const story = '''
-# B
-
-## Acceptance Criteria
-
-### Scenario 7 — [happy] seven
-
-- **Given** g
-
-### Scenario 6a — [edge] a
-
-- **Given** g
-
-### Scenario 6b — [error] b
-
-- **Given** g
-''';
-
-      final plan = _planAt(await _belowSinceTree({_storyPath: story}));
-
-      expect(plan.toText(), contains('  renumber ids: 3 IDs in 1 docs\n'));
-      expect(plan.lists.renumberIds, [
-        '$_storyPath Scenario 7 -> Scenario 1',
-        '$_storyPath Scenario 6a -> Scenario 2',
-        '$_storyPath Scenario 6b -> Scenario 3',
-        _storyPath,
-      ]);
-      expect(
-        _docText(plan, _storyPath),
-        allOf(
-          contains('### Scenario 1 — [happy] seven\n'),
-          contains('### Scenario 2 — [edge] a\n'),
-          contains('### Scenario 3 — [error] b\n'),
-        ),
-      );
-    });
-
-    test('an upgrade that moves no pin from below agentFilesSince '
-        'renumbers nothing', () async {
-      final plan = _plan(await _fixture(docs: const {_topicPath: _topic}));
-
-      expect(plan.toText(), isNot(contains('renumber ids')));
-      expect(
-        plan.rewrites.map((rewrite) => rewrite.text),
-        everyElement(isNot(contains('RULE-31'))),
-      );
-    });
-
-    test('the pass reads each doc after the selected steps, so a '
-        'section a step renames is read under its template', () async {
-      const packYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - rename_section: {doc_type: user_story, from: {id: scenarios, header: Scenarios}, to: {id: acceptance_criteria, header: Acceptance Criteria}}
-''';
-      final home = await writeTree({
-        '.specstone/packs/acme/pack.yaml': packYaml,
-        '.specstone/packs/acme/runbook.yaml': _runbookType,
-      });
-      final project = await writeTree({
-        '.specstone/config.yaml': '$_belowSince  acme: 1.0.0\n',
-        'docs/$_storyPath':
-            '# B\n\n## Scenarios\n\n### Scenario 1 — [happy] one\n\n'
-            '- **Given** g\n\n### Scenario 1a — [edge] a\n\n- **Given** g\n',
-      });
-
-      final plan = planUpgradeRun(
-        _canonical(project),
-        templates: TemplateResolver(),
-        homeDirectory: home,
-      );
-
-      expect(plan.toText(), contains('  renumber ids: 1 IDs in 1 docs\n'));
-      expect(plan.lists.renumberIds, [
-        '$_storyPath Scenario 1a -> Scenario 2',
-        _storyPath,
-      ]);
-      expect(
-        _docText(plan, _storyPath),
-        contains(
-          '## Acceptance Criteria\n\n### Scenario 1 — [happy] one\n\n'
-          '- **Given** g\n\n### Scenario 2 — [edge] a\n',
-        ),
-      );
-    });
-
-    test(
-      'a CRLF story with a byte order mark keeps both, its FR and '
-      'journey step follow it, and a second upgrade changes nothing',
-      () async {
-        final bom = String.fromCharCode(0xFEFF);
-        const lettered = '### Scenario 6a — [edge] x\n\n- **Given** g';
-        final story =
-            '$bom# B\r\n\r\n## Acceptance Criteria\r\n\r\n'
-            '### Scenario 1 — [happy] one\r\n\r\n- **Given** g\r\n\r\n'
-            '${lettered.replaceAll('\n', '\r\n')}\r\n';
-        final fingerprint = fingerprintOf(lettered);
-        final project = await _belowSinceTree({
-          _storyPath: story,
-          'prds/features/f01_a/us01_b/fr01_c.md': _tracingFr(fingerprint),
-          'prds/journeys/go/JOURNEY.md':
-              '---\nconfirmed:\n  - a/b#S6a $fingerprint\n---\n# Go\n\n'
-              '## Steps\n\n### 1. Start\n\nstep: a/b S6a\n',
-        });
-
-        final plan = _planAt(project);
-
-        const renumbered = '### Scenario 2 — [edge] x\n\n- **Given** g';
-        expect(
-          _docText(plan, _storyPath),
-          allOf(
-            startsWith('$bom# B\r\n'),
-            contains('${renumbered.replaceAll('\n', '\r\n')}\r\n'),
-            isNot(matches(RegExp('[^\r]\n'))),
-          ),
-        );
-        expect(
-          _docText(plan, 'prds/features/f01_a/us01_b/fr01_c.md'),
-          contains('  - S2\nconfirmed:\n  - S2 ${fingerprintOf(renumbered)}\n'),
-        );
-        expect(
-          _docText(plan, 'prds/journeys/go/JOURNEY.md'),
-          allOf(
-            contains('  - a/b#S2 ${fingerprintOf(renumbered)}\n'),
-            contains('step: a/b S2\n'),
-          ),
-        );
-
-        for (final rewrite in plan.rewrites) {
-          File.fromUri(project.uri.resolve(rewrite.path))
-              .writeAsStringSync(rewrite.text);
-        }
-        final second = _planAt(project);
-
-        expect(second.toText(), isNot(contains('renumber ids')));
-        expect(
-          second.rewrites.map((rewrite) => rewrite.path),
-          everyElement(isNot(startsWith('docs/'))),
-        );
-      },
-    );
   });
 }
 
@@ -2745,12 +2417,10 @@ RunPlan _planWith(Directory project) => planUpgradeRun(
 Future<Directory> _labelTree(
   Map<String, String> docs, {
   Map<String, String> code = const {},
-  String pins = _belowSince,
-  Map<String, String> layers = const {},
+  String pins = _oldPins,
 }) => writeTree({
   '.specstone/config.yaml': pins,
   charterLayerFile: charterLayer,
-  ...layers,
   'docs/$_labelFeature': '# A\n',
   'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
   'docs/$_labelFr': '# C\n',
@@ -2760,133 +2430,15 @@ Future<Directory> _labelTree(
   ...code,
 });
 
-void _labelTests() {
-  group('label pass', () {
-    test('the upgrade converts each label in a doc and lists the '
-        'doc after the renumber line', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml': _belowSince,
-        charterLayerFile: charterLayer,
-        for (final MapEntry(:key, :value) in _e18Docs().entries)
-          'docs/$key': value,
-        'docs/$_labelFeature': '# A\n',
-        'docs/specs/topics/labelled.md':
-            '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
-      });
-
-      final plan = _planAt(project);
-
-      final text = plan.toText();
-      expect(
-        _docText(plan, 'specs/topics/labelled.md'),
-        contains(
-          'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and FR-09.',
-        ),
-      );
-      final lines = text.split('\n');
-      final renumber = lines.indexWhere((l) => l.startsWith('  renumber ids:'));
-      final labels = lines.indexWhere((l) => l.startsWith('  number labels:'));
-      expect(renumber, isNonNegative);
-      expect(labels, greaterThan(renumber));
-      expect(lines[labels], '  number labels: 1 rewrites in 1 files; left: 1');
-      expect(plan.lists.numberLabelsRewritten, ['specs/topics/labelled.md']);
-      expect(plan.lists.numberLabelsLeft, ['specs/topics/labelled.md:9 FR-09']);
-      expect(lines[labels + 1], startsWith('  '));
-      expect(
-        lines.indexWhere((l) => l.startsWith('  .specstone/config.yaml:')),
-        greaterThan(labels),
-      );
-    });
-
-    test('a doc keeps its line ending, byte order mark, and link '
-        'destinations', () async {
-      final project = await _labelTree({
-        'specs/topics/labelled.md': '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[F-01 US-01](../../prds/features/f01_a/us01_b/USER_STORY.md) and F-01.\r\n',
-      });
-
-      final text = _docText(_planWith(project), 'specs/topics/labelled.md');
-
-      expect(
-        text,
-        '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[`a/b`](../../prds/features/f01_a/us01_b/USER_STORY.md) and [feature:a](../../prds/features/f01_a/FEATURE.md).\r\n',
-      );
-    });
-
-    test('a run that is no one-time pass leaves every label', () async {
-      final project = await _labelTree({
-        'specs/topics/labelled.md': '# L\n\nF-01 here.\n',
-      }, pins: shippedPinsConfig());
-
-      final plan = _planWith(project);
-
-      expect(plan.toText(), isNot(contains('number labels:')));
-      expect(plan.rewrites.where((r) => r.path.contains('labelled')), isEmpty);
-    });
-
-    test("with code_root .. and code ./ the project's own docs "
-        'are docs, never code files left with labels', () async {
-      final base = await writeTree({
-        'specs/.specstone/config.yaml': '${_belowSince}code_root: ..\n',
-        'specs/docs/$_labelFeature': '# A\n',
-        'specs/docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
-        'specs/docs/$_labelFr': '# C\n',
-        'specs/docs/$_techStackPath': '---\ncode:\n  - ./\n---\n# Tech stack\n',
-        'specs/docs/notes/plan.md': 'See F-01 US-01.\n',
-        'lib/a.dart': '// F-01\n',
-      });
-      final project = Directory('${base.path}/specs');
-
-      final plan = _planWith(project);
-
-      expect(plan.toText(), isNot(contains('../specs/docs/')));
-      expect(_docText(plan, 'notes/plan.md'), contains('`a/b`'));
-    });
-
-    test('a left label is cited at its line in the text the run '
-        'writes, after the stamp adds its line', () async {
-      final project = await _labelTree({
-        'specs/topics/t.md': '---\ntraced_from: [S1]\n---\n# T\n\nSee FR-07.\n',
-      });
-
-      final plan = _planWith(project);
-
-      final written = _stampedDocText(plan, 'specs/topics/t.md');
-      final line =
-          written.split('\n').indexWhere((l) => l.contains('FR-07')) + 1;
-      expect(written, contains('approved: "'));
-      expect(line, greaterThan(6));
-      expect(plan.lists.numberLabelsLeft, ['specs/topics/t.md:$line FR-07']);
-    });
-  });
-}
-
 void _stampTests() {
   group('stamp pass', () {
     const frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
     final matched = fingerprintOf(_lettered);
 
-    test('the upgrade stamps each doc that counted as '
-        'approved and each matched entry once, after the layout pass, and '
-        'lists them on one stamps line', () async {
-      final plan = _planAt(await _belowSinceTree(_e18Docs()));
-
-      final text = plan.toText();
-      const line = '  stamps: 6 approval hashes, 1 fingerprints\n';
-      expect(text, contains(line));
-      expect(text.indexOf(line), greaterThan(text.indexOf('  renumber ids: ')));
-      expect(text.indexOf(line), lessThan(text.indexOf('  agent files: ')));
-      final fr = _stampedDocText(plan, frPath);
-      expect(fr, contains('  - S3 ${fingerprintOf(_renumbered)}\n'));
-      expect(
-        fr,
-        matches(RegExp(r'^approved: "[0-9a-f]{12}"$', multiLine: true)),
-      );
-    });
-
     test('a doc the upgrade leaves a draft is not stamped, and a '
         'tree with nothing to stamp prints no stamps line', () async {
       final plan = _planAt(
-        await _belowSinceTree({
+        await _oldPinsTree({
           _storyPath: '---\ndraft: true\n---\n# B\n',
           frPath: _tracingFr(matched)
               .replaceFirst('---\n', '---\ndraft: true\n'),
@@ -2899,7 +2451,7 @@ void _stampTests() {
     test('a doc left unstamped for its frontmatter is counted after '
         'skipped and listed in code point order', () async {
       final plan = _planAt(
-        await _belowSinceTree({
+        await _oldPinsTree({
           _storyPath: '---\ndraft: true\n: bad: [\n---\n# B\n',
           frPath: '---\ndraft: true\n: bad: [\n---\n# C\n',
         }),
@@ -2993,7 +2545,7 @@ void _planInputTests() {
     test('an edit to an agent file changes the hash', () async {
       final project = _canonical(
         await writeTree({
-          '.specstone/config.yaml': _belowSince,
+          '.specstone/config.yaml': _oldPins,
           'CLAUDE.md': '# Owner rules\n',
         }),
       );
@@ -3026,1509 +2578,11 @@ void _planInputTests() {
   });
 }
 
-const _recordPackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
-''';
-
-const _featurePath = 'prds/features/f01_login/FEATURE.md';
-const _loginStoryPath =
-    'prds/features/f01_login/us01_email_login/USER_STORY.md';
-const _loginFrPath =
-    'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
-const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
-const _shippedRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
-const _overrideFile = '.specstone/templates/implementation.yaml';
-
-const _implementedStory =
-    '---\nvision:\n  - PV-01\nstatus: implemented\nimplements:\n'
-    '  - app/lib/login/sign_in.dart:SignIn\n---\n# Email login\n';
-const _plannedFr = '---\nstatus: planned\n---\n# Validate credentials\n';
-const Map<String, String> _loginDocs = {
-  _featurePath: '# Login\n',
-  _loginStoryPath: _implementedStory,
-  _loginFrPath: _plannedFr,
-};
-
-Future<({Directory project, Directory home})> _recordFixture({
-  Map<String, String> docs = _loginDocs,
-  Map<String, String> extra = const {},
-  Map<String, String> packFiles = const {},
-  String packYaml = _recordPackYaml,
-  String layer = recordLayer,
-  String? config,
-}) async => (
-  home: await writeTree({
-    '.specstone/packs/acme/pack.yaml': packYaml,
-    '.specstone/packs/acme/implementation.yaml': layer,
-    ...packFiles,
-  }),
-  project: await writeTree({
-    '.specstone/config.yaml': config ?? _config('1.0.0'),
-    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
-    ...extra,
-  }),
-);
-
-MigrateFault _refusedPlan(({Directory project, Directory home}) fixture) {
-  try {
-    _plan(fixture);
-  } on MigrateFault catch (fault) {
-    return fault;
-  }
-  fail('expected the plan to refuse');
-}
-
 Map<String, Object?> _valuesOf(String text) =>
     frontmatterValuesOf(Doc.parse(text));
 
-/// [lf] stamped with the approval hash it has under the shipped packs as
-/// they stood before the `move_to_record` step: the type still declared
-/// `implements`, a field the hash leaves out.
-String _approvedUnderShipped(String lf, String docTypeId) => _stampedBefore(
-  lf,
-  typeBeforeMoves(
-    TemplateResolver()
-        .resolveCarried(
-          packNames: const ['prd-core', 'software-tech'],
-          homeDirectory: null,
-        )
-        .lookup(docTypeId)!,
-    [
-      MoveToRecord(
-        docTypes: [docTypeId],
-        fields: const ['status', 'implements'],
-        to: 'implementation',
-      ),
-    ],
-  ),
-);
-
-/// The doc type [docTypeId] of the fixture's packs at their available versions.
-MergedDocType _finalType(
-  ({Directory project, Directory home}) fixture,
-  String docTypeId,
-) => TemplateResolver()
-    .resolveCarried(
-      packNames: const ['prd-core', 'software-tech', 'acme'],
-      homeDirectory: fixture.home,
-    )
-    .lookup(docTypeId)!;
-
-void _moveToRecordTests() {
-  group('move_to_record step', () {
-    test('a story and an FR move their status and code paths into '
-        'a new draft record, and the plan names the record', () async {
-      final plan = _plan(await _recordFixture());
-
-      final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_recordPath',
-      );
-      expect(record.note, ' (draft)');
-      expect(_valuesOf(record.text), {
-        'draft': true,
-        'statuses': [
-          'email_login:implemented',
-          'email_login/validate_credentials:planned',
-        ],
-        'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
-      });
-      for (final path in [_loginStoryPath, _loginFrPath]) {
-        final text = _rewriteAt(plan, 'docs/$path').text;
-        expect(text, isNot(contains('status:')));
-        expect(text, isNot(contains('implements:')));
-      }
-      expect(_rewriteAt(plan, 'docs/$_loginStoryPath').text, contains('PV-01'));
-      final text = plan.toText();
-      expect(
-        text,
-        contains(
-          '  from 1.0.0: move_to_record user_story, fr status, implements '
-          '-> implementation: 2 docs\n',
-        ),
-      );
-      expect(text, contains('commit 2, creates:\n  $_recordPath (draft)\n'));
-    });
-
-    test('a feature with no story value gets no record, and the '
-        'step line counts no docs', () async {
-      final plan = _plan(
-        await _recordFixture(
-          docs: {
-            _featurePath: '# Login\n',
-            _loginStoryPath: '---\nvision:\n  - PV-01\n---\n# Email login\n',
-          },
-        ),
-      );
-
-      expect(plan.creates, isEmpty);
-      expect(plan.toText(), contains('-> implementation: 0 docs\n'));
-    });
-
-    test('a record that holds the story with the same values keeps '
-        'its entry, and the FR joins it', () async {
-      final plan = _plan(
-        await _recordFixture(
-          docs: {
-            ..._loginDocs,
-            _recordPath: recordText(
-              front: 'draft: true\n',
-              statuses: ['email_login:implemented'],
-              code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
-            ),
-          },
-        ),
-      );
-
-      expect(plan.creates, isEmpty);
-      final record = _rewriteAt(plan, 'docs/$_recordPath').text;
-      expect(_valuesOf(record), {
-        'draft': true,
-        'statuses': [
-          'email_login:implemented',
-          'email_login/validate_credentials:planned',
-        ],
-        'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
-      });
-      expect(
-        _rewriteAt(plan, 'docs/$_loginStoryPath').text,
-        isNot(contains('status:')),
-      );
-    });
-
-    test('a record that holds other values for the item refuses '
-        'value_unplaced, naming the doc and key', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          docs: {
-            ..._loginDocs,
-            _recordPath: recordText(statuses: ['email_login:planned']),
-          },
-        ),
-      );
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.exitStatus, 65);
-      expect(fault.code.wire, 'value_unplaced');
-      expect(fault.file, _loginStoryPath);
-      expect(fault.key, 'status');
-    });
-
-    test('a record that holds other code paths for the item '
-        'refuses on the code key', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          docs: {
-            ..._loginDocs,
-            _recordPath: recordText(
-              code: ['email_login:app/lib/login/other.dart'],
-            ),
-          },
-        ),
-      );
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _loginStoryPath);
-      expect(fault.key, 'implements');
-    });
-
-    group('a value with no place refuses before anything prints', () {
-      Future<MigrateFault> refuse(Map<String, String> docs) async =>
-          _refusedPlan(await _recordFixture(docs: docs));
-
-      test('a story with no parent feature', () async {
-        final fault = await refuse({_loginStoryPath: _implementedStory});
-
-        expect(fault.code, MigrateFaultCode.valueUnplaced);
-        expect(fault.file, _loginStoryPath);
-        expect(fault.key, 'status');
-      });
-
-      test('a status no entry takes', () async {
-        final fault = await refuse({
-          ..._loginDocs,
-          _loginFrPath: '---\nstatus: wip\n---\n# Validate credentials\n',
-        });
-
-        expect(fault.file, _loginFrPath);
-        expect(fault.key, 'status');
-        expect(fault.message, contains('wip'));
-      });
-
-      test('an implements value that is no list of code paths', () async {
-        final fault = await refuse({
-          ..._loginDocs,
-          _loginStoryPath: '---\nimplements:\n  a: b\n---\n# Email login\n',
-        });
-
-        expect(fault.file, _loginStoryPath);
-        expect(fault.key, 'implements');
-      });
-
-      test('a doc whose frontmatter is not valid YAML', () async {
-        final fault = await refuse({
-          ..._loginDocs,
-          _loginStoryPath:
-              '---\nstatus: implemented\nimplements: [a\n---\n# E\n',
-        });
-
-        expect(fault.file, _loginStoryPath);
-        expect(fault.key, 'status');
-      });
-
-      test('every offending doc is listed once, in doc order', () async {
-        final fault = await refuse({
-          ..._loginDocs,
-          _loginStoryPath: '---\nstatus: wip\nimplements: 4\n---\n# E\n',
-          _loginFrPath: '---\nstatus: later\n---\n# V\n',
-        });
-
-        expect(fault.toText().split('\n'), [
-          startsWith('$_loginStoryPath: status: '),
-          startsWith('$_loginFrPath: status: '),
-        ]);
-        expect(fault.more, hasLength(1));
-      });
-    });
-
-    test(
-      'a project architecture path in a folder of its own and '
-      'no implementation path writes the record override beside it',
-      () async {
-        for (final arch in [
-          'specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md',
-          'specs/{slug}/f{nn}_{slug}/ARCH.md',
-        ]) {
-          final plan = _plan(
-            await _recordFixture(
-              docs: {_featurePath: '# Login\n'},
-              extra: {
-                '.specstone/templates/architecture.yaml': 'path: $arch\n',
-              },
-            ),
-          );
-
-          final create = plan.creates.singleWhere(
-            (create) => create.path == _overrideFile,
-          );
-          expect(
-            create.text,
-            'path: specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md\n',
-          );
-          expect(plan.toText(), contains('  $_overrideFile\n'));
-        }
-      },
-    );
-
-    test('no override is written when the pack path already lies '
-        'beside architecture, or the Owner set the record path', () async {
-      final plain = _plan(await _recordFixture(docs: {_featurePath: '# L\n'}));
-      expect(plain.creates, isEmpty);
-
-      final owned = _plan(
-        await _recordFixture(
-          docs: {_featurePath: '# L\n'},
-          extra: {
-            '.specstone/templates/architecture.yaml':
-                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
-            _overrideFile: 'path: specs/{slug}/f{nn}_{slug}/IMPL.md\n',
-          },
-        ),
-      );
-      expect(owned.creates, isEmpty);
-    });
-
-    test('a folder at the record override path refuses '
-        'value_unplaced before any write', () async {
-      final fixture = await _recordFixture(
-        docs: {_featurePath: '# Login\n'},
-        extra: {
-          '.specstone/templates/architecture.yaml':
-              'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
-          '$_overrideFile/notes.md': '',
-        },
-      );
-
-      final fault = _refusedPlan(fixture);
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _overrideFile);
-    });
-
-    test('an architecture file named by the slug refuses '
-        'override_dangling before any write', () async {
-      final fixture = await _recordFixture(
-        docs: {_featurePath: '# L\n'},
-        extra: {
-          '.specstone/templates/architecture.yaml':
-              'path: specs/{slug}/f{nn}_{slug}.md\n',
-        },
-      );
-
-      final fault = _refusedPlan(fixture);
-
-      expect(fault.code, MigrateFaultCode.overrideDangling);
-      expect(fault.file, _overrideFile);
-      expect(fault.key, 'path');
-    });
-
-    test('a story and an FR approved before the run take the hash '
-        'of their new content, and the record stays a draft', () async {
-      final fixture = await _recordFixture(
-        docs: {
-          _featurePath: '# Login\n',
-          _loginStoryPath: _approvedUnderShipped(
-            _implementedStory,
-            'user_story',
-          ),
-          _loginFrPath: _approvedUnderShipped(_plannedFr, 'fr'),
-        },
-      );
-
-      final plan = _plan(fixture);
-
-      final story = _stampedDocText(plan, _loginStoryPath);
-      final fr = _stampedDocText(plan, _loginFrPath);
-      expect(
-        _valuesOf(story)['approved'],
-        _approvalHashBefore(story, _finalType(fixture, 'user_story')),
-      );
-      expect(
-        _valuesOf(fr)['approved'],
-        _approvalHashBefore(fr, _finalType(fixture, 'fr')),
-      );
-      expect(story, isNot(contains('status:')));
-      final record = plan.creates.single.text;
-      expect(_valuesOf(record), isNot(contains('approved')));
-      expect(_valuesOf(record)['draft'], true);
-      expect(
-        plan.toText(),
-        contains('stamps: 2 approval hashes, 0 fingerprints'),
-      );
-    });
-
-    test('the hash before the run counts the code field the final '
-        'type no longer declares, so the doc stays approved', () async {
-      final fixture = await _recordFixture(
-        docs: {
-          _featurePath: '# Login\n',
-          _loginStoryPath: _approvedUnderShipped(
-            _implementedStory,
-            'user_story',
-          ),
-        },
-      );
-      expect(
-        _finalType(fixture, 'user_story').fields.map((f) => f.id),
-        isNot(contains('implements')),
-      );
-
-      final plan = _plan(fixture);
-
-      final story = _stampedDocText(plan, _loginStoryPath);
-      expect(
-        _valuesOf(story)['approved'],
-        _approvalHashBefore(story, _finalType(fixture, 'user_story')),
-      );
-    });
-
-    test('a doc whose hash did not match keeps it, and a doc with '
-        'neither key gets no entry', () async {
-      final stale = _implementedStory.replaceFirst(
-        '---\n',
-        '---\napproved: "000000000000"\n',
-      );
-      final plan = _plan(
-        await _recordFixture(
-          docs: {
-            _featurePath: '# Login\n',
-            _loginStoryPath: stale,
-            _loginFrPath: '---\nvision: []\n---\n# Validate credentials\n',
-          },
-        ),
-      );
-
-      expect(
-        _valuesOf(_stampedDocText(plan, _loginStoryPath))['approved'],
-        '000000000000',
-      );
-      expect(_valuesOf(plan.creates.single.text)['statuses'], [
-        'email_login:implemented',
-      ]);
-    });
-
-    group('the shipped software-tech pack', () {
-      Future<Directory> shippedProject({
-        Map<String, String> extra = const {},
-      }) => writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.4.0\n',
-        for (final MapEntry(:key, :value) in _loginDocs.entries)
-          'docs/$key': value,
-        ...extra,
-      });
-
-      test('the move from 1.4.0 to the shipped version runs no one-time '
-          'pass and writes the skill and agent files alone, the '
-          'move_to_record and '
-          'stamp_code_fingerprints steps beside the passes every upgrade '
-          'runs', () async {
-        final project = await shippedProject(
-          extra: {'CLAUDE.md': '# Owner rules\n'},
-        );
-
-        final plan = _planAt(project);
-
-        final text = plan.toText();
-        expect(
-          text,
-          contains(
-            'software-tech 1.4.0 -> ${shippedPackVersions()['software-tech']}',
-          ),
-        );
-        expect(
-          text,
-          contains(
-            '  from 1.4.0: move_to_record user_story, fr status, implements '
-            '-> implementation: 2 docs\n',
-          ),
-        );
-        expect(
-          text,
-          contains(
-            '  from 1.6.0: stamp_code_fingerprints: 0 docs; 0 entries\n',
-          ),
-        );
-        expect(text, isNot(contains('renumber ids:')));
-        expect(text, isNot(contains('number labels:')));
-        // The move crosses the cite rule's version, so the run writes the skill
-        // and agent files alone: no block, rules file, or AGENT.md.
-        expect(text, contains('  agent files: $skillFileCount files\n'));
-        expect(
-          plan.agentFiles!.rootWrites.map((write) => write.path),
-          skillPaths(),
-        );
-        expect(plan.agentFiles!.topWrites, isEmpty);
-      });
-
-      test(
-        'a story and an FR move their status and code '
-        'paths into a new draft record of the shipped implementation type',
-        () async {
-          final plan = _planAt(await shippedProject());
-
-          final record = plan.creates.singleWhere(
-            (create) => create.path == _shippedRecordPath,
-          );
-          expect(record.note, ' (draft)');
-          expect(_valuesOf(record.text), {
-            'draft': true,
-            'statuses': [
-              'email_login:implemented',
-              'email_login/validate_credentials:planned',
-            ],
-            'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
-          });
-          for (final path in [_loginStoryPath, _loginFrPath]) {
-            final text = _rewriteAt(plan, 'docs/$path').text;
-            expect(text, isNot(contains('status:')));
-            expect(text, isNot(contains('implements:')));
-          }
-          expect(
-            plan.toText(),
-            contains('commit 2, creates:\n  $_shippedRecordPath (draft)\n'),
-          );
-        },
-      );
-
-      test('a story approved under the 1.4.0 pack, hashed with its '
-          'implements field as 1.4.0 declared it, stays approved after the '
-          'move', () async {
-        // The 1.4.0 `user_story` layer: `implements`, an exact output_ref.
-        const layer1x4 =
-            'fields:\n'
-            '  - id: implements\n'
-            '    type: output_ref\n'
-            '    list: true\n'
-            '    pointer: exact\n';
-        final stamped = withApprovalHashes({
-          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-          '.specstone/templates/user_story.yaml': layer1x4,
-          'docs/$_loginStoryPath': _implementedStory,
-        })['docs/$_loginStoryPath']!;
-        final oldHash = _valuesOf(stamped)['approved']! as String;
-        final project = await shippedProject(
-          extra: {'docs/$_loginStoryPath': stamped},
-        );
-
-        final plan = _planAt(project);
-
-        final story = _stampedDocText(plan, _loginStoryPath);
-        final values = _valuesOf(story);
-        expect(values, isNot(contains('draft')));
-        expect(values['approved'], isNot(oldHash));
-        expect(
-          values['approved'],
-          _approvalHashBefore(
-            story,
-            TemplateResolver()
-                .resolveCarried(
-                  packNames: const ['prd-core', 'software-tech'],
-                  homeDirectory: null,
-                )
-                .lookup('user_story'),
-          ),
-        );
-        expect(
-          plan.toText(),
-          contains('stamps: 1 approval hashes, 0 fingerprints'),
-        );
-      });
-
-      test('a software-tech pin above the move_to_record entry selects no '
-          'step, and the docs keep status and implements', () async {
-        final project = await writeTree({
-          '.specstone/config.yaml':
-              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-              '  software-tech: 1.5.0\n',
-          for (final MapEntry(:key, :value) in _loginDocs.entries)
-            'docs/$key': value,
-        });
-
-        final plan = _planAt(project);
-
-        final text = plan.toText();
-        expect(text, isNot(contains('from 1.4.0: move_to_record')));
-        expect(
-          plan.creates.map((create) => create.path),
-          isNot(contains(_shippedRecordPath)),
-        );
-        expect([
-          for (final rewrite in plan.rewrites)
-            if (rewrite.path == 'docs/$_loginStoryPath' ||
-                rewrite.path == 'docs/$_loginFrPath')
-              rewrite.text,
-        ], everyElement(allOf(contains('status:'), contains('implements:'))));
-      });
-
-      test('no override is written, since no project layer sets an '
-          'architecture path for the record to follow', () async {
-        final plan = _planAt(await shippedProject());
-
-        expect(
-          plan.creates.map((create) => create.path),
-          isNot(contains(_overrideFile)),
-        );
-        expect(
-          plan.rewrites.map((rewrite) => rewrite.path),
-          isNot(contains(_overrideFile)),
-        );
-      });
-    });
-
-    group('the shipped software-tech pack from 1.7.0', () {
-      const oldRecord = 'specs/f01_login/IMPLEMENTATION.md';
-      const newRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
-      const signIn = 'app/lib/login/sign_in.dart';
-      const signInCode = '// Sign in.\nclass SignIn {}\n\n';
-      final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
-      final current = fileCodeFingerprint(
-        utf8.encode(signInCode),
-        path: signIn,
-      );
-      final record = recordText(
-        statuses: ['email_login:implemented'],
-        code: ['email_login:$signIn:SignIn $legacy'],
-      );
-
-      Future<Directory> pinned1x7({
-        List<String> records = const [oldRecord],
-        String targets = '',
-        List<String> subFeatures = const [],
-      }) => writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.7.0\n$targets',
-        'docs/$_featurePath': '# Login\n',
-        'docs/$_loginStoryPath': '# Email login\n',
-        for (final folder in subFeatures) ...{
-          'docs/prds/features/f01_login/$folder/FEATURE.md': '# Sub\n',
-          'docs/prds/features/f01_login/$folder/us01_email_login/'
-                  'USER_STORY.md':
-              '# Email login\n',
-        },
-        for (final path in records) projectPathOfDocPath(path): record,
-        signIn: signInCode,
-      });
-
-      test('commit 1 moves each record to its path under .specstone/records/, '
-          'printed from the project root, and commit 2 restamps the moved '
-          'record', () async {
-        final plan = _planAt(await pinned1x7());
-
-        final text = plan.toText();
-        final version = shippedPackVersions()['software-tech'];
-        expect(text, contains('software-tech 1.7.0 -> $version'));
-        expect(
-          text,
-          contains('commit 1, moves:\n  $oldRecord -> $newRecord\n'),
-        );
-        expect(
-          text,
-          contains(
-            '  from 1.7.0: move_file implementation '
-            'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
-            '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md: 1 docs\n',
-          ),
-        );
-        expect(
-          text,
-          contains(
-            '  from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
-          ),
-        );
-        expect(plan.moves.map((move) => (move.from, move.to)), [
-          (oldRecord, newRecord),
-        ]);
-        expect(
-          _rewriteAt(plan, newRecord).text,
-          contains("  - 'email_login:$signIn:SignIn $current'\n"),
-        );
-        expect(plan.lists.toJson()['steps'], [
-          {
-            'from': '1.7.0',
-            'step':
-                'move_file implementation '
-                'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
-                '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
-            'paths': [newRecord],
-          },
-          {
-            'from': '1.7.0',
-            'step': 'restamp_code_fingerprints',
-            'paths': [newRecord],
-            'unreadable': <String>[],
-          },
-          {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
-          {'from': '1.14.0', 'step': 'mark_retrim', 'paths': <String>[]},
-          {
-            'from': '1.16.0',
-            'step':
-                'drop_section architecture, project_architecture '
-                'design_references',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.17.0',
-            'step':
-                'rename_section architecture component_diagram -> '
-                'technical_diagram',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.17.0',
-            'step':
-                'rename_section project_architecture component_diagram -> '
-                'technical_diagram',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.19.0',
-            'step': 'merge_doc error -> api',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.19.0',
-            'step': 'merge_doc project_error -> project_api',
-            'paths': <String>[],
-          },
-          {'from': '1.19.0', 'step': 'mark_retrim', 'paths': <String>[]},
-          {'from': '1.19.0', 'step': 'mark_retrim', 'paths': <String>[]},
-          {
-            'from': '1.20.0',
-            'step': 'move_to_record architecture covers -> implementation',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'merge_doc domain -> architecture',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'merge_doc project_domain -> project_architecture',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'merge_doc project_integration -> project_architecture',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'merge_doc auth -> security',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'merge_doc project_auth -> project_security',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'drop_section architecture, project_architecture concerns',
-            'paths': <String>[],
-          },
-          {
-            'from': '1.20.0',
-            'step': 'drop_doc_type topic',
-            'paths': <String>[],
-          },
-          {'from': '1.23.0', 'step': 'relink_merged_docs', 'paths': <String>[]},
-        ]);
-      });
-
-      test('a record already under .specstone/records/ moves to the first '
-          "target's folder, and its emptied folder is pruned from the "
-          'project root', () async {
-        final plan = _planAt(
-          await pinned1x7(
-            targets:
-                'targets:\n  flutter:\n    code_root: app\n'
-                '  jaspr:\n    code_root: web\n',
-            records: [newRecord],
-          ),
-        );
-
-        expect(plan.moves.map((move) => move.from), [newRecord]);
-        expect(plan.prunes, ['.specstone/records/f01_login']);
-      });
-
-      test('with two code targets each target moves its record to its folder '
-          'under .specstone/records/', () async {
-        final plan = _planAt(
-          await pinned1x7(
-            targets:
-                'targets:\n  flutter:\n    code_root: app\n'
-                '  jaspr:\n    code_root: web\n',
-            records: [
-              'specs/flutter/f01_login/IMPLEMENTATION.md',
-              'specs/jaspr/f01_login/IMPLEMENTATION.md',
-            ],
-          ),
-        );
-
-        expect(plan.moves.map((move) => move.to), [
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
-          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md',
-        ]);
-      });
-
-      test('a record of a sub-feature at every depth moves with its '
-          "feature's record, each kept under its own folder", () async {
-        const oldPaths = [
-          oldRecord,
-          'specs/f01_login/f01_sso/IMPLEMENTATION.md',
-          'specs/f01_login/f01_sso/f02_saml/IMPLEMENTATION.md',
-          'specs/f01_login/f01_sso/f02_saml/f03_okta/IMPLEMENTATION.md',
-        ];
-        final plan = _planAt(
-          await pinned1x7(
-            records: oldPaths,
-            subFeatures: [
-              'f01_sso',
-              'f01_sso/f02_saml',
-              'f01_sso/f02_saml/f03_okta',
-            ],
-          ),
-        );
-
-        expect(plan.moves.map((move) => (move.from, move.to)), [
-          (oldPaths[0], newRecord),
-          (
-            oldPaths[1],
-            '.specstone/records/f01_login/f01_sso/IMPLEMENTATION.md',
-          ),
-          (
-            oldPaths[2],
-            '.specstone/records/f01_login/f01_sso/f02_saml/IMPLEMENTATION.md',
-          ),
-          (
-            oldPaths[3],
-            '.specstone/records/f01_login/f01_sso/f02_saml/f03_okta/'
-                'IMPLEMENTATION.md',
-          ),
-        ]);
-        expect(
-          plan.toText(),
-          contains(
-            '  from 1.7.0: move_file implementation '
-            'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
-            '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md: 4 docs\n',
-          ),
-        );
-        expect(
-          plan.toText(),
-          contains(
-            '  from 1.7.0: restamp_code_fingerprints: 4 docs; 4 entries\n',
-          ),
-        );
-      });
-
-      test('with two code targets a sub-feature record moves to the first '
-          "target's folder", () async {
-        final plan = _planAt(
-          await pinned1x7(
-            targets:
-                'targets:\n  flutter:\n    code_root: app\n'
-                '  jaspr:\n    code_root: web\n',
-            records: [
-              'specs/f01_login/f01_sso/IMPLEMENTATION.md',
-              '.specstone/records/f01_login/f02_mfa/IMPLEMENTATION.md',
-            ],
-          ),
-        );
-
-        expect(
-          plan.moves.map((move) => move.to),
-          unorderedEquals([
-            '.specstone/records/flutter/f01_login/f01_sso/IMPLEMENTATION.md',
-            '.specstone/records/flutter/f01_login/f02_mfa/IMPLEMENTATION.md',
-          ]),
-        );
-      });
-    });
-
-    group('a software-tech 1.20.0 pin with a project architecture path', () {
-      Future<Directory> pinned1x20(String architecturePath) => writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.20.0\n',
-        '.specstone/templates/architecture.yaml': 'path: $architecturePath\n',
-        'docs/$_featurePath': '# Login\n',
-        'docs/$_loginArchitecturePath': _architectureDoc(['app/lib/login']),
-        _shippedRecordPath: recordText(statuses: ['email_login:implemented']),
-      });
-
-      test('writes no record override, since the record lies under '
-          '.specstone/records/, and the covers land in that record', () async {
-        final plan = _planAt(await pinned1x20(_shippedArchitecturePath));
-
-        expect(
-          plan.creates.map((create) => create.path),
-          isNot(contains(_overrideFile)),
-        );
-        expect(_valuesOf(_rewriteAt(plan, _shippedRecordPath).text), {
-          'statuses': ['email_login:implemented'],
-          'covers': ['app/lib/login'],
-        });
-      });
-
-      test('an architecture file named by the slug does not refuse', () async {
-        final plan = _planAt(await pinned1x20('specs/{slug}/f{nn}_{slug}.md'));
-
-        expect(
-          plan.creates.map((create) => create.path),
-          isNot(contains(_overrideFile)),
-        );
-      });
-    });
-
-    group('a software-tech 1.3.0 pin with a project architecture path '
-        'and no implementation path', () {
-      Future<Directory> pinned1x3(String architecturePath) => writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.3.0\n',
-        '.specstone/templates/architecture.yaml': 'path: $architecturePath\n',
-        'docs/$_featurePath': '# Login\n',
-      });
-
-      test('writes the record override beside architecture, since its '
-          'records lie in the spec folder', () async {
-        final plan = _planAt(
-          await pinned1x3('specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md'),
-        );
-
-        final create = plan.creates.singleWhere(
-          (create) => create.path == _overrideFile,
-        );
-        expect(
-          create.text,
-          'path: specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md\n',
-        );
-      });
-
-      test('an architecture file named by the slug refuses '
-          'override_dangling before any write', () async {
-        final fault = _refusedAt(
-          await pinned1x3('specs/{slug}/f{nn}_{slug}.md'),
-        );
-
-        expect(fault.code, MigrateFaultCode.overrideDangling);
-        expect(fault.file, _overrideFile);
-        expect(fault.key, 'path');
-      });
-    });
-
-    group('a software-tech 1.5.0 pin with a record in the spec folder, '
-        'a project architecture path, and no implementation path', () {
-      Future<Directory> pinned1x5(
-        String architecturePath, {
-        Map<String, String> docs = const {},
-      }) => writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.5.0\n',
-        '.specstone/templates/architecture.yaml': 'path: $architecturePath\n',
-        'docs/$_featurePath': '# Login\n',
-        'docs/$_recordPath': recordText(statuses: ['email_login:implemented']),
-        for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
-      });
-
-      test('moves the record to the override path, where it keeps its '
-          'statuses and takes the covers', () async {
-        const architecture = 'specs/features/f01_login/ARCHITECTURE.md';
-        const moved = 'specs/features/f01_login/IMPLEMENTATION.md';
-        final plan = _planAt(
-          await pinned1x5(
-            'specs/features/f{nn}_{slug}/ARCHITECTURE.md',
-            docs: {
-              architecture: _architectureDoc(['app/lib/login']),
-            },
-          ),
-        );
-
-        expect(plan.moves.map((move) => (move.from, move.to)), [
-          (_recordPath, moved),
-        ]);
-        expect(plan.creates.map((create) => create.path), [_overrideFile]);
-        expect(_valuesOf(_rewriteAt(plan, 'docs/$moved').text), {
-          'statuses': ['email_login:implemented'],
-          'covers': ['app/lib/login'],
-        });
-      });
-
-      test('an override path whose placeholders differ from the record '
-          'path refuses override_dangling before any write', () async {
-        final fault = _refusedAt(
-          await pinned1x5('specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md'),
-        );
-
-        expect(fault.code, MigrateFaultCode.overrideDangling);
-        expect(fault.file, _overrideFile);
-        expect(fault.key, 'path');
-        expect(fault.message, contains(_recordPath));
-      });
-    });
-
-    test('with no doc type holding record_status every value '
-        'refuses', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          packFiles: {
-            '.specstone/packs/acme/implementation.yaml':
-                'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-                'fields:\n  - {id: statuses, disabled: true}\n'
-                '  - {id: implements, disabled: true}\n',
-          },
-        ),
-      );
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _loginStoryPath);
-      expect(fault.message, contains('record_status'));
-      expect(fault.more, hasLength(1));
-    });
-
-    test('a record whose frontmatter is not valid YAML refuses '
-        'instead of losing its lines', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          docs: {..._loginDocs, _recordPath: '---\nstatuses: [a\n---\n# R\n'},
-        ),
-      );
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.message, contains('not valid YAML'));
-    });
-
-    test('a file at the record path the run cannot read as a '
-        'record refuses instead of losing the values', () async {
-      final fixture = await _recordFixture();
-      File('${fixture.project.path}/docs/$_recordPath')
-        ..parent.createSync(recursive: true)
-        ..writeAsBytesSync([0xff, 0xfe, 0x00]);
-
-      final fault = _refusedPlan(fixture);
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _loginStoryPath);
-      expect(fault.message, contains(_recordPath));
-      expect(fault.more, hasLength(1));
-    });
-
-    test('a record whose code block reads only beside another block '
-        'refuses instead of losing its lines', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          docs: {
-            ..._loginDocs,
-            _recordPath: "---\nanchor: &a ['x']\nimplements: *a\n---\n# R\n",
-          },
-        ),
-      );
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _loginStoryPath);
-      expect(fault.key, 'implements');
-      expect(
-        fault.message,
-        contains('the implements block of the record of login is not valid'),
-      );
-    });
-
-    test('a record type with no code field refuses a code path', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          packFiles: {
-            '.specstone/packs/acme/implementation.yaml':
-                'fields:\n  - {id: implements, disabled: true}\n',
-          },
-        ),
-      );
-
-      expect(fault.file, _loginStoryPath);
-      expect(fault.key, 'implements');
-    });
-
-    test('the refusal lists docs in doc order, whichever pass '
-        'found them', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          docs: {
-            ..._loginDocs,
-            _recordPath: recordText(statuses: ['email_login:planned']),
-            'prds/features/f02_pay/us01_card/USER_STORY.md':
-                '---\nstatus: implemented\n---\n# Card\n',
-          },
-        ),
-      );
-
-      expect(fault.file, _loginStoryPath);
-      expect(
-        fault.more.single.file,
-        'prds/features/f02_pay/us01_card/USER_STORY.md',
-      );
-    });
-
-    test('an approved record that gains entries is re-stamped, not '
-        'drafted', () async {
-      final probe = await _recordFixture();
-      final record = _stampedBefore(
-        recordText(
-          statuses: ['email_login:implemented'],
-          code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
-        ),
-        _finalType(probe, 'implementation'),
-      );
-      final fixture = await _recordFixture(
-        docs: {..._loginDocs, _recordPath: record},
-      );
-
-      final plan = _plan(fixture);
-
-      final text = _stampedDocText(plan, _recordPath);
-      expect(
-        _valuesOf(text)['approved'],
-        _approvalHashBefore(text, _finalType(fixture, 'implementation')),
-      );
-      expect(_valuesOf(text), isNot(contains('draft')));
-      expect(_valuesOf(text)['statuses'], hasLength(2));
-    });
-
-    test('below the statuses pin, an approved record that gains entries is '
-        're-stamped with the hash its new statuses give', () async {
-      final probe = await _recordFixture();
-      final type = _finalType(probe, 'implementation');
-      final record = withApprovalHash(
-        recordText(
-          statuses: ['email_login:implemented'],
-          code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
-        ),
-        type,
-        statusesOutside: false,
-      );
-      final fixture = await _recordFixture(
-        docs: {..._loginDocs, _recordPath: record},
-      );
-      pinStatusesBelow(fixture.project);
-
-      final plan = planUpgradeRun(
-        fixture.project,
-        templates: statusesBelowResolver,
-        homeDirectory: fixture.home,
-      );
-
-      final text = _stampedDocText(plan, _recordPath);
-      expect(
-        _valuesOf(text)['approved'],
-        approvalHashOf(text, type, statusesOutside: false),
-      );
-      expect(_valuesOf(text)['approved'], isNot(_valuesOf(record)['approved']));
-      expect(_valuesOf(text), isNot(contains('draft')));
-    });
-
-    test('a record layer without path refuses on that cause', () async {
-      final fault = _refusedPlan(
-        await _recordFixture(
-          docs: {_featurePath: '# L\n'},
-          extra: {
-            '.specstone/templates/architecture.yaml':
-                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
-            _overrideFile: 'description: Mine\n',
-          },
-        ),
-      );
-
-      expect(fault.code, MigrateFaultCode.overrideDangling);
-      expect(fault.file, _overrideFile);
-      expect(fault.message, contains('sets no path'));
-    });
-
-    test('a pack that is no one-time trigger runs no one-time '
-        'pass beside the step', () async {
-      final text = _plan(await _recordFixture()).toText();
-
-      expect(text, isNot(contains('renumber ids:')));
-      expect(text, isNot(contains('number labels:')));
-      expect(text, isNot(contains('agent files:')));
-    });
-  });
-}
-
-const _coversPackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - move_to_record: {doc_types: [architecture], fields: [covers], to: implementation}
-''';
-
-const _mixedPackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - move_to_record: {doc_types: [user_story, fr, architecture], fields: [status, implements, covers], to: implementation}
-''';
-
-const _coversLayer =
-    '$recordLayer'
-    '  - id: covers\n'
-    '    type: output_ref\n'
-    '    list: true\n'
-    '    pointer: prefix\n';
-
-/// [recordLayer] that disables the `covers` field the shipped record holds.
-const _noCoversLayer =
-    '$recordLayer'
-    '  - id: covers\n'
-    '    disabled: true\n';
-
-const _loginArchitecturePath = 'specs/f01_login/ARCHITECTURE.md';
-const _shippedArchitecturePath = 'specs/f{nn}_{slug}/ARCHITECTURE.md';
-const _tokenCode = 'app/lib/auth/token.dart';
-const _ownFingerprint = 'bbbbbbbbbbbb';
-const _docFingerprint = 'aaaaaaaaaaaa';
-
-String _architectureDoc(List<String> covers) =>
-    '---\ncovers:\n${[for (final line in covers) '  - $line\n'].join()}'
-    '---\n# Architecture\n';
-
-final String _defaultArchitecture = _architectureDoc([
-  'app/lib/login',
-  '$_tokenCode $_docFingerprint',
-]);
-
-Future<({Directory project, Directory home})> _coversFixture({
-  Map<String, String>? architectures,
-  Map<String, String> docs = const {},
-  Map<String, String> extra = const {},
-  String layer = _coversLayer,
-  String packYaml = _coversPackYaml,
-  bool withFeature = true,
-  String? config,
-}) => _recordFixture(
-  docs: {
-    ...docs,
-    if (withFeature) _featurePath: '# Login\n',
-    ...(architectures ?? {_loginArchitecturePath: _defaultArchitecture}),
-  },
-  extra: extra,
-  packYaml: packYaml,
-  layer: layer,
-  config: config,
-);
-
-String _architectureApproved(String lf) => _stampedBefore(
-  lf,
-  TemplateResolver()
-      .resolveCarried(
-        packNames: const ['prd-core', 'software-tech'],
-        homeDirectory: null,
-      )
-      .lookup('architecture'),
-);
-
-void _moveListFieldTests() {
-  group('move_to_record step on a list field of a spec doc', () {
-    test('the whole list lands in a new draft record the plan names, '
-        'and leaves the doc', () async {
-      final plan = _plan(await _coversFixture());
-
-      final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_recordPath',
-      );
-      expect(record.note, ' (draft)');
-      expect(_valuesOf(record.text), {
-        'draft': true,
-        'covers': ['app/lib/login', '$_tokenCode $_docFingerprint'],
-      });
-      expect(
-        _rewriteAt(plan, 'docs/$_loginArchitecturePath').text,
-        isNot(contains('covers:')),
-      );
-      expect(plan.toText(), contains('commit 2, creates:\n  $_recordPath'));
-    });
-
-    test('a doc whose only field was the moved list keeps no empty '
-        'frontmatter block', () async {
-      final plan = _plan(await _coversFixture());
-
-      expect(
-        _rewriteAt(plan, 'docs/$_loginArchitecturePath').text,
-        '# Architecture\n',
-      );
-    });
-
-    test('an emptied frontmatter goes with only the one blank line after '
-        'it', () async {
-      final plan = _plan(
-        await _coversFixture(
-          architectures: {
-            _loginArchitecturePath:
-                '---\ncovers:\n  - app/lib/login\n---\n\n\n# Architecture\n',
-          },
-        ),
-      );
-
-      expect(
-        _rewriteAt(plan, 'docs/$_loginArchitecturePath').text,
-        '\n# Architecture\n',
-      );
-    });
-
-    test('an entry whose prefix the record holds, with another '
-        'fingerprint, is skipped and the record keeps its own', () async {
-      final plan = _plan(
-        await _coversFixture(
-          docs: {
-            _recordPath:
-                '---\ndraft: true\ncovers:\n'
-                '  - $_tokenCode $_ownFingerprint\n---\n\n# Record\n',
-          },
-        ),
-      );
-
-      expect(plan.creates, isEmpty);
-      expect(_valuesOf(_rewriteAt(plan, 'docs/$_recordPath').text), {
-        'draft': true,
-        'covers': ['$_tokenCode $_ownFingerprint', 'app/lib/login'],
-      });
-      expect(
-        _rewriteAt(plan, 'docs/$_loginArchitecturePath').text,
-        isNot(contains('covers:')),
-      );
-    });
-
-    test('each of two targets fills the record of its own', () async {
-      const flutterRecord = 'docs/specs/flutter/f01_login/IMPLEMENTATION.md';
-      const jasprRecord = 'docs/specs/jaspr/f01_login/IMPLEMENTATION.md';
-      final plan = _plan(
-        await _coversFixture(
-          architectures: {
-            'specs/flutter/f01_login/ARCHITECTURE.md': _architectureDoc([
-              'flutter_ws/lib',
-            ]),
-            'specs/jaspr/f01_login/ARCHITECTURE.md': _architectureDoc([
-              'jaspr_ws/lib',
-            ]),
-          },
-          config:
-              '${_config('1.0.0')}targets:\n'
-              '  flutter:\n    code_root: flutter_ws\n'
-              '  jaspr:\n    code_root: jaspr_ws\n',
-        ),
-      );
-
-      Map<String, Object?> recordAt(String path) => _valuesOf(
-        plan.creates.singleWhere((create) => create.path == path).text,
-      );
-      expect(recordAt(flutterRecord), {
-        'draft': true,
-        'covers': ['flutter_ws/lib'],
-      });
-      expect(recordAt(jasprRecord), {
-        'draft': true,
-        'covers': ['jaspr_ws/lib'],
-      });
-    });
-
-    test('the doc keeps its approval and is not marked draft', () async {
-      final approved = _architectureApproved(
-        _architectureDoc(['app/lib/login']),
-      );
-      final plan = _plan(
-        await _coversFixture(architectures: {_loginArchitecturePath: approved}),
-      );
-
-      final fields = _valuesOf(_stampedDocText(plan, _loginArchitecturePath));
-      expect(fields['approved'], _valuesOf(approved)['approved']);
-      expect(fields, isNot(contains('draft')));
-    });
-
-    test('a record type with no covers field refuses value_unplaced, '
-        'naming the doc and key', () async {
-      final fault = _refusedPlan(await _coversFixture(layer: _noCoversLayer));
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _loginArchitecturePath);
-      expect(fault.key, 'covers');
-    });
-
-    test('a story value and a list field land in the one record of their '
-        'feature', () async {
-      final plan = _plan(
-        await _coversFixture(docs: _loginDocs, packYaml: _mixedPackYaml),
-      );
-
-      final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_recordPath',
-      );
-      expect(_valuesOf(record.text), {
-        'draft': true,
-        'statuses': [
-          'email_login:implemented',
-          'email_login/validate_credentials:planned',
-        ],
-        'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
-        'covers': ['app/lib/login', '$_tokenCode $_docFingerprint'],
-      });
-    });
-
-    test('a step that names status on a list-field doc leaves the status '
-        'in the doc, and only the path list moves', () async {
-      final plan = _plan(
-        await _coversFixture(
-          architectures: {
-            _loginArchitecturePath: _architectureDoc(['app/lib/login'])
-                .replaceFirst('---\n', '---\nstatus: planned\n'),
-          },
-          packYaml: _mixedPackYaml,
-        ),
-      );
-
-      expect(_valuesOf(_rewriteAt(plan, 'docs/$_loginArchitecturePath').text), {
-        'status': 'planned',
-      });
-      expect(_valuesOf(plan.creates.single.text), {
-        'draft': true,
-        'covers': ['app/lib/login'],
-      });
-    });
-
-    test('a record type with no covers field refuses the list doc alone, '
-        'not the story values beside it', () async {
-      final fault = _refusedPlan(
-        await _coversFixture(
-          docs: _loginDocs,
-          layer: _noCoversLayer,
-          packYaml: _mixedPackYaml,
-        ),
-      );
-
-      expect(fault.file, _loginArchitecturePath);
-      expect(fault.key, 'covers');
-      expect(fault.more, isEmpty);
-    });
-
-    test('a record type with neither a code nor a covers field lists the '
-        'code doc and the list doc in one refusal', () async {
-      final fault = _refusedPlan(
-        await _coversFixture(
-          docs: _loginDocs,
-          layer: '$_noCoversLayer  - {id: implements, disabled: true}\n',
-          packYaml: _mixedPackYaml,
-        ),
-      );
-
-      expect(
-        [fault, ...fault.more].map((each) => (each.file, each.key)),
-        unorderedEquals([
-          (_loginStoryPath, 'implements'),
-          (_loginArchitecturePath, 'covers'),
-        ]),
-      );
-    });
-
-    test('a list doc under no feature refuses value_unplaced', () async {
-      final fault = _refusedPlan(await _coversFixture(withFeature: false));
-
-      expect(fault.code, MigrateFaultCode.valueUnplaced);
-      expect(fault.file, _loginArchitecturePath);
-      expect(fault.message, contains('no feature holds this architecture'));
-    });
-
-    test('a project architecture path in a folder of its own and no '
-        'implementation path writes the record override', () async {
-      final plan = _plan(
-        await _coversFixture(
-          extra: {
-            '.specstone/templates/architecture.yaml':
-                'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
-          },
-        ),
-      );
-
-      expect(
-        plan.creates.singleWhere((create) => create.path == _overrideFile).text,
-        'path: specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md\n',
-      );
-    });
-  });
-}
-
 String _draftDoc(String title, [String body = '']) =>
     '---\ndraft: true\n---\n# $title\n$body';
-
-/// A config pinning `software-tech` at 1.4.0 over the targets `flutter` and
-/// `jaspr`, so the `move_to_record` step runs beside the tree move.
-String _oldPinTwinConfig() =>
-    'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-    '  software-tech: 1.4.0\n'
-    'targets:\n  flutter:\n    code_root: flutter_ws\n'
-    '  jaspr:\n    code_root: jaspr_ws\n';
 
 Future<Directory> _treeProject(
   Map<String, String> docs, {
@@ -4891,105 +2945,21 @@ sections:
         contains('## Procedure\n'),
       );
     });
-
-    group('with a pin change', () {
-      const architecturePath = 'specs/f01_login/ARCHITECTURE.md';
-
-      Future<Directory> project({Map<String, String> extra = const {}}) =>
-          _treeProject({
-            ..._loginDocs,
-            architecturePath: _draftDoc('Architecture'),
-            ...extra,
-          }, config: _oldPinTwinConfig());
-
-      test('the tree move comes first, and the record '
-          "a move_to_record step creates lands in the first target's folder, "
-          'none in the second', () async {
-        final plan = _planAt(await project());
-
-        expect(plan.moves, [
-          const PathMove(
-            from: architecturePath,
-            to: 'specs/flutter/f01_login/ARCHITECTURE.md',
-          ),
-        ]);
-        final record = plan.creates.singleWhere(
-          (create) => create.path.endsWith('IMPLEMENTATION.md'),
-        );
-        expect(
-          record.path,
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
-        );
-        expect(record.note, ' (draft)');
-        expect(_valuesOf(record.text)['statuses'], [
-          'email_login:implemented',
-          'email_login/validate_credentials:planned',
-        ]);
-        expect(plan.toText(), startsWith('pack upgrade: software-tech 1.4.0'));
-        expect(plan.toText(), contains('commit 1, moves:\n'));
-        expect(
-          plan.creates.map((create) => create.path),
-          isNot(contains(startsWith('.specstone/records/jaspr/'))),
-        );
-      });
-
-      test('a record at the one-target path moves first, and the '
-          'step adds its entries to it, not to a second record', () async {
-        final plan = _planAt(
-          await project(
-            extra: {
-              'specs/f01_login/IMPLEMENTATION.md': recordText(
-                front: 'draft: true\n',
-                statuses: ['email_login:implemented'],
-                code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
-              ),
-            },
-          ),
-        );
-
-        expect(
-          plan.moves.map((move) => move.to),
-          contains('.specstone/records/flutter/f01_login/IMPLEMENTATION.md'),
-        );
-        expect(plan.creates, isEmpty);
-        final record = _rewriteAt(
-          plan,
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
-        ).text;
-        expect(_valuesOf(record)['statuses'], [
-          'email_login:implemented',
-          'email_login/validate_credentials:planned',
-        ]);
-      });
-
-      test('a record only the second target holds does not stand '
-          "in for the first target's", () async {
-        final plan = _planAt(
-          await project(
-            extra: {
-              'specs/jaspr/f01_login/IMPLEMENTATION.md': recordText(
-                front: 'draft: true\n',
-                statuses: ['email_login:planned'],
-              ),
-            },
-          ),
-        );
-
-        expect(plan.creates.map((create) => create.path), [
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
-        ]);
-      });
-    });
   });
 }
 
-// MARK: - Test-name pass
+// MARK: - Test names
 
 const _testFile = 'app/test/auth_test.dart';
-const _testRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
 String _testSource(String name) =>
     "void main() {\n  test('$name', () {});\n}\n";
+
+const _featurePath = 'prds/features/f01_login/FEATURE.md';
+const _loginStoryPath =
+    'prds/features/f01_login/us01_email_login/USER_STORY.md';
+const _loginFrPath =
+    'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
 
 const Map<String, String> _plainLoginDocs = {
   _featurePath: '# Login\n',
@@ -4999,7 +2969,7 @@ const Map<String, String> _plainLoginDocs = {
 
 /// A committed git project: [docs] under `docs/` and [files] beside them.
 Future<Directory> _testNameProject({
-  String pins = _belowSince,
+  String pins = _oldPins,
   Map<String, String> docs = _plainLoginDocs,
   Map<String, String> files = const {},
 }) async {
@@ -5019,771 +2989,20 @@ RunPlan _planTestNames(Directory project) =>
     planUpgradeRun(project, templates: TemplateResolver(), homeDirectory: null);
 
 void _testNameTests() {
-  group('test-name pass', () {
-    test('the upgrade writes the line into a new draft record, '
-        'strips the name, and prints the tests line', () async {
+  group('test names', () {
+    test('an upgrade from a software-tech pin at the floor over test names '
+        'holding item IDs prints no tests line, holds no tests key, and '
+        'reads no test file', () async {
       final project = await _testNameProject(
         files: {_testFile: _testSource('f01/us01/fr01 rejects a wrong key')},
       );
 
       final plan = _planTestNames(project);
 
-      expect(
-        plan.toText(),
-        contains(
-          '  tests: 1 lines in 1 records; names: 1 rewritten in 1 files; '
-          'left: 0\n',
-        ),
-      );
-      final record = plan.creates.singleWhere(
-        (create) => create.path == _testRecordPath,
-      );
-      expect(record.note, ' (draft)');
-      expect(_valuesOf(record.text)['tests'], [
-        'email_login/validate_credentials:test/auth_test.dart',
-      ]);
-      expect(
-        plan.toText(),
-        contains('commit 2, creates:\n  $_testRecordPath (draft)\n'),
-      );
-      expect(
-        _rewriteAt(plan, _testFile).text,
-        _testSource('rejects a wrong key'),
-      );
-      expect(plan.lists.toJson()['tests'], {
-        'written': [
-          '$_testRecordPath email_login/validate_credentials:test/auth_test.dart',
-        ],
-        'rewritten': hasLength(1),
-        'left': isEmpty,
-      });
-    });
-
-    test('a run that finds no test name holds an empty tests object', () async {
-      final project = await _testNameProject(
-        files: {_testFile: _testSource('rejects a wrong key')},
-      );
-
-      final plan = _planTestNames(project);
-
-      expect(plan.lists.toJson()['tests'], {
-        'written': <Object?>[],
-        'rewritten': <Object?>[],
-        'left': <Object?>[],
-      });
-    });
-
-    test('the tests line follows the number labels line and comes '
-        'before the stamps line', () async {
-      final project = await _testNameProject(
-        docs: {
-          ..._plainLoginDocs,
-          'specs/topics/labelled.md':
-              '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01.\n',
-        },
-        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
-      );
-
-      final text = _planTestNames(project).toText();
-
-      final labels = text.indexOf('  number labels:');
-      final tests = text.indexOf('  tests:');
-      final stamps = text.indexOf('  stamps:');
-      expect(labels, isNonNegative);
-      expect(tests, greaterThan(labels));
-      expect(stamps, greaterThan(tests));
-    });
-
-    test('the pass runs after the step that writes a record, so the '
-        'step and the pass write one record', () async {
-      final project = await _testNameProject(
-        pins:
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.4.0\n',
-        docs: {..._loginDocs, _loginStoryPath: _implementedStory},
-        files: {_testFile: _testSource('login/email_login: signs in')},
-      );
-
-      final plan = _planTestNames(project);
-
-      final record = plan.creates.singleWhere(
-        (create) => create.path == _testRecordPath,
-      );
-      final values = _valuesOf(record.text);
-      expect(values['statuses'], [
-        'email_login:implemented',
-        'email_login/validate_credentials:planned',
-      ]);
-      expect(values['tests'], ['email_login:test/auth_test.dart']);
-    });
-
-    test('a record the move step creates stays a draft after the pass adds '
-        'its tests line', () async {
-      final project = await _testNameProject(
-        pins:
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.4.0\n',
-        docs: {..._loginDocs, _loginStoryPath: _implementedStory},
-        files: {_testFile: _testSource('login/email_login: signs in')},
-      );
-
-      final plan = _planTestNames(project);
-
-      final record = plan.creates.singleWhere(
-        (create) => create.path == _testRecordPath,
-      );
-      expect(record.note, ' (draft)');
-      final values = _valuesOf(record.text);
-      expect(values['draft'], isTrue);
-      expect(values['statuses'], isNotEmpty);
-      expect(values['tests'], ['email_login:test/auth_test.dart']);
-      expect(
-        plan.toText(),
-        contains('commit 2, creates:\n  $_testRecordPath (draft)\n'),
-      );
-    });
-
-    test('a file that gains a test name changes the plan text while the '
-        'plan hash stays off it', () async {
-      final project = await _testNameProject(
-        files: {
-          _testFile: _testSource('f01/us01/fr01 rejects'),
-          'app/test/other_test.dart': _testSource('rejects'),
-        },
-      );
-
-      final before = _planTestNames(project);
-      File('${project.path}/app/test/other_test.dart')
-          .writeAsStringSync(_testSource('f01/us01/fr01 also rejects'));
-      final after = _planTestNames(project);
-
-      expect(before.toText(), isNot(after.toText()));
-      expect(
-        before.toText(),
-        contains(
-          '  tests: 1 lines in 1 records; names: 1 rewritten in 1 files; '
-          'left: 0\n',
-        ),
-      );
-      expect(
-        after.toText(),
-        contains(
-          '  tests: 2 lines in 1 records; names: 2 rewritten in 2 files; '
-          'left: 0\n',
-        ),
-      );
-      expect(before.toText(), isNot(contains(_hashOf(before))));
-      expect(after.toText(), isNot(contains(_hashOf(after))));
-      expect(_hashOf(after), isNot(_hashOf(before)));
-    });
-
-    test('a run that finds no test name prints no tests line and '
-        'writes no record', () async {
-      final project = await _testNameProject(
-        files: {_testFile: _testSource('rejects a wrong key')},
-      );
-
-      final plan = _planTestNames(project);
-
-      expect(plan.toText(), isNot(contains('tests:')));
-      expect(plan.creates, isEmpty);
-    });
-
-    test('an upgrade past the release runs no pass', () async {
-      final project = await _testNameProject(
-        pins: shippedPinsConfig(),
-        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
-      );
-
-      final plan = _planTestNames(project);
-
       expect(plan.toText(), isNot(contains('tests:')));
       expect(plan.lists.toJson(), isNot(contains('tests')));
-    });
-
-    test('the plan hash binds each test file the pass reads', () async {
-      final project = await _testNameProject(
-        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
-      );
-
-      final before = _planTestNames(project);
-      File(
-        '${project.path}/$_testFile',
-      ).writeAsStringSync("${_testSource('f01/us01/fr01 rejects')}// edited\n");
-      final after = _planTestNames(project);
-
-      expect(before.inputs.lines, contains('$_testFile '));
-      expect(_hashOf(after), isNot(_hashOf(before)));
-    });
-
-    test('a tracked file that gains a test name moves the plan hash', () async {
-      final project = await _testNameProject(
-        files: {
-          _testFile: _testSource('f01/us01/fr01 rejects'),
-          'app/test/other_test.dart': _testSource('rejects'),
-        },
-      );
-
-      final before = _planTestNames(project);
-      File('${project.path}/app/test/other_test.dart')
-          .writeAsStringSync(_testSource('f01/us01/fr01 also rejects'));
-      final after = _planTestNames(project);
-
-      expect(_hashOf(after), isNot(_hashOf(before)));
-    });
-
-    test(
-      'a new tracked file holding no test name leaves the plan hash',
-      () async {
-        final project = await _testNameProject(
-          files: {_testFile: _testSource('f01/us01/fr01 rejects')},
-        );
-
-        final before = _planTestNames(project);
-        File('${project.path}/app/notes.txt').writeAsStringSync('notes\n');
-        commitAll(project, 'notes');
-        final after = _planTestNames(project);
-
-        expect(_hashOf(after), _hashOf(before));
-      },
-    );
-
-    test('a file git does not track is never read', () async {
-      final project = await _testNameProject();
-      File('${project.path}/app/test/new_test.dart')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync(_testSource('f01/us01/fr01 rejects'));
-
-      final plan = _planTestNames(project);
-
-      expect(plan.inputs.lines, isNot(contains('new_test.dart')));
-      expect(plan.toText(), isNot(contains('tests:')));
-    });
-
-    test('the text counts equal the lists the JSON plan holds, a '
-        'string that is no test name left out', () async {
-      final project = await _testNameProject(
-        files: {
-          _testFile:
-              "void main() {\n  test('f01/us01/fr01 a', () {});\n"
-              "  print('login/email_login started');\n"
-              "  print('f09/us09/fr09 old');\n}\n",
-        },
-      );
-
-      final plan = _planTestNames(project);
-
-      final json = plan.lists.tests!;
-      final rewritten = json['rewritten']! as List<Object?>;
-      expect(rewritten, hasLength(1));
-      expect(json['left'], isEmpty);
-      expect(
-        plan.toText(),
-        contains(
-          '  tests: 1 lines in 1 records; '
-          'names: ${rewritten.length} rewritten in 1 files; '
-          'left: 0\n',
-        ),
-      );
-    });
-  });
-}
-
-void _codeStampTests() {
-  group('stamp_code_fingerprints step', () {
-    const signIn = 'app/lib/login/sign_in.dart';
-    const signInCode = 'class SignIn {}\n';
-    const architecturePath = 'specs/f01_login/ARCHITECTURE.md';
-    final signInFingerprint = fileCodeFingerprint(
-      utf8.encode(signInCode),
-      path: signIn,
-    );
-
-    /// A project on the shipped prd-core and software-tech 1.6.0, whose
-    /// record and architecture doc name code with no fingerprint recorded.
-    Future<Directory> project({Map<String, String> extra = const {}}) =>
-        writeTree({
-          '.specstone/config.yaml':
-              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-              '  software-tech: 1.6.0\n',
-          'docs/$_featurePath': '# Login\n',
-          'docs/$_loginStoryPath': '# Email login\n',
-          'docs/$_recordPath': recordText(
-            statuses: ['email_login:implemented'],
-            code: ['email_login:$signIn:SignIn'],
-          ),
-          'docs/$architecturePath':
-              '---\ncovers:\n  - app/lib/\n---\n# Login architecture\n',
-          signIn: signInCode,
-          ...extra,
-        });
-
-    test('commit 2 writes each fingerprint, and the step line counts the '
-        'docs and entries with its paths and unreadable list', () async {
-      final plan = _planAt(await project());
-
-      expect(plan.moves.map((move) => move.to), [_shippedRecordPath]);
-      expect(
-        _rewriteAt(plan, _shippedRecordPath).text,
-        contains("  - 'email_login:$signIn:SignIn $signInFingerprint'\n"),
-      );
-      // The 1.20.0 entry moves the stamped covers into the record.
-      expect(
-        _rewriteAt(plan, _shippedRecordPath).text,
-        contains('covers:\n  - app/lib/ '),
-      );
-      expect(
-        _rewriteAt(plan, 'docs/$architecturePath').text,
-        isNot(contains('covers:')),
-      );
-      final text = plan.toText();
-      expect(
-        text,
-        contains(
-          'commit 2, rewrites:\n'
-          '  from 1.6.0: stamp_code_fingerprints: 1 docs; 2 entries\n',
-        ),
-      );
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.6.0',
-          'step': 'stamp_code_fingerprints',
-          'paths': [_shippedRecordPath],
-          'unreadable': <String>[],
-        },
-        {
-          'from': '1.7.0',
-          'step':
-              'move_file implementation '
-              'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
-              '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
-          'paths': [_shippedRecordPath],
-        },
-        {
-          'from': '1.7.0',
-          'step': 'restamp_code_fingerprints',
-          'paths': <String>[],
-          'unreadable': <String>[],
-        },
-        {'from': '1.13.0', 'step': 'drop_default_lines', 'paths': <String>[]},
-        {'from': '1.14.0', 'step': 'mark_retrim', 'paths': <String>[]},
-        {
-          'from': '1.16.0',
-          'step':
-              'drop_section architecture, project_architecture '
-              'design_references',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.17.0',
-          'step':
-              'rename_section architecture component_diagram -> '
-              'technical_diagram',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.17.0',
-          'step':
-              'rename_section project_architecture component_diagram -> '
-              'technical_diagram',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.19.0',
-          'step': 'merge_doc error -> api',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.19.0',
-          'step': 'merge_doc project_error -> project_api',
-          'paths': <String>[],
-        },
-        {'from': '1.19.0', 'step': 'mark_retrim', 'paths': <String>[]},
-        {'from': '1.19.0', 'step': 'mark_retrim', 'paths': <String>[]},
-        {
-          'from': '1.20.0',
-          'step': 'move_to_record architecture covers -> implementation',
-          'paths': [architecturePath],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc domain -> architecture',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc project_domain -> project_architecture',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc project_integration -> project_architecture',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc auth -> security',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc project_auth -> project_security',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'drop_section architecture, project_architecture concerns',
-          'paths': <String>[],
-        },
-        {'from': '1.20.0', 'step': 'drop_doc_type topic', 'paths': <String>[]},
-        {'from': '1.23.0', 'step': 'relink_merged_docs', 'paths': <String>[]},
-      ]);
-    });
-
-    test('the plan hash holds while no code file changes, and moves when a '
-        'named file changes or a covered folder gains one', () async {
-      final root = _canonical(await project());
-      final first = _hashOf(_planAt(root));
-
-      expect(_hashOf(_planAt(root)), first);
-
-      File('${root.path}/$signIn').writeAsStringSync('class SignIn {} \n');
-      final edited = _planAt(root);
-      expect(_hashOf(edited), isNot(first));
-      expect(
-        _rewriteAt(edited, _shippedRecordPath).text,
-        isNot(contains(signInFingerprint)),
-      );
-
-      final beforeAdd = _hashOf(edited);
-      File('${root.path}/app/lib/extra.dart').writeAsStringSync('// x\n');
-      expect(_hashOf(_planAt(root)), isNot(beforeAdd));
-    });
-
-    test('a record the move_to_record step creates in the same run takes '
-        'its fingerprints', () async {
-      final root = await writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-            '  software-tech: 1.4.0\n',
-        for (final MapEntry(:key, :value) in _loginDocs.entries)
-          'docs/$key': value,
-        signIn: signInCode,
-      });
-
-      final plan = _planAt(root);
-
-      final record = plan.creates.singleWhere(
-        (create) => create.path == _shippedRecordPath,
-      );
-      expect(_valuesOf(record.text)['implements'], [
-        'email_login:$signIn:SignIn $signInFingerprint',
-      ]);
-      expect(_valuesOf(record.text)['draft'], isTrue);
-      expect(
-        plan.toText(),
-        contains('  from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
-      );
-    });
-  });
-
-  group('restamp_code_fingerprints step', () {
-    const signIn = 'app/lib/login/sign_in.dart';
-    const signInCode = '// Sign in.\nclass SignIn {}\n\n';
-    final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
-    final current = fileCodeFingerprint(utf8.encode(signInCode), path: signIn);
-
-    String packWith(String steps) =>
-        'name: acme\nversion: 1.1.0\nextends: software-tech\n'
-        'migrations:\n  - from: 1.0.0\n    steps:\n$steps';
-
-    /// A project on the shipped pins and acme 1.0.0 whose record names
-    /// [code], run with acme's [steps].
-    Future<RunPlan> planWith(String steps, List<String> code) async {
-      final home = await writeTree({
-        '.specstone/packs/acme/pack.yaml': packWith(steps),
-      });
-      final project = await writeTree({
-        '.specstone/config.yaml': _config('1.0.0'),
-        'docs/$_featurePath': '# Login\n',
-        'docs/$_loginStoryPath': '# Email login\n',
-        _shippedRecordPath: recordText(
-          statuses: ['email_login:implemented'],
-          code: code,
-        ),
-        signIn: signInCode,
-      });
-      return planUpgradeRun(
-        _canonical(project),
-        templates: TemplateResolver(),
-        homeDirectory: home,
-      );
-    }
-
-    const restamp = '      - restamp_code_fingerprints: {}\n';
-    const stamp = '      - stamp_code_fingerprints: {}\n';
-
-    test('the line counts the docs and the links it restamps', () async {
-      final plan = await planWith(restamp, [
-        'email_login:$signIn:SignIn $legacy',
-      ]);
-
-      expect(
-        _rewriteAt(plan, _shippedRecordPath).text,
-        contains("  - 'email_login:$signIn:SignIn $current'\n"),
-      );
-      expect(_rewriteAt(plan, _shippedRecordPath).changes, [
-        'restamp code fingerprints',
-      ]);
-      expect(
-        plan.toText(),
-        contains(
-          'commit 2, rewrites:\n'
-          '  from 1.0.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
-        ),
-      );
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.0.0',
-          'step': 'restamp_code_fingerprints',
-          'paths': [_shippedRecordPath],
-          'unreadable': <String>[],
-        },
-      ]);
-    });
-
-    test('a suspect link leaves the line at no docs and no entries', () async {
-      final plan = await planWith(restamp, [
-        'email_login:$signIn:SignIn 0123456789ab',
-      ]);
-
-      expect(
-        plan.toText(),
-        contains(
-          '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
-        ),
-      );
-      expect(
-        plan.rewrites.where((rewrite) => rewrite.path.endsWith('.md')),
-        isEmpty,
-      );
-    });
-
-    test('a stamp step before it in the run leaves it nothing to restamp, '
-        'and the stamp keeps its text', () async {
-      final plan = await planWith('$stamp$restamp', [
-        'email_login:$signIn:SignIn $legacy',
-      ]);
-
-      expect(
-        _rewriteAt(plan, _shippedRecordPath).text,
-        contains("  - 'email_login:$signIn:SignIn $current'\n"),
-      );
-      expect(_rewriteAt(plan, _shippedRecordPath).changes, [
-        'stamp code fingerprints',
-      ]);
-      final text = plan.toText();
-      expect(
-        text,
-        contains('  from 1.0.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
-      );
-      expect(
-        text,
-        contains(
-          '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
-        ),
-      );
-    });
-  });
-}
-
-const _citePins = 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n';
-const _citeDomainPath = 'specs/f01_login/RULES.md';
-const _citeDomain =
-    '# Login rules\n\n## Invariants\n\n- **INV-6** One email.\n'
-    '- **INV-7** One account.\n';
-const _citeTopicPath = 'specs/topics/cites.md';
-
-/// The project layer of [_rulesLayer].
-const _rulesLayerFile = '.specstone/templates/rules.yaml';
-
-/// A per-feature doc of `INV-` invariants at a path no shipped step folds,
-/// which a pin below 1.20.0 would fold at `DOMAIN.md`.
-final String _rulesLayer = rulebookLayer
-    .replaceFirst('id: rulebook', 'id: rules')
-    .replaceFirst('/DOMAIN.md', '/RULES.md');
-
-/// A project pinned below the cite rule, holding [docs] beside the login
-/// feature and its rules doc.
-Future<Directory> _citeTree(
-  Map<String, String> docs, {
-  String pins = _citePins,
-}) => writeTree({
-  '.specstone/config.yaml': pins,
-  _rulesLayerFile: _rulesLayer,
-  charterLayerFile: charterLayer,
-  'docs/$_featurePath': '# Login\n',
-  'docs/$_citeDomainPath': _citeDomain,
-  for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
-});
-
-void _citeTests() {
-  group('cite pass', () {
-    test('the pass converts the label pass names after it, its '
-        'line between the number labels line and the stamps line', () async {
-      final project = await _labelTree(
-        {
-          'specs/f01_a/RULES.md': '# A\n\n## Invariants\n\n- **INV-1** One.\n',
-          'specs/topics/labelled.md':
-              '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and `rules:a` '
-              'INV-1.\n',
-        },
-        layers: {_rulesLayerFile: _rulesLayer},
-      );
-
-      final plan = _planWith(project);
-
-      expect(
-        _docText(plan, 'specs/topics/labelled.md'),
-        contains(
-          'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and '
-          '[INV-1](../f01_a/RULES.md#invariants).\n',
-        ),
-      );
-      final text = plan.toText();
-      final labels = text.indexOf('  number labels: ');
-      final cites = text.indexOf('  cites: 2 rewrites in 1 docs; left: 0\n');
-      final layout = text.indexOf('  format layout: ');
-      expect(labels, isNonNegative);
-      expect(cites, greaterThan(labels));
-      if (layout >= 0) expect(layout, greaterThan(cites));
-      expect(text.indexOf('  stamps: '), greaterThan(cites));
-    });
-
-    test('the tests line comes before the cites line', () async {
-      final project = await _testNameProject(
-        docs: {
-          ..._plainLoginDocs,
-          _citeTopicPath: '# Cites\n\n## Rules\n\n`feature:login`\n',
-        },
-        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
-      );
-
-      final text = _planTestNames(project).toText();
-
-      final tests = text.indexOf('  tests: ');
-      expect(tests, isNonNegative);
-      expect(text.indexOf('  cites: '), greaterThan(tests));
-    });
-
-    test('the cites line counts each form once, the docs it '
-        'rewrites, and each form it keeps, listed under the cites JSON key '
-        'right after numberLabels', () async {
-      final project = await _citeTree({
-        _citeTopicPath:
-            '# Cites\n\n## Rules\n\n`rules:login` INV-6 and INV-7\n\n'
-            'See `rules:login` INV-99.\n',
-      });
-
-      final plan = _planAt(project);
-
-      expect(
-        plan.toText(),
-        contains('  cites: 1 rewrites in 1 docs; left: 1\n'),
-      );
-      final written = _stampedDocText(plan, _citeTopicPath);
-      final line =
-          written.split('\n').indexWhere((l) => l.contains('INV-99')) + 1;
-      final json = plan.lists.toJson();
-      expect(json['cites'], {
-        'rewritten': [_citeTopicPath],
-        'left': ['$_citeTopicPath:$line rules:login'],
-      });
-      final keys = json.keys.toList();
-      expect(keys.indexOf('cites'), keys.indexOf('numberLabels') + 1);
-    });
-
-    test('a tree with no old cite form prints no cites line '
-        'and an empty cites object', () async {
-      final project = await _citeTree({
-        _citeTopicPath: '# Cites\n\n## Rules\n\nNo cites here.\n',
-      });
-
-      final plan = _planAt(project);
-
-      expect(plan.toText(), isNot(contains('cites:')));
-      expect(plan.lists.toJson()['cites'], {
-        'rewritten': <Object?>[],
-        'left': <Object?>[],
-      });
-    });
-
-    test('the stamp pass re-stamps a matched entry whose '
-        'block the pass rewrote, keeps a suspect one, and stamps the approval '
-        'of the doc it rewrote', () async {
-      const scenario =
-          '### Scenario 1 — [happy] Sign in\n\n'
-          '- **Given** the rule `rules:login` INV-6\n';
-      const linked =
-          '### Scenario 1 — [happy] Sign in\n\n'
-          '- **Given** the rule '
-          '[INV-6](../../../../specs/f01_login/RULES.md#invariants)\n';
-      const lockPath = 'prds/features/f01_login/us01_email_login/fr02_lock.md';
-      final storyType = TemplateResolver()
-          .resolveCarried(
-            packNames: const ['prd-core', 'software-tech'],
-            homeDirectory: null,
-          )
-          .lookup('user_story');
-      final project = await _citeTree({
-        _loginStoryPath: withApprovalHash(
-          '# Email login\n\n## Acceptance Criteria\n\n$scenario',
-          storyType,
-          statusesOutside: false,
-        ),
-        _loginFrPath:
-            '---\ntraced_from: [S1]\nconfirmed:\n'
-            '  - S1 ${fingerprintOf(scenario)}\n---\n# Validate\n',
-        lockPath:
-            '---\ntraced_from: [S1]\nconfirmed:\n  - S1 000000000000\n---\n'
-            '# Lock\n',
-      });
-
-      final plan = _planAt(project);
-
-      final story = _stampedDocText(plan, _loginStoryPath);
-      expect(story, contains(linked.split('\n\n').last));
-      expect(withApprovalHash(story, storyType, statusesOutside: true), story);
-      expect(
-        _stampedDocText(plan, _loginFrPath),
-        contains('  - S1 ${fingerprintOf(linked)}\n'),
-      );
-      expect(
-        plan.rewrites.where((rewrite) => rewrite.path == 'docs/$lockPath'),
-        isEmpty,
-      );
-      expect(plan.toText(), contains(', 1 fingerprints'));
-    });
-
-    test('an upgrade from the cite rule version or later '
-        'runs no cite pass', () async {
-      final fixture = await _fixture(
-        docs: {
-          'prds/runbooks/deploy/RUNBOOK.md': _runbookDoc,
-          _citeDomainPath: _citeDomain,
-          _citeTopicPath: '# Cites\n\n## Rules\n\n`domain:login` INV-6\n',
-        },
-      );
-
-      final plan = _plan(fixture);
-
-      expect(plan.toText(), isNot(contains('cites:')));
-      expect(
-        plan.rewrites.where(
-          (rewrite) => rewrite.path == 'docs/$_citeTopicPath',
-        ),
-        isEmpty,
-      );
+      expect(plan.inputs.lines, isNot(contains('$_testFile ')));
+      expect(plan.creates, isEmpty);
     });
   });
 }
@@ -6273,68 +3492,6 @@ fields:
 sections:
   - {id: procedure, header: Procedure, required: true}
 ''';
-
-void _renameTechnicalDiagramTests() {
-  group('the shipped software-tech 1.17.0 pin', () {
-    const fence =
-        '```mermaid\n'
-        'flowchart LR\n'
-        '  api["API (Dart)"] -->|"reads over HTTPS"| db[("Store")]\n'
-        '## Component diagram\n'
-        '    indented   line\n'
-        '\n'
-        '```\n';
-    const sequence =
-        '```mermaid\n'
-        'sequenceDiagram\n'
-        '  participant a as api\n'
-        '  a->>a: ping\n'
-        '```\n';
-    String doc(String title) =>
-        '# $title\n\n'
-        '## Component diagram\n\n$fence\n'
-        '## Interaction\n\n$sequence';
-
-    test('a software-tech pin at 1.17.0 renames the component diagram section and leaves an interaction section as written', () async {
-      final project = await writeTree({
-        '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
-          'software-tech: ${shippedPackVersions()['software-tech']}',
-          'software-tech: 1.17.0',
-        ),
-        'docs/$_featurePath': '# Login\n',
-        'docs/specs/f01_login/ARCHITECTURE.md': doc('Login architecture'),
-        'docs/specs/ARCHITECTURE.md': doc('Project architecture'),
-      });
-
-      final plan = _planAt(project);
-
-      for (final path in [
-        'docs/specs/f01_login/ARCHITECTURE.md',
-        'docs/specs/ARCHITECTURE.md',
-      ]) {
-        final text = _rewriteAt(plan, path).text;
-        expect(text, contains('## Technical diagram\n\n$fence'));
-        expect(text, isNot(contains('\n## Component diagram\n\n')));
-        expect(text, contains('## Interaction\n\n$sequence'));
-        expect(text, contains(fence));
-      }
-      expect(
-        plan.toText(),
-        contains(
-          '  from 1.17.0: rename_section architecture component_diagram -> '
-          'technical_diagram: 1 docs\n',
-        ),
-      );
-      expect(
-        plan.toText(),
-        contains(
-          '  from 1.17.0: rename_section project_architecture '
-          'component_diagram -> technical_diagram: 1 docs\n',
-        ),
-      );
-    });
-  });
-}
 
 void _renameStampTests() {
   group('rename steps on an approved doc', () {
@@ -6968,326 +4125,6 @@ migrations:
   });
 }
 
-const _stripPackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-shared_lines:
-  - {id: acme_no_status, text: Never write a status field.}
-  - {id: be_brief, text: Be brief.}
-migrations:
-  - from: 1.0.0
-    steps:
-      - strip_shared_copies: {}
-''';
-
-const _stripRunbookPath = '.specstone/templates/runbook.yaml';
-const _stripGuidePath = '.specstone/templates/guide.yaml';
-const _stripLedgerPath = '.specstone/templates/ledger.yaml';
-
-String _stripType(String id, {String? description}) =>
-    '''
-id: $id
-description: |-
-${(description ?? 'A $id.').split('\n').map((line) => '  $line').join('\n')}
-path: prds/${id}s/{slug}/${id.toUpperCase()}.md
-''';
-
-const _statusCopyOverride =
-    'description: |-\n  A runbook.\n  Never write a status field.\n';
-
-/// Three acme doc types; [runbookDescription] is the first one's description.
-String _stripTypes({String runbookDescription = 'A runbook.'}) => [
-  _stripType('runbook', description: runbookDescription),
-  _stripType('guide'),
-  _stripType('ledger'),
-].join('---\n');
-
-/// Three project overrides holding four copies in all, one file of them two.
-const Map<String, String> _stripOverrides = {
-  _stripGuidePath:
-      'description: |-\n  A guide.\n  Never write a status field.\n',
-  _stripLedgerPath: 'description: |-\n  A ledger.\n  Be brief.\n',
-  _stripRunbookPath:
-      'description: |-\n  A runbook.\n  Never write a status field.\n'
-      '  Be brief.\n',
-};
-
-/// A project and the personal pack home a strip test plans over.
-final class _StripFixture {
-  const new(this.project, this.home);
-
-  final Directory project;
-  final Directory home;
-}
-
-Future<_StripFixture> _stripFixture({
-  String packYaml = _stripPackYaml,
-  String? types,
-  Map<String, String> overrides = _stripOverrides,
-}) async {
-  final fixture = await _fixture(
-    packYaml: packYaml,
-    runbookType: types ?? _stripTypes(),
-    docs: const {},
-    overrides: overrides,
-  );
-  return _StripFixture(fixture.project, fixture.home);
-}
-
-RunPlan _planStrip(_StripFixture fixture) => planUpgradeRun(
-  fixture.project,
-  templates: TemplateResolver(),
-  homeDirectory: fixture.home,
-);
-
-void _sharedCopiesTests() {
-  group('strip_shared_copies step', () {
-    test('three stripped files and two kept copies print the step line, '
-        'then the left line, and list both under sharedCopies', () async {
-      final plan = _planStrip(
-        await _stripFixture(
-          types: _stripTypes(
-            runbookDescription:
-                'A runbook.\nNever write a status field.\nBe brief.',
-          ),
-        ),
-      );
-
-      expect(
-        plan.toText(),
-        contains(
-          '  from 1.0.0: strip_shared_copies: 3 docs\n'
-          '  shared copies left: 2\n',
-        ),
-      );
-      expect(plan.lists.toJson()['sharedCopies'], {
-        'stripped': [
-          '$_stripGuidePath:3 acme_no_status',
-          '$_stripLedgerPath:3 be_brief',
-          '$_stripRunbookPath:3 acme_no_status',
-          '$_stripRunbookPath:4 be_brief',
-        ],
-        'left': [
-          '~/.specstone/packs/acme/runbook.yaml:4 acme_no_status',
-          '~/.specstone/packs/acme/runbook.yaml:5 be_brief',
-        ],
-      });
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.0.0',
-          'step': 'strip_shared_copies',
-          'paths': [_stripGuidePath, _stripLedgerPath, _stripRunbookPath],
-        },
-      ]);
-      expect(
-        _rewriteAt(plan, _stripGuidePath).text,
-        'description: |-\n  A guide.\n',
-      );
-      expect(_rewriteAt(plan, _stripGuidePath).changes, [
-        'strip_shared_copies',
-      ]);
-      expect(
-        _rewriteAt(plan, _stripRunbookPath).text,
-        'description: |-\n  A runbook.\n',
-      );
-    });
-
-    test('a step that keeps no copy prints no left line and lists left as '
-        'empty', () async {
-      final plan = _planStrip(await _stripFixture());
-
-      expect(
-        plan.toText(),
-        contains('  from 1.0.0: strip_shared_copies: 3 docs\n'),
-      );
-      expect(plan.toText(), isNot(contains('shared copies left:')));
-      final copies =
-          plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
-      expect(copies['left'], <String>[]);
-      expect(copies['stripped'], hasLength(4));
-    });
-
-    test('a plan without the step holds no sharedCopies key', () async {
-      final plan = _plan(await _fixture());
-
-      expect(plan.lists.toJson(), isNot(contains('sharedCopies')));
-    });
-
-    test('a line equal to a pack line and a shared.yaml line is listed '
-        'under the pack line printed first', () async {
-      final plan = _planStrip(
-        await _stripFixture(
-          overrides: {
-            _stripRunbookPath: _statusCopyOverride,
-            '.specstone/templates/shared.yaml':
-                'shared_lines:\n'
-                '  - {id: mine, text: Never write a status field.}\n',
-          },
-        ),
-      );
-
-      final copies =
-          plan.lists.toJson()['sharedCopies']! as Map<String, Object?>;
-      expect(copies['stripped'], ['$_stripRunbookPath:3 acme_no_status']);
-    });
-
-    test('the removals sit in commit 2 beside the pins, and commit 1 is '
-        'absent', () async {
-      final fixture = await _stripFixture();
-      final plan = _planStrip(fixture);
-
-      final steps = plan.journalSteps(
-        base: 'abc',
-        projectRoot: fixture.project,
-      );
-
-      expect(plan.moves, isEmpty);
-      expect(steps.whereType<CommitStep>(), hasLength(1));
-      expect(
-        steps.whereType<CommitStep>().single.paths,
-        containsAll([_stripGuidePath, _stripLedgerPath, _stripRunbookPath]),
-      );
-      expect([
-        for (final step in steps.whereType<WriteStep>()) step.path,
-      ], containsAll([_stripGuidePath, _stripLedgerPath, _stripRunbookPath]));
-    });
-
-    test('a CRLF project file matches and keeps its line style', () async {
-      final fixture = await _stripFixture(
-        overrides: {
-          _stripGuidePath:
-              'description: |-\r\n  A guide.\r\n'
-              '  Never write a status field.\r\n',
-        },
-      );
-
-      final plan = _planStrip(fixture);
-
-      expect(
-        _rewriteAt(plan, _stripGuidePath).text,
-        'description: |-\r\n  A guide.\r\n',
-      );
-    });
-
-    test('a field copy of a shared field is stripped with its entry', () async {
-      const packYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-shared_fields:
-  - id: note
-    type: string
-    description: A note.
-    for_doc_types: [runbook]
-migrations:
-  - from: 1.0.0
-    steps:
-      - strip_shared_copies: {}
-''';
-      final plan = _planStrip(
-        await _stripFixture(
-          packYaml: packYaml,
-          overrides: {
-            _stripRunbookPath:
-                'fields:\n'
-                '  - id: owner\n'
-                '    type: string\n'
-                '  - type: string\n'
-                '    id: note\n'
-                '    description: A note.\n',
-          },
-        ),
-      );
-
-      expect(
-        _rewriteAt(plan, _stripRunbookPath).text,
-        'fields:\n  - id: owner\n    type: string\n',
-      );
-      expect(
-        (plan.lists.toJson()['sharedCopies']!
-            as Map<String, Object?>)['stripped'],
-        ['$_stripRunbookPath:5 note'],
-      );
-    });
-
-    test('a line shared.yaml disabled is never stripped', () async {
-      final plan = _planStrip(
-        await _stripFixture(
-          overrides: {
-            _stripRunbookPath: _statusCopyOverride,
-            '.specstone/templates/shared.yaml':
-                'shared_lines:\n  - {id: acme_no_status, disabled: true}\n',
-          },
-        ),
-      );
-
-      expect(
-        plan.rewrites.map((rewrite) => rewrite.path),
-        isNot(contains(_stripRunbookPath)),
-      );
-      expect(
-        plan.toText(),
-        contains('  from 1.0.0: strip_shared_copies: 0 docs\n'),
-      );
-    });
-
-    test('a file a rename step and the strip both change gets one rewrite '
-        'holding both changes', () async {
-      final plan = _planStrip(
-        await _stripFixture(
-          packYaml: _stripPackYaml.replaceFirst(
-            '      - strip_shared_copies: {}',
-            '      - rename_field: {doc_type: runbook, from: owner, '
-                'to: on_call}\n'
-                '      - strip_shared_copies: {}',
-          ),
-          overrides: {
-            _stripRunbookPath:
-                'description: |-\n  A runbook.\n  Never write a status field.\n'
-                'fields:\n  - {id: owner, type: string}\n',
-          },
-        ),
-      );
-
-      final rewrite = _rewriteAt(plan, _stripRunbookPath);
-      expect(
-        rewrite.text,
-        'description: |-\n  A runbook.\n'
-        'fields:\n  - {id: on_call, type: string}\n',
-      );
-      expect(rewrite.changes, [
-        'rename_field runbook owner -> on_call',
-        'strip_shared_copies',
-      ]);
-    });
-
-    test('the plan hash changes when a stripped copy moves to another line, '
-        'though the printed count stays', () async {
-      final fixture = await _stripFixture(
-        overrides: const {
-          _stripGuidePath:
-              'description: |-\n  A guide.\n  Never write a status field.\n',
-        },
-      );
-      final first = _planStrip(fixture);
-
-      File('${fixture.project.path}/$_stripGuidePath').writeAsStringSync(
-        'description: |-\n  A guide.\n  More.\n  Never write a status field.\n',
-      );
-      final second = _planStrip(fixture);
-
-      expect(second.toText(), first.toText());
-      expect(
-        (second.lists.toJson()['sharedCopies']!
-            as Map<String, Object?>)['stripped'],
-        ['$_stripGuidePath:4 acme_no_status'],
-      );
-      expect(_hashOf(second), isNot(_hashOf(first)));
-    });
-  });
-}
-
 // MARK: - Matrix fold pass
 
 const _foldFr = 'email_login/validate_credentials';
@@ -7367,16 +4204,10 @@ void _matrixFoldTests() {
       expect(plan.lists.toJson(), isNot(contains('matrixRows')));
     });
 
-    test('plans no fold for a record already folded, under a pin below '
-        'shipped', () async {
-      final project = await _foldProject(
-        {
-          _foldFlutterRecord: _foldRecord([_foldedRow]),
-        },
-        config:
-            '${shippedPinsOneMinorBelow('software-tech')}'
-            'verification_coverage: fr\n',
-      );
+    test('plans no fold for a record already folded', () async {
+      final project = await _foldProject({
+        _foldFlutterRecord: _foldRecord([_foldedRow]),
+      }, config: '${twinConfig()}verification_coverage: fr\n');
 
       final plan = _planAt(project);
 
@@ -7403,31 +4234,6 @@ void _matrixFoldTests() {
         expect(plan.lists.toJson(), isNot(contains('matrixRows')));
       },
     );
-
-    test('lists the matrix rows line after the tests line and before the '
-        'cites line', () async {
-      final project = await _testNameProject(
-        docs: {
-          ..._plainLoginDocs,
-          _citeTopicPath: '# Cites\n\n## Rules\n\n`feature:login`\n',
-        },
-        files: {
-          _testFile: _testSource('f01/us01/fr01 rejects'),
-          _testRecordPath: _foldRecord(_foldEdgeRows),
-        },
-      );
-
-      final text = _planTestNames(project).toText();
-
-      final tests = text.indexOf('  tests: ');
-      final matrix = text.indexOf(
-        '  matrix rows: 2 rows folded into 1 rows in 1 records\n',
-      );
-      final cites = text.indexOf('  cites: ');
-      expect(tests, isNonNegative);
-      expect(matrix, greaterThan(tests));
-      expect(cites, greaterThan(matrix));
-    });
 
     test('leaves approval fields as they were when it folds', () async {
       final type = TemplateResolver()
@@ -7458,30 +4264,12 @@ void _matrixFoldTests() {
   });
 }
 
-const _dropPackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - drop_default_lines: {doc_types: [rulebook]}
-''';
-
-const _domainOverridePath = '.specstone/templates/rulebook.yaml';
-
 /// The acme doc types of the drop and retrim fixtures: the runbook, and the
 /// rulebook pair standing in for the per-feature and project rule docs.
 const _rulebookTypes =
     '$_runbookType---\n$rulebookLayer---\n$projectRulebookLayer';
 
-String _domainOverride(String lint) =>
-    'sections: [{id: invariants, lint: $lint}]\n';
-
 const _loginPath = 'specs/f01_login/DOMAIN.md';
-const _resetPath = 'specs/f01_login/f01_reset/DOMAIN.md';
-const _payPath = 'specs/f02_pay/DOMAIN.md';
-const _projectDomainPath = 'specs/DOMAIN.md';
 
 String _domainText(String rows, String invariants) =>
     '# Domain\n\n## Entities\n\n| Entity | Kind | Identity | Owns |\n'
@@ -7493,343 +4281,7 @@ const _statedDefaults =
     '- **INV-1** An email is unique.\n'
     '  - **Enforcer:** Account\n'
     '  - **Consistency:** immediate';
-const _bareInvariant = '- **INV-1** An email is unique.';
 final String _loginDoc = _domainText(_accountRow, _statedDefaults);
-final String _loginDropped = _domainText(_accountRow, _bareInvariant);
-
-void _dropDefaultLinesTests() {
-  group('drop_default_lines step', () {
-    test('the step line counts the rewritten domain docs', () async {
-      final nonDefaults = _domainText(
-        '| Pay | Aggregate root | its id | a ledger |',
-        '- **INV-1** A charge posts once.\n'
-            '  - **Enforcer:** Ledger\n'
-            '  - **Consistency:** eventual',
-      );
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {
-            _loginPath: _loginDoc,
-            _resetPath: _domainText(
-              '',
-              '- **INV-2** A link expires.\n'
-                  '  - **Enforcer:** `Account` ([domain:login](../DOMAIN.md))\n'
-                  '  - **Consistency:** immediate',
-            ),
-            _payPath: nonDefaults,
-          },
-        ),
-      );
-
-      expect(_rewriteAt(plan, 'docs/$_loginPath').text, _loginDropped);
-      expect(
-        _rewriteAt(plan, 'docs/$_resetPath').text,
-        _domainText('', '- **INV-2** A link expires.'),
-      );
-      expect(
-        plan.toText(),
-        contains(
-          'commit 2, rewrites:\n'
-          '  from 1.0.0: drop_default_lines: 2 docs\n',
-        ),
-      );
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.0.0',
-          'step': 'drop_default_lines',
-          'paths': [_loginPath, _resetPath],
-        },
-      ]);
-    });
-
-    test('a project domain row never feeds a feature domain', () async {
-      final text = _domainText(
-        '',
-        '- **INV-1** A cart expires.\n'
-            '  - **Enforcer:** Project\n'
-            '  - **Consistency:** immediate',
-      );
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {
-            _projectDomainPath: _domainText(
-              '| Project | Aggregate root | its name | carts |',
-              _bareInvariant,
-            ),
-            _payPath: text,
-          },
-        ),
-      );
-
-      expect(
-        _rewriteAt(plan, 'docs/$_payPath').text,
-        _domainText(
-          '',
-          '- **INV-1** A cart expires.\n  - **Enforcer:** Project',
-        ),
-      );
-    });
-
-    test('a layer whose Enforcer entry has no default source keeps every '
-        'Enforcer line', () async {
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: {
-            _domainOverridePath: _domainOverride(
-              '{item_fields: {add: [{field: Enforcer}]}}',
-            ),
-          },
-          docs: {_loginPath: _loginDoc},
-        ),
-      );
-
-      expect(
-        _rewriteAt(plan, 'docs/$_loginPath').text,
-        _domainText(
-          _accountRow,
-          '- **INV-1** An email is unique.\n  - **Enforcer:** Account',
-        ),
-      );
-    });
-
-    test('a layer with no Consistency entry keeps every Consistency line, and '
-        'an optional entry with no values drops them', () async {
-      final cases = {
-        '{item_fields: {remove: [Consistency]}}':
-            '  - **Consistency:** '
-            'immediate',
-        '{item_fields: {add: [{field: Consistency, optional: true}]}}': '',
-      };
-      for (final MapEntry(key: lint, value: kept) in cases.entries) {
-        final plan = _plan(
-          await _fixture(
-            packYaml: _dropPackYaml,
-            runbookType: _rulebookTypes,
-            overrides: {_domainOverridePath: _domainOverride(lint)},
-            docs: {_loginPath: _loginDoc},
-          ),
-        );
-
-        expect(
-          _rewriteAt(plan, 'docs/$_loginPath').text,
-          _domainText(
-            _accountRow,
-            '- **INV-1** An email is unique.${kept.isEmpty ? '' : '\n$kept'}',
-          ),
-          reason: lint,
-        );
-      }
-    });
-
-    test('a layer whose Consistency entry allows immediate or requires the '
-        'field keeps every Consistency line', () async {
-      for (final entry in const [
-        '{field: Consistency, values: [eventual, immediate], optional: true}',
-        '{field: Consistency, values: [eventual]}',
-      ]) {
-        final plan = _plan(
-          await _fixture(
-            packYaml: _dropPackYaml,
-            runbookType: _rulebookTypes,
-            overrides: {
-              _domainOverridePath: _domainOverride(
-                '{item_fields: {add: [$entry]}}',
-              ),
-            },
-            docs: {_loginPath: _loginDoc},
-          ),
-        );
-
-        expect(
-          _rewriteAt(plan, 'docs/$_loginPath').text,
-          _domainText(
-            _accountRow,
-            '- **INV-1** An email is unique.\n'
-            '  - **Consistency:** immediate',
-          ),
-          reason: entry,
-        );
-      }
-    });
-
-    test('a draft doc is left unapproved by the step', () async {
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {_loginPath: '---\ndraft: true\n---\n$_loginDoc'},
-        ),
-      );
-
-      expect(
-        _rewriteAt(plan, 'docs/$_loginPath').text,
-        '---\ndraft: true\n---\n$_loginDropped',
-      );
-      expect(plan.toText(), isNot(contains('stamps:')));
-    });
-
-    test('an approved doc takes a fresh approval hash', () async {
-      final seed = await _fixture(
-        packYaml: _dropPackYaml,
-        runbookType: _rulebookTypes,
-        overrides: const {},
-        docs: {_loginPath: _loginDoc},
-      );
-      final set = TemplateResolver().resolveCarried(
-        packNames: ProjectConfig.read(seed.project).pins.keys,
-        homeDirectory: seed.home,
-      );
-      final type = switch (DocTypeMatcher(
-        set,
-        targetNames: const [],
-      ).match(_loginPath)) {
-        MatchedDocType(:final docType) => docType,
-        _ => null,
-      };
-      final approved = _stampedBefore(_loginDoc, type);
-
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {_loginPath: approved},
-        ),
-      );
-
-      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
-      expect(written, isNot(contains('Consistency')));
-      final hash = RegExp(
-        r'^approved: "(\w+)"$',
-        multiLine: true,
-      ).firstMatch(written)!.group(1);
-      expect(hash, _approvalHashBefore(written, type));
-      expect(hash, isNot(_approvalHashBefore(approved, type)));
-      expect(
-        plan.toText(),
-        contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
-      );
-    });
-
-    test('an overrides entry on a rewritten item stays unsuspect', () async {
-      const rule = '- **INV-3** A cart expires after 7 days.';
-      final upstream = _domainText(
-        '| Cart | Aggregate root | its id | items |',
-        '$rule\n  - **Enforcer:** Cart\n  - **Consistency:** immediate',
-      );
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml.replaceFirst(
-            '[rulebook]',
-            '[project_rulebook]',
-          ),
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {_projectDomainPath: upstream},
-        ),
-      );
-      final rewritten = _rewriteAt(plan, 'docs/$_projectDomainPath').text;
-      expect(rewritten, isNot(contains('Consistency')));
-      final files = {
-        'docs/$rootDomain': rewritten,
-        'docs/$loginDomain': domainDoc(
-          [overrideOfRoot],
-          entries: ['$rootAddress $rootFingerprint'],
-        ),
-      };
-
-      final report = await checkOf(
-        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
-        docPath: loginDomain,
-      );
-
-      expect(report.findings.where((f) => linkKinds.contains(f.kind)), isEmpty);
-    });
-
-    test('the step touches no line beyond the defaults, and a second run '
-        'drops nothing', () async {
-      const body =
-          '- **INV-1** An email is unique.\n'
-          '  - a condition\n'
-          '  - **Enforcer:** Setup engine\n'
-          '  - **Consistency:** Immediate\n'
-          '- **INV-2** A name is short.\n'
-          '  - **Enforcer:** Account\n'
-          '  - **Consistency:** eventual\n'
-          '  - **Corrective policy:** Trim it.';
-      final doc = _domainText(_accountRow, body);
-
-      final plan = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {_loginPath: doc},
-        ),
-      );
-
-      final written = _rewriteAt(plan, 'docs/$_loginPath').text;
-      expect(
-        written,
-        _domainText(
-          _accountRow,
-          '- **INV-1** An email is unique.\n'
-          '  - a condition\n'
-          '  - **Enforcer:** Setup engine\n'
-          '  - **Consistency:** Immediate\n'
-          '- **INV-2** A name is short.\n'
-          '  - **Consistency:** eventual\n'
-          '  - **Corrective policy:** Trim it.',
-        ),
-      );
-      final again = _plan(
-        await _fixture(
-          packYaml: _dropPackYaml,
-          runbookType: _rulebookTypes,
-          overrides: const {},
-          docs: {_loginPath: written},
-        ),
-      );
-      expect(_docRewrites(again), isEmpty);
-      expect(
-        again.toText(),
-        contains('  from 1.0.0: drop_default_lines: 0 docs\n'),
-      );
-    });
-
-    test('a drop_default_lines step the pack load refuses plans '
-        'nothing', () async {
-      final fixture = await _fixture(
-        packYaml: _dropPackYaml.replaceFirst('[rulebook]', '[rulebok]'),
-        runbookType: _rulebookTypes,
-        overrides: const {},
-        docs: {_loginPath: _loginDoc},
-      );
-
-      expect(
-        () => _plan(fixture),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.unknownValue)
-              .having(
-                (f) => f.key,
-                'key',
-                'migrations[0].steps[0].drop_default_lines.doc_types',
-              ),
-        ),
-      );
-    });
-  });
-}
 
 const _mergePackYaml = '''
 name: acme
@@ -7891,24 +4343,6 @@ migrations:
       - mark_retrim: {doc_types: [runbook], sections: [procedure]}
 ''';
 
-const _stepThenMergePackYaml = '''
-name: acme
-version: 1.2.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - drop_default_lines: {doc_types: [playbook]}
-  - from: 1.1.0
-    steps:
-      - merge_doc:
-          from: {id: playbook, path: "prds/runbooks/{slug}/PLAYBOOK.md"}
-          to: runbook
-          sections:
-            - from: {id: invariants, header: Invariants}
-              to: procedure
-''';
-
 const _dropThenMergePackYaml = '''
 name: acme
 version: 1.2.0
@@ -7952,37 +4386,6 @@ path: prds/runbooks/{slug}/PLAYBOOK.md
 sections:
   - {id: moves, header: Moves}
 ''';
-
-/// The `playbook` doc type as it stood before the merge folded it.
-const _frozenPlaybookType = '''
-id: playbook
-description: A playbook.
-path: prds/runbooks/{slug}/PLAYBOOK.md
-sections:
-  - {id: entities, header: Entities}
-  - id: invariants
-    header: Invariants
-    lint:
-      item_fields:
-        - {field: Enforcer, default_from: entities}
-        - {field: Consistency, values: [eventual], optional: true}
-''';
-
-/// Writes [_frozenPlaybookType] as the frozen `playbook` of the fixture's
-/// personal pack.
-void _writeFrozenPlaybook(_MergeFixture fixture) =>
-    File('${fixture.home.path}/.specstone/packs/acme/frozen/playbook.yaml')
-      ..createSync(recursive: true)
-      ..writeAsStringSync(_frozenPlaybookType);
-
-const _accountEntities =
-    '| Entity | Kind | Identity | Owns |\n|---|---|---|---|\n'
-    '| Account | Aggregate root | its email | a name |\n';
-
-const _defaultLinesFromDoc =
-    '# Deploy playbook\n\n## Entities\n\n$_accountEntities\n'
-    '## Invariants\n\n- **INV-1** An email is unique.\n'
-    '  - **Enforcer:** Account\n  - **Consistency:** immediate\n';
 
 final String _nestedMergePackYaml = _mergePackYaml.replaceFirst(
   'prds/runbooks/{slug}/PLAYBOOK.md',
@@ -8191,6 +4594,21 @@ void _mergeDocTests() {
       expect(plan.rewrites.where((r) => r.path.startsWith('docs/')), isEmpty);
     });
 
+    test('a to doc the project lacks whose path a folder holds refuses '
+        'upgrade_collision before any write', () async {
+      final fixture = await _mergeFixture(
+        docs: const {
+          _mergeFromPath: _mergeFromDoc,
+          '$_mergeToPath/notes.md': '# Notes\n',
+        },
+      );
+
+      final fault = _refusedWith(() => _planMerge(fixture));
+
+      expect(fault.code, MigrateFaultCode.upgradeCollision);
+      expect(fault.file, 'docs/$_mergeToPath');
+    });
+
     test('a created to doc stays an unapproved draft when the pins sit below '
         'the stamp passes, and no stamp is counted for it', () async {
       final plan = _planMerge(
@@ -8229,79 +4647,6 @@ void _mergeDocTests() {
           'paths': [_mergeToPath],
         },
       ]);
-    });
-
-    test('a from doc takes an earlier drop_default_lines step on its type '
-        'before the fold, so its to doc holds the stepped text', () async {
-      final fixture = await _mergeFixture(
-        packYaml: _stepThenMergePackYaml,
-        docs: const {
-          _mergeToPath: _mergeToDoc,
-          _mergeFromPath: _defaultLinesFromDoc,
-        },
-      );
-      _writeFrozenPlaybook(fixture);
-
-      final plan = _planMerge(fixture);
-
-      expect(
-        _rewriteAt(plan, 'docs/$_mergeToPath').text,
-        '# Deploy\n\n## Goals\n\nShip it.\n\n## Entities\n\n'
-        '$_accountEntities\n## Procedure\n\n'
-        '- **INV-1** An email is unique.\n',
-      );
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.0.0',
-          'step': 'drop_default_lines',
-          'paths': [_mergeFromPath],
-        },
-        {
-          'from': '1.1.0',
-          'step': 'merge_doc playbook -> runbook',
-          'paths': [_mergeToPath],
-        },
-      ]);
-    });
-
-    test('a nested from doc takes its default enforcer from the from doc of '
-        'its parent feature, both typed by the frozen type', () async {
-      const childFrom = 'specs/f01_a/f02_b/PLAYBOOK.md';
-      final fixture = await _mergeFixture(
-        packYaml: _stepThenMergePackYaml.replaceFirst(
-          'prds/runbooks/{slug}/PLAYBOOK.md',
-          'specs/f{nn}_{slug}/PLAYBOOK.md',
-        ),
-        runbookType: _nestedMergeType,
-        docs: const {
-          'specs/f01_a/RUNBOOK.md': _mergeToDoc,
-          'specs/f01_a/PLAYBOOK.md':
-              '# A playbook\n\n## Entities\n\n$_accountEntities',
-          'specs/f01_a/f02_b/RUNBOOK.md': _mergeToDoc,
-          childFrom:
-              '# B playbook\n\n## Invariants\n\n'
-              '- **INV-1** An email is unique.\n  - **Enforcer:** Account\n',
-        },
-      );
-      _writeFrozenPlaybook(fixture);
-
-      final plan = _planMerge(fixture);
-
-      expect(
-        _rewriteAt(plan, 'docs/specs/f01_a/f02_b/RUNBOOK.md').text,
-        '# Deploy\n\n## Goals\n\nShip it.\n\n## Procedure\n\n'
-        '- **INV-1** An email is unique.\n',
-      );
-      expect(
-        plan.lists.toJson()['steps'],
-        contains(
-          equals({
-            'from': '1.0.0',
-            'step': 'drop_default_lines',
-            'paths': [childFrom],
-          }),
-        ),
-      );
     });
 
     test('a from doc takes no earlier step of another pack, so a fold of '
@@ -8362,7 +4707,7 @@ void _mergeDocTests() {
 
     test('a personal pack with an earlier step on a from type and no frozen '
         'file for it refuses missing_key at that file', () async {
-      final fixture = await _mergeFixture(packYaml: _stepThenMergePackYaml);
+      final fixture = await _mergeFixture(packYaml: _dropThenMergePackYaml);
 
       expect(
         () => _planMerge(fixture),

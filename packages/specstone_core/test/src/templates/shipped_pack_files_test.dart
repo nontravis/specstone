@@ -59,8 +59,7 @@ void main() {
           .where(
             (k) =>
                 k.startsWith('software-tech/') &&
-                !k.startsWith('software-tech/patterns/') &&
-                !k.startsWith('software-tech/frozen/'),
+                !k.startsWith('software-tech/patterns/'),
           )
           .toList();
       expect(

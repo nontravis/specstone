@@ -8,11 +8,9 @@ import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
-import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
-    show readDocFile;
+import 'package:specstone_core/src/setup_migration/doc_file_text.dart';
 import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -26,9 +24,6 @@ import 'package:specstone_core/src/version.dart';
 enum RunKind {
   /// An unfinished migration journal is replayed.
   resume,
-
-  /// A legacy SDD tree is converted.
-  legacy,
 
   /// At least one pin is older than its available pack version, or every pin
   /// is equal and a typed doc is off the layout `format` writes, an agent
@@ -45,13 +40,15 @@ enum RunKind {
 
 /// Chooses the run for the project at [root].
 ///
-/// [RunKind.resume] when a migrate journal is pending; else [RunKind.legacy]
-/// when [legacyContextPath] exists; else the pins are compared, in code point
-/// order, with the available pack versions: the first newer pin throws
-/// `pack_pin_newer`. After the pin refusal and before any [RunKind.upgrade]
-/// or [RunKind.none] result, an `agent_files_version` above the running
-/// Version throws `agent_files_newer`, whatever the older pins and agent
-/// files hold. Then any older pin gives [RunKind.upgrade]. With every pin
+/// The caller refuses a shipped pin below its floor first, since that check
+/// must also come before a document-writing journal's replay.
+///
+/// [RunKind.resume] when a migrate journal is pending; else the pins are
+/// compared, in code point order, with the available pack versions: the first
+/// newer pin throws `pack_pin_newer`. After the pin refusal and before any
+/// [RunKind.upgrade] or [RunKind.none] result, an `agent_files_version` above
+/// the running Version throws `agent_files_newer`, whatever the older pins and
+/// agent files hold. Then any older pin gives [RunKind.upgrade]. With every pin
 /// equal, a doc off its layout, generated blocks aside, then any agent file
 /// drift (`agentFileDrifts`, the predicate `check` uses, a malformed marker
 /// included) or skill and agent file drift (`skillAndAgentFileDrifts`), then
@@ -68,9 +65,6 @@ RunKind chooseRun(
   bool hasAdds = false,
 }) {
   if (MoveJournal.pendingMigrate(root)) return RunKind.resume;
-  if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
-    return RunKind.legacy;
-  }
   final config = ProjectConfig.read(root);
   final pins = config.pins;
   final available = templates.availableManifests(
@@ -113,7 +107,7 @@ bool _hasFoldableRow(
   final docs = <MatrixFoldDoc>[];
   for (final docPath in docPathsOf(project.docsRoot, project.projectRoot)) {
     final match = project.matcher.match(docPath);
-    final text = readDocFile(
+    final text = DocFileText.readFile(
       fileOfDocPath(
         docPath,
         docsRoot: project.docsRoot,

@@ -17,7 +17,6 @@ void main() {
       fr,
       const <MigrationStep>[],
       lf: '# Check\n',
-      statusesOutside: true,
     );
 
     expect(before.paths, fr.paths);

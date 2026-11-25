@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -12,11 +13,11 @@ import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show inlineBlock;
-import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
-import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -29,13 +30,18 @@ import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/upgrade_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
 const _trustLine =
     'trust the Specstone hook in Codex: open /hooks in a trusted project';
-const _commit1Message = 'move legacy docs to their new paths';
-const _commit2Message =
-    'rewrite titles, keys, and links; add project configuration';
+const _commit1Message = 'move docs to their new pack paths';
+const _commit2Message = 'upgrade pack pins';
+
+/// The subject `commitRepo` gives the first commit of a fixture; rename it
+/// with [_spacedSubject], the same idea for [_spacedUpgradeFixture], when
+/// Task 27 settles `commitRepo`.
+const _fixtureSubject = 'legacy';
 
 /// The text of every file under [root] outside `.git`, the index, and the
 /// trash, keyed by its `/`-separated path relative to [root].
@@ -57,8 +63,32 @@ Map<String, String> _bytesUnder(Directory root) {
   return texts;
 }
 
+/// An instruction file whose Specstone block is out of date, so an upgrade
+/// writes it.
+const _staleClaude =
+    '# Acme\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
+    '<!-- END specstone -->\n';
+
+/// A Claude Code settings file whose hook entry is out of date, so a run over
+/// a project holding it writes that file alone.
+const _staleSettings =
+    '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"PostToolUse":'
+    '[{"matcher":"Write","hooks":[{"type":"command","command":'
+    '"specstone","args":["hook","post-edit"]}]}]}}\n';
+
+/// The files of a project on the shipped pins that a run changes with no
+/// personal pack, so the run needs no home folder to plan.
+Map<String, String> _agentOnlyFiles() => {
+  '.specstone/config.yaml': shippedPinsConfig(),
+  ...skillFileTexts(),
+  settingsFilePath: _staleSettings,
+};
+
+/// The subject of the one commit of [_spacedUpgradeFixture].
+const _spacedSubject = 'spaced';
+
 /// Writes the fixture under `<tmp>/NTD OS/acme/` and commits it.
-Future<Directory> _spacedFixture(Map<String, String> files) async {
+Future<Directory> _spacedUpgradeFixture(Map<String, String> files) async {
   final tmp = await writeTree({
     for (final MapEntry(:key, :value) in files.entries)
       'NTD OS/acme/$key': value,
@@ -68,52 +98,17 @@ Future<Directory> _spacedFixture(Map<String, String> files) async {
   expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
   expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
   expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
-  commitAll(root, 'legacy');
+  commitAll(root, _spacedSubject);
   return root;
 }
 
-/// Pack pins below the versions that write the agent files, so a run is an
-/// upgrade that plans them.
-const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
-
-/// A committed project pinning pack `acme` at 1.0.0, whose 1.1.0 in the
-/// returned home renames the runbook's `Steps` section, with one runbook.
-Future<({Directory project, Directory home})> _upgradeFixture() async {
-  final home = await writeTree({
-    '.specstone/packs/acme/pack.yaml': '''
-name: acme
-version: 1.1.0
-extends: software-tech
-migrations:
-  - from: 1.0.0
-    steps:
-      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
-''',
-    '.specstone/packs/acme/runbook.yaml': '''
-id: runbook
-description: A runbook.
-path: prds/runbooks/{slug}/RUNBOOK.md
-sections:
-  - {id: procedure, header: Procedure, required: true}
-''',
-  });
-  final project = await gitFixture({
-    '.specstone/config.yaml': '${shippedPinsConfig()}  acme: 1.0.0\n',
-    'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nRun it.\n',
-  });
-  return (project: project, home: home);
-}
-
-/// A committed project below the pack versions that write the agent files,
-/// whose `lib/a.dart` holds a number label the label pass converts.
-Future<Directory> _labelledCodeFixture() => gitFixture({
-  '.specstone/config.yaml': _belowSince,
-  'docs/prds/features/f01_a/FEATURE.md': '# A\n',
-  'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
-  'docs/prds/features/f01_a/us01_b/fr01_c.md': '# C\n',
-  'docs/specs/TECH_STACK.md': '---\ncode:\n  - lib/\n---\n# Tech stack\n',
-  'lib/a.dart': '// See F-01 US-01\n',
-});
+/// The `config.yaml` of an upgrade project: the shipped pins plus `acme`
+/// pinned below its home version, then [extra].
+///
+/// A run over it is an upgrade with every shipped pin at its floor; pass
+/// [acmeHome] as the home folder.
+String _upgradeConfig([String extra = '']) =>
+    '${shippedPinsConfig()}$acmeOldPinLine$extra';
 
 /// Writes [files] under a new canonical folder, makes each key of [links] a
 /// link to its value, then commits `proj/` and [other] as two repositories.
@@ -144,13 +139,6 @@ String _planHashIn(String text) => text
     .split('\n')
     .firstWhere((line) => line.startsWith('plan '))
     .substring('plan '.length);
-
-/// Writes a legacy `ws` whose `code/docs` links to its `docs`, with [files]
-/// over it; null, marking the test skipped, where links need privileges.
-Future<Directory?> _linkedTree([Map<String, String> files = const {}]) async {
-  final tree = await writeTree(linkedAcme(files));
-  return linkCodeDocs(tree) ? tree : null;
-}
 
 /// Expects the refusal a write at the untrusted `ws/code` of [tree] draws: the
 /// project folder `ws` was reached through the docs link in `ws/code`.
@@ -258,31 +246,20 @@ void main() {
       );
     });
 
-    test('an add on a legacy tree is a usage error', () async {
-      final root = await gitFixture({
-        '.specstone/config.yaml': shippedPinsConfig(),
-        legacyContextPath: '# D-01\n',
-      });
-
-      await expectLater(
-        _run(root, StringBuffer(), addedPacks: ['agent-skills']),
-        usageError(
-          '--add needs a project on the new format; run specstone migrate '
-          'first',
-        ),
-      );
-    });
-
     test('an add of a pinned pack is a usage error naming its pin', () async {
       final root = await gitFixture({
-        '.specstone/config.yaml':
-            '${shippedPinsConfig()}  agent-skills: 0.9.0\n',
+        '.specstone/config.yaml': shippedPinsConfig([
+          'agent-skills',
+          'prd-core',
+          'software-tech',
+        ]),
       });
 
       await expectLater(
         _run(root, StringBuffer(), addedPacks: ['agent-skills']),
         usageError(
-          'agent-skills is already pinned at 0.9.0; run specstone migrate to '
+          'agent-skills is already pinned at '
+          '${shippedPackVersions()['agent-skills']}; run specstone migrate to '
           'upgrade it',
         ),
       );
@@ -330,8 +307,84 @@ void main() {
     });
   });
 
+  group('a shipped pin below its floor', () {
+    Matcher belowFloorRefusal() => throwsA(
+      isA<TemplateFault>()
+          .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
+          .having((f) => f.exitStatus, 'exit', 78)
+          .having((f) => f.file, 'file', '.specstone/config.yaml')
+          .having((f) => f.key, 'key', 'packs.prd-core'),
+    );
+
+    for (final dryRun in [false, true]) {
+      test('${dryRun ? 'a dry run' : 'bare migrate'} refuses before any '
+          'run kind and leaves the tree byte for byte', () async {
+        final root = await gitFixture({
+          '.specstone/config.yaml': shippedPinsBelowFloor(),
+        });
+        final before = _bytesUnder(root);
+
+        await expectLater(
+          _run(root, StringBuffer(), dryRun: dryRun, answers: ['y']),
+          belowFloorRefusal(),
+        );
+
+        expect(_bytesUnder(root), before);
+      });
+    }
+
+    test('an add refuses the floor before it checks the added name', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsBelowFloor(),
+      });
+      final before = _bytesUnder(root);
+
+      await expectLater(
+        _run(root, StringBuffer(), addedPacks: ['nope']),
+        belowFloorRefusal(),
+      );
+
+      expect(_bytesUnder(root), before);
+    });
+
+    test('the floor wins over a newer pin that sorts first', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsBelowFloor(
+          extra: 'agent-skills: 99.0.0',
+        ),
+      });
+      final before = _bytesUnder(root);
+
+      await expectLater(
+        _run(root, StringBuffer(), dryRun: true),
+        belowFloorRefusal(),
+      );
+
+      expect(_bytesUnder(root), before);
+    });
+
+    test('a pending document-writing journal is refused before its replay, '
+        'with the journal file unchanged', () async {
+      final root = await gitFixture({
+        '.specstone/config.yaml': shippedPinsBelowFloor(),
+      });
+      writeJournal(root, [const WriteStep.unguarded('notes.md', 'new\n')]);
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      final before = _bytesUnder(root);
+      final journalBefore = journal.readAsStringSync();
+
+      await expectLater(_run(root, StringBuffer()), belowFloorRefusal());
+
+      expect(_bytesUnder(root), before);
+      expect(journal.readAsStringSync(), journalBefore);
+      expect(File('${root.path}/notes.md').existsSync(), isFalse);
+      expect(MoveJournal.pending(root), isTrue);
+    });
+  }, skip: hasGit ? null : 'git is not available');
+
   test('y makes two commits, the first pure renames', () async {
-    final root = await _spacedFixture(acmeLegacy);
+    final root = await _spacedUpgradeFixture(upgradeFiles());
+    acmeInTestHome();
     final out = StringBuffer();
 
     final status = await _run(root, out, answers: ['y']);
@@ -340,7 +393,7 @@ void main() {
     final subjects = (git(root, ['log', '--format=%s']).stdout as String)
         .trim()
         .split('\n');
-    expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+    expect(subjects, [_commit2Message, _commit1Message, _spacedSubject]);
     final renames =
         git(root, ['show', '--name-status', '-M', '--format=', 'HEAD~1']).stdout
             as String;
@@ -353,29 +406,14 @@ void main() {
             .trim()
             .split('\n');
     expect(names.toSet(), {
-      '.specstone/AGENT.md',
-      'AGENTS.md',
-      ...skillPaths(),
-      '.specstone/config.yaml',
       '.specstone/.gitignore',
-      '.specstone/templates/gnfr.yaml',
-      'docs/specs/TECH_STACK.md',
-      'docs/prds/GOAL.md',
-      'docs/prds/GLOSSARY.md',
-      'docs/prds/PROJECT.md',
-      'docs/prds/FEATURES.md',
-      'docs/prds/GNFR.md',
-      'docs/prds/features/f01_login/FEATURE.md',
-      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
-      'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
-      'docs/specs/f01_login/ARCHITECTURE.md',
-      'docs/specs/f01_login/INTEGRATION.md',
-      '.specstone/records/f01_login/IMPLEMENTATION.md',
+      '.specstone/config.yaml',
+      acmeMovedRunbookPath,
     });
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
     expect(
       File('${root.path}/.specstone/config.yaml').readAsStringSync(),
-      endsWith('agent_files_version: $specstoneVersion\n'),
+      contains('acme: 1.1.0'),
     );
     expect(
       Directory.fromUri(root.uri.resolve('.specstone/trash/')).existsSync(),
@@ -389,15 +427,48 @@ void main() {
       matches(
         RegExp(
           r'^apply\? \[y/N\] '
-          r'commit 1 ([0-9a-f]{7,}): move legacy docs to their new paths\n'
-          'commit 2 ([0-9a-f]{7,}): rewrite titles, keys, and links; '
-          r'add project configuration\n'
-          '$_trustLine\n'
+          r'commit 1 ([0-9a-f]{7,}): move docs to their new pack paths\n'
+          r'commit 2 ([0-9a-f]{7,}): upgrade pack pins\n'
           r'check: \d+ findings left; run specstone check to see them\n$',
         ),
       ),
     );
-    expect(out.toString(), startsWith('legacy migration: '));
+    expect(out.toString(), startsWith('pack upgrade: acme 1.0.0 -> 1.1.0'));
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('an old cite form outlives a layout-only upgrade, and check reports '
+      'it as cite_unlinked', () async {
+    const cite = 'Users forget; `architecture:login`.';
+    final root = await gitFixture({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_login/FEATURE.md':
+          '## Benefit hypothesis\n\ng\n\n\n## Problem\n\n$cite\n',
+      'docs/specs/f01_login/ARCHITECTURE.md':
+          '# Login architecture\n\n## Components\n\n'
+          '| Component | Responsibility |\n|---|---|\n| Form | Signs in. |\n',
+    });
+
+    final out = StringBuffer();
+
+    expect(await _run(root, out, answers: ['y']), 0);
+
+    expect(
+      out.toString(),
+      startsWith('pack upgrade: pins unchanged, layout only'),
+    );
+    final feature = File('${root.path}/docs/prds/features/f01_login/FEATURE.md')
+        .readAsStringSync();
+    expect(feature, contains('\n$cite\n'));
+    final cites = await ReadSession.runAsync(
+      (session) async => [
+        for (final finding in (await runCheck(session)).findings)
+          if (finding.kind == FindingKind.citeUnlinked) finding.keys['value'],
+      ],
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+    );
+    expect(cites, ['architecture:login']);
   }, skip: hasGit ? null : 'git is not available');
 
   group('the closing count and the JSON plan', () {
@@ -410,9 +481,9 @@ void main() {
       homeDirectory: testHome(),
     );
 
-    test('an applied legacy run ends with the findings a whole-project check '
+    test('an applied upgrade ends with the findings a whole-project check '
         'reports after its last commit', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final out = StringBuffer();
 
       expect(await _run(root, out, answers: ['y']), 0);
@@ -426,7 +497,7 @@ void main() {
     }, skip: skipGit);
 
     test('an applied upgrade ends with the same closing line', () async {
-      final fixture = await _upgradeFixture();
+      final fixture = await upgradeFixture();
       final out = StringBuffer();
 
       expect(
@@ -442,7 +513,8 @@ void main() {
 
     test('--dry-run --json prints the plan as one object whose keys hold the '
         'path lists, and the plan hash is the one of the text plan', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture(files: {'CLAUDE.md': _staleClaude}))
+          .project;
       final text = StringBuffer();
       final json = StringBuffer();
       expect(await _run(root, text, dryRun: true), 0);
@@ -454,14 +526,10 @@ void main() {
         'plan',
         'dirty',
         'formatLayout',
-        'numberLabels',
-        'cites',
-        'renumberIds',
         'agentFiles',
         'stamps',
         'steps',
         'mentions',
-        'tests',
       ]);
       expect(object, isNot(contains('planHash')));
       expect(text.toString(), startsWith(object['plan']! as String));
@@ -469,28 +537,18 @@ void main() {
         (object['plan']! as String).trimRight().split('\n').last,
         'plan ${await _dryRunPlanHash(root)}',
       );
-      expect(object['formatLayout'], ['specs/f01_login/INTEGRATION.md']);
-      expect(object['agentFiles'], [
-        '.specstone/AGENT.md',
-        'AGENTS.md',
-        ...skillPaths(),
-      ]);
-      expect(object['numberLabels'], {
-        'rewritten': ['prds/features/f01_login/FEATURE.md'],
-        'left': isA<List<Object?>>(),
-      });
+      expect(object['formatLayout'], <Object?>[]);
+      expect(
+        object['agentFiles'],
+        unorderedEquals(['CLAUDE.md', '.specstone/AGENT.md']),
+      );
       expect(object['stamps'], {'skipped': <Object?>[]});
-      expect(object['tests'], {
-        'written': <Object?>[],
-        'rewritten': <Object?>[],
-        'left': <Object?>[],
-      });
       expect(json.toString().trim().split('\n').first, '{');
     }, skip: skipGit);
 
     test('--yes --plan --json sends the commit lines and the closing line to '
         'progress and keeps warnings empty', () async {
-      final fixture = await _upgradeFixture();
+      final fixture = await upgradeFixture();
       final dry = StringBuffer();
       expect(
         await _run(
@@ -525,8 +583,15 @@ void main() {
       expect(object['steps'], [
         {
           'from': '1.0.0',
+          'step':
+              'move_file runbook prds/runbooks/{slug}/RUNBOOK.md -> '
+              'prds/ops/{slug}/RUNBOOK.md',
+          'paths': ['prds/ops/deploy/RUNBOOK.md'],
+        },
+        {
+          'from': '1.0.0',
           'step': 'rename_section runbook steps -> procedure',
-          'paths': ['prds/runbooks/deploy/RUNBOOK.md'],
+          'paths': ['prds/ops/deploy/RUNBOOK.md'],
         },
       ]);
       expect(object['warnings'], <Object?>[]);
@@ -536,7 +601,7 @@ void main() {
     }, skip: skipGit);
 
     test('--dry-run --json holds an empty warnings array when none', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final out = StringBuffer();
 
       expect(
@@ -552,8 +617,9 @@ void main() {
     test('--dry-run --json lists a skipped agent file in warnings and prints '
         'no stderr line', () async {
       final base = await _twoRepositories({
-        'proj/.specstone/config.yaml':
-            '${_belowSince}code_root: ../mono/services/api\n',
+        'proj/.specstone/config.yaml': _upgradeConfig(
+          'code_root: ../mono/services/api\n',
+        ),
         'mono/services/api/main.dart': 'void main() {}\n',
       }, other: 'mono');
       final out = StringBuffer();
@@ -567,6 +633,7 @@ void main() {
         await _run(
           Directory('${base.path}/proj'),
           out,
+          home: await acmeHome(),
           dryRun: true,
           asJson: true,
           warnings: warnings,
@@ -582,7 +649,8 @@ void main() {
 
     test('--yes --plan --json lists a journal replay warning in warnings and '
         'prints no stderr line', () async {
-      final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+      final root = (await upgradeFixture(files: {'CLAUDE.md': _staleClaude}))
+          .project;
       _stopAfterCommit1(root);
       final claude = File('${root.path}/CLAUDE.md');
       claude.writeAsStringSync('${claude.readAsStringSync()}\nuser edit\n');
@@ -611,7 +679,7 @@ void main() {
     test(
       '--json that declines at the prompt still prints the object',
       () async {
-        final root = await gitFixture(acmeLegacy);
+        final root = (await upgradeFixture()).project;
         final out = StringBuffer();
         final progress = <String>[];
 
@@ -636,7 +704,7 @@ void main() {
     );
 
     test('--yes --plan --json that refuses leaves stdout empty', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final out = StringBuffer();
 
       await expectLater(
@@ -661,7 +729,7 @@ void main() {
     }, skip: skipGit);
 
     test('--dry-run --json on a dirty tree holds dirty true', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       File('${root.path}/notes.txt').writeAsStringSync('scratch\n');
       final out = StringBuffer();
 
@@ -672,7 +740,7 @@ void main() {
     }, skip: skipGit);
 
     test('--dry-run --json on a clean tree holds dirty false', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final out = StringBuffer();
 
       expect(await _run(root, out, dryRun: true, asJson: true), 0);
@@ -682,7 +750,7 @@ void main() {
     }, skip: skipGit);
 
     test('--yes --plan --json holds no dirty key', () async {
-      final fixture = await _upgradeFixture();
+      final fixture = await upgradeFixture();
       final dry = StringBuffer();
       expect(
         await _run(
@@ -714,7 +782,7 @@ void main() {
     }, skip: skipGit);
 
     test('--json changes no byte of the plan the hash covers', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final withJson = StringBuffer();
       final without = StringBuffer();
       expect(await _run(root, withJson, dryRun: true, asJson: true), 0);
@@ -765,7 +833,7 @@ void main() {
     test(
       'outside a git work tree refuses git_work_tree_required first',
       () async {
-        final root = await writeTree(acmeLegacy);
+        final root = await writeTree(_agentOnlyFiles());
 
         await expectLater(
           () => runHomeless(root, StringBuffer()),
@@ -786,13 +854,13 @@ void main() {
     test(
       'at a terminal prints the plan, never asks, and changes nothing',
       () async {
-        final root = await gitFixture(acmeLegacy);
+        final root = await gitFixture(_agentOnlyFiles());
         final before = treeBytes(root);
         final out = StringBuffer();
 
         await expectLater(() => runHomeless(root, out), refusesHomeless());
 
-        expect(out.toString(), startsWith('legacy migration: '));
+        expect(out.toString(), startsWith('pack upgrade: '));
         expect(out.toString(), isNot(contains('apply?')));
         expect(treeBytes(root), before);
       },
@@ -802,7 +870,7 @@ void main() {
     test(
       'under --yes with the seen plan refuses and changes nothing',
       () async {
-        final root = await gitFixture(acmeLegacy);
+        final root = await gitFixture(_agentOnlyFiles());
         final hash = await _dryRunPlanHash(root);
         final before = treeBytes(root);
 
@@ -823,137 +891,25 @@ void main() {
   });
 
   test('one git reset undoes the run', () async {
-    final root = await gitFixture(acmeLegacy);
-    final legacy = _bytesUnder(root);
+    final root = (await upgradeFixture()).project;
+    final before = _bytesUnder(root);
     final out = StringBuffer();
 
     expect(await _run(root, out, answers: ['y']), 0);
 
     expect(git(root, ['reset', '-q', '--hard', 'HEAD~2']).exitCode, 0);
-    expect(_bytesUnder(root), legacy);
+    expect(_bytesUnder(root), before);
     expect(
-      File.fromUri(root.uri.resolve('.specstone/config.yaml')).existsSync(),
-      isFalse,
+      File.fromUri(root.uri.resolve('.specstone/config.yaml'))
+          .readAsStringSync(),
+      contains('acme: 1.0.0'),
     );
-  }, skip: hasGit ? null : 'git is not available');
-
-  test(
-    'no moved or rewritten doc holds a '
-    'draft key; TECH_STACK.md, GOAL.md, and GLOSSARY.md are drafts',
-    () async {
-      final root = await gitFixture(acmeLegacy);
-      final out = StringBuffer();
-
-      expect(await _run(root, out, answers: ['y']), 0);
-
-      for (final file in _bytesUnder(root).entries) {
-        if (file.key == '.specstone/.gitignore') continue;
-        if (file.key == 'docs/specs/TECH_STACK.md') continue;
-        if (file.key == 'docs/prds/GOAL.md') continue;
-        if (file.key == 'docs/prds/GLOSSARY.md') continue;
-        if (file.key == '.specstone/records/f01_login/IMPLEMENTATION.md') {
-          continue;
-        }
-        if (skillPaths().contains(file.key)) continue;
-        expect(file.value, isNot(contains('draft:')), reason: file.key);
-      }
-      expect(
-        File.fromUri(root.uri.resolve('docs/specs/TECH_STACK.md'))
-            .readAsStringSync(),
-        startsWith('---\ndraft: true\n'),
-      );
-      expect(
-        File.fromUri(root.uri.resolve('docs/prds/GOAL.md')).readAsStringSync(),
-        startsWith('---\ndraft: true\n'),
-      );
-      expect(
-        File.fromUri(root.uri.resolve('docs/prds/GLOSSARY.md'))
-            .readAsStringSync(),
-        startsWith('---\ndraft: true\n'),
-      );
-    },
-    skip: hasGit ? null : 'git is not available',
-  );
-
-  test('the '
-      'applied run leaves each typed doc stamped with the hash of its text, '
-      'and '
-      'the created draft keeps draft: true', () async {
-    final root = await gitFixture(acmeLegacy);
-
-    expect(await _run(root, StringBuffer(), answers: ['y']), 0);
-
-    final files = _bytesUnder(root);
-    for (final path in [
-      'docs/prds/PROJECT.md',
-      'docs/prds/FEATURES.md',
-      'docs/prds/features/f01_login/FEATURE.md',
-      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
-      'docs/specs/f01_login/ARCHITECTURE.md',
-      'docs/specs/f01_login/INTEGRATION.md',
-    ]) {
-      expect(files[path], startsWith('---\napproved: "'), reason: path);
-    }
-    expect(files['docs/specs/TECH_STACK.md'], startsWith('---\ndraft: true'));
-    expect(files['docs/specs/INDEX.md'], isNot(contains('approved:')));
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('INDEX.md, the untyped files, and the container doc '
-      'stay after both commits', () async {
-    const indexText = '# Spec index\n';
-    const untypedText = '# Notes\n';
-    final root = await gitFixture({
-      ...containerLegacy,
-      'docs/prds/d01_context.md': '# D-01 — Context\n',
-      'docs/specs/INDEX.md': indexText,
-      'docs/prds/features/components/co07_navigation/notes.md': untypedText,
-    });
-    final out = StringBuffer();
-
-    expect(await _run(root, out, answers: ['y']), 0);
-
-    expect(
-      File.fromUri(root.uri.resolve('docs/specs/INDEX.md')).readAsStringSync(),
-      indexText,
-      reason: 'INDEX.md stays with its bytes',
-    );
-    expect(
-      File.fromUri(
-        root.uri.resolve(
-          'docs/prds/features/components/co07_navigation/notes.md',
-        ),
-      ).readAsStringSync(),
-      untypedText,
-      reason: 'an untyped file stays where it was',
-    );
-    expect(
-      File.fromUri(root.uri.resolve('docs/prds/features/utilities/FEATURE.md'))
-          .existsSync(),
-      isTrue,
-      reason: 'the container doc moved under the group',
-    );
-    expect(
-      File.fromUri(
-        root.uri.resolve('docs/prds/features/utilities/f01_slot/FEATURE.md'),
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      File.fromUri(
-        root.uri.resolve(
-          'docs/prds/features/components/f07_navigation/FEATURE.md',
-        ),
-      ).existsSync(),
-      isTrue,
-      reason: 'a flat feature under a group folder keeps its old folder',
-    );
-    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
   test('any answer but y writes nothing', () async {
     for (final answer in ['n', '', 'yes', null]) {
-      final root = await gitFixture(acmeLegacy);
-      final legacy = _bytesUnder(root);
+      final root = (await upgradeFixture()).project;
+      final before = _bytesUnder(root);
       final head = (git(root, ['rev-parse', 'HEAD']).stdout as String).trim();
       final out = StringBuffer();
 
@@ -965,7 +921,7 @@ void main() {
         head,
         reason: 'answer $answer',
       );
-      expect(_bytesUnder(root), legacy, reason: 'answer $answer');
+      expect(_bytesUnder(root), before, reason: 'answer $answer');
       expect(out.toString().contains('apply? [y/N] '), isTrue);
     }
   }, skip: hasGit ? null : 'git is not available');
@@ -998,15 +954,14 @@ void main() {
 
     test('a doc edited before the y is '
         'working_tree_dirty, and the edit and the tree stay', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final head = headOf(root);
-      final context = File('${root.path}/docs/prds/d01_context.md');
+      final before = _bytesUnder(root);
+      final runbook = File('${root.path}/$acmeRunbookPath');
+      const edited = '$acmeRunbookText\nedit\n';
 
       await expectLater(
-        () => answerAfter(
-          root,
-          () => context.writeAsStringSync('# D-01 — Project context\n\nedit\n'),
-        ),
+        () => answerAfter(root, () => runbook.writeAsStringSync(edited)),
         throwsA(
           isA<MigrateFault>().having(
             (f) => f.code,
@@ -1016,17 +971,14 @@ void main() {
         ),
       );
       expect(headOf(root), head);
-      expect(context.readAsStringSync(), '# D-01 — Project context\n\nedit\n');
-      expect(_bytesUnder(root), {
-        ...acmeLegacy,
-        'docs/prds/d01_context.md': '# D-01 — Project context\n\nedit\n',
-      });
+      expect(runbook.readAsStringSync(), edited);
+      expect(_bytesUnder(root), {...before, acmeRunbookPath: edited});
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
     test('a commit that leaves every input as it was, made '
         'while the prompt waits, lets the run apply on top of it', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       late final String meanwhile;
 
       expect(
@@ -1045,7 +997,7 @@ void main() {
         _commit2Message,
         _commit1Message,
         'meanwhile',
-        'legacy',
+        _fixtureSubject,
       ]);
       expect(
         (git(root, ['rev-parse', 'HEAD~2']).stdout as String).trim(),
@@ -1057,8 +1009,8 @@ void main() {
     test('a committed edit to an input, made while the '
         'prompt waits, is working_tree_dirty naming it, and nothing is '
         'written', () async {
-      final root = await gitFixture(acmeLegacy);
-      const input = 'docs/prds/d01_context.md';
+      final root = (await upgradeFixture()).project;
+      const input = acmeRunbookPath;
 
       await expectLater(
         () => answerAfter(root, () {
@@ -1076,15 +1028,15 @@ void main() {
               ),
         ),
       );
-      expect(_bytesUnder(root), {...acmeLegacy, input: '# edited\n'});
+      expect(_bytesUnder(root), {...upgradeFiles(), input: '# edited\n'});
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
     test('a committed deletion of an input, made while the '
         'prompt waits, is working_tree_dirty naming it, never a raw '
         'FileSystemException', () async {
-      final root = await gitFixture(acmeLegacy);
-      const input = 'docs/prds/d01_context.md';
+      final root = (await upgradeFixture()).project;
+      const input = acmeRunbookPath;
 
       await expectLater(
         () => answerAfter(root, () {
@@ -1103,7 +1055,7 @@ void main() {
 
     test('an upgrade doc edited before the y is '
         'working_tree_dirty, and the edit stays', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       final runbook = File(
         '${project.path}/docs/prds/runbooks/deploy/RUNBOOK.md',
       );
@@ -1154,9 +1106,9 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }
 
-    test('a legacy doc committed while the prompt waits is '
+    test('an untyped doc committed while the prompt waits is '
         'working_tree_dirty naming it, and nothing is written', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       const added = 'docs/prds/d09_extra.md';
 
       await expectRefusedNaming(root, added, () {
@@ -1164,46 +1116,16 @@ void main() {
         commitAll(root, 'meanwhile');
       });
 
-      expect(_bytesUnder(root), {...acmeLegacy, added: '# D-09 — Extra\n'});
+      expect(_bytesUnder(root), {...upgradeFiles(), added: '# D-09 — Extra\n'});
     }, skip: skipGit);
 
-    test('a committed doc that makes the re-plan refuse '
-        'legacy_collision, made while the prompt waits, refuses '
-        'legacy_collision, and nothing is written', () async {
-      final root = await gitFixture(acmeLegacy);
-      const collided = 'prds/PROJECT.md';
-      late final String head;
-
-      await expectLater(
-        () => answerAfter(root, () {
-          File('${root.path}/docs/$collided').writeAsStringSync('# Project\n');
-          commitAll(root, 'meanwhile');
-          head = headOf(root);
-        }),
-        throwsA(
-          isA<MigrateFault>()
-              .having((f) => f.code, 'code', MigrateFaultCode.legacyCollision)
-              .having((f) => f.exitStatus, 'exitStatus', 65),
-        ),
-      );
-      expect(headOf(root), head);
-      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
-      expect(MoveJournal.pending(root), isFalse);
-      expect(_bytesUnder(root), {
-        ...acmeLegacy,
-        'docs/$collided': '# Project\n',
-      });
-    }, skip: skipGit);
-
-    test('an ignored legacy doc made unreadable while the '
+    test('an ignored doc made unreadable while the '
         'prompt waits is working_tree_dirty naming that doc, and nothing is '
         'written', () async {
       const ignored = 'docs/prds/zz_local.md';
-      final root = await gitFixture({
-        ...acmeLegacy,
-        '.gitignore': 'zz_local.md\n',
-        ignored: '# D-09 — Local\n',
-      });
+      final root = (await upgradeFixture(
+        files: {'.gitignore': 'zz_local.md\n', ignored: '# D-09 — Local\n'},
+      )).project;
       final file = File('${root.path}/$ignored');
       addTearDown(() => Process.runSync('chmod', ['644', file.path]));
 
@@ -1216,7 +1138,7 @@ void main() {
     test('a runbook committed while an upgrade prompt '
         'waits is working_tree_dirty naming it, and nothing is '
         'written', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       const added = 'docs/prds/runbooks/other/RUNBOOK.md';
 
       await expectRefusedNaming(project, added, () {
@@ -1235,7 +1157,7 @@ void main() {
     test('a file added to the personal pack while an '
         'upgrade prompt waits is working_tree_dirty naming it, and nothing '
         'is written', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       // The refusal names a path outside the project as the code builds it.
       final added = [
         '',
@@ -1259,7 +1181,7 @@ sections:
     test('a config committed as deleted while an upgrade '
         'prompt waits is working_tree_dirty naming it, never a raw '
         'FileSystemException', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       const config = '.specstone/config.yaml';
 
       await expectRefusedNaming(project, config, () {
@@ -1273,7 +1195,7 @@ sections:
     test('a personal pack.yaml deleted while an upgrade '
         'prompt waits is working_tree_dirty naming it, and nothing is '
         'written', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       const packPath = '.specstone/packs/acme/pack.yaml';
 
       await expectRefusedNaming(project, packPath, () {
@@ -1289,7 +1211,7 @@ sections:
     test('an invalid file dropped in the personal pack '
         'while an upgrade prompt waits is working_tree_dirty naming it, and '
         'nothing is written', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       const broken = 'playbook.yaml';
 
       await expectRefusedNaming(project, broken, () {
@@ -1298,29 +1220,9 @@ sections:
       }, home: home);
     }, skip: skipGit);
 
-    test('a tracked file committed while an upgrade with a '
-        'labelled code file waits leaves every input, and the run applies '
-        'without reading the code file', () async {
-      final project = await _labelledCodeFixture();
-
-      expect(
-        await answerAfter(project, () {
-          File('${project.path}/notes.txt').writeAsStringSync('x\n');
-          commitAll(project, 'meanwhile');
-        }),
-        0,
-      );
-
-      expect(git(project, ['status', '--porcelain']).stdout, isEmpty);
-      expect(
-        File('${project.path}/lib/a.dart').readAsStringSync(),
-        '// See F-01 US-01\n',
-      );
-    }, skip: skipGit);
-
     test('a tree made dirty while the prompt waits refuses with the message of '
         'the first clean-tree check, and nothing is written', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final head = headOf(root);
 
       await expectLater(
@@ -1342,23 +1244,29 @@ sections:
       );
 
       expect(headOf(root), head);
-      expect(_bytesUnder(root), {...acmeLegacy, 'notes.txt': 'x\n'});
+      expect(_bytesUnder(root), {...upgradeFiles(), 'notes.txt': 'x\n'});
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
-    test('a file that changes only the plan text, committed while the prompt '
-        'waits, refuses naming the plan alone, and nothing is '
+    test('a layer file of a dropped doc type, committed while an upgrade '
+        'prompt waits, refuses naming the plan alone, and nothing is '
         'written', () async {
-      final root = await gitFixture(acmeLegacy);
-      const added = 'docs/specs/schema.dbml';
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
+      File('${home.path}/.specstone/packs/acme/pack.yaml').writeAsStringSync(
+        '      - drop_doc_type: {id: x, path: "xs/{slug}.md"}\n',
+        mode: FileMode.append,
+      );
+      const added = '.specstone/templates/x.yaml';
       late final String head;
 
       await expectLater(
-        () => answerAfter(root, () {
-          File('${root.path}/$added').writeAsStringSync('Table t {}\n');
-          commitAll(root, 'meanwhile');
-          head = headOf(root);
-        }),
+        () => answerAfter(project, () {
+          File('${project.path}/$added')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync('sections: [{id: gone}]\n');
+          commitAll(project, 'meanwhile');
+          head = headOf(project);
+        }, home: home),
         throwsA(
           isA<MigrateFault>()
               .having((f) => f.code, 'code', MigrateFaultCode.workingTreeDirty)
@@ -1372,17 +1280,16 @@ sections:
         ),
       );
 
-      expect(headOf(root), head);
-      expect(_bytesUnder(root), {...acmeLegacy, added: 'Table t {}\n'});
-      expect(MoveJournal.pending(root), isFalse);
+      expect(headOf(project), head);
+      expect(MoveJournal.pending(project), isFalse);
     }, skip: skipGit);
 
     test('two inputs committed changed while the prompt waits refuse naming '
         'the first in code point order, an upper-case name before a '
         'lower-case one', () async {
-      final root = await gitFixture(acmeLegacy);
-      const first = 'docs/specs/INDEX.md';
-      const second = 'docs/specs/api/auth/s02_api_login.md';
+      const first = 'docs/INDEX.md';
+      const second = acmeRunbookPath;
+      final root = (await upgradeFixture(files: {first: '# Index\n'})).project;
 
       await expectLater(
         () => answerAfter(root, () {
@@ -1409,7 +1316,7 @@ sections:
 
     test('a committed .specstone/config.yaml that cannot parse, made while an '
         'upgrade prompt waits, refuses naming it as an input', () async {
-      final (:project, :home) = await _upgradeFixture();
+      final UpgradeFixture(:project, :home) = await upgradeFixture();
       const config = '.specstone/config.yaml';
       late final String head;
 
@@ -1439,12 +1346,11 @@ sections:
 
     test('the next bare run after a refused re-check plans again from the '
         'tree as it then is, and applies it', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final hashBefore = await _dryRunPlanHash(root);
       await expectLater(
         () => answerAfter(root, () {
-          File('${root.path}/docs/prds/d01_context.md')
-              .writeAsStringSync('# edited\n');
+          File('${root.path}/$acmeRunbookPath').writeAsStringSync('# edited\n');
           commitAll(root, 'meanwhile');
         }),
         throwsA(
@@ -1466,15 +1372,19 @@ sections:
         _commit2Message,
         _commit1Message,
         'meanwhile',
-        'legacy',
+        _fixtureSubject,
       ]);
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
   });
 
-  test('commit 2 holds the agent files, a CLAUDE.md block appended', () async {
-    final root = await _spacedFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+  test('commit 2 holds the agent files, a CLAUDE.md block refreshed', () async {
+    final root = await _spacedUpgradeFixture({
+      ...upgradeFiles(),
+      'CLAUDE.md': _staleClaude,
+    });
+    acmeInTestHome();
     final out = StringBuffer();
 
     expect(await _run(root, out, answers: ['y']), 0);
@@ -1484,8 +1394,14 @@ sections:
                 as String)
             .trim()
             .split('\n');
-    expect(names, containsAll(['.specstone/AGENT.md', 'CLAUDE.md']));
-    expect(names, isNot(contains('AGENTS.md')));
+    // The agent files of the run: the stale instruction file and AGENT.md.
+    const agentFiles = {'CLAUDE.md', '.specstone/AGENT.md'};
+    expect(names.toSet(), {
+      ...agentFiles,
+      '.specstone/.gitignore',
+      '.specstone/config.yaml',
+      acmeMovedRunbookPath,
+    });
     final claude = File.fromUri(root.uri.resolve('CLAUDE.md'));
     expect(claude.readAsStringSync(), startsWith('# Acme\n'));
     expect(
@@ -1494,16 +1410,13 @@ sections:
     );
     expect(
       out.toString(),
-      contains('  agent files: ${2 + skillFileCount} files\n'),
+      contains('  agent files: ${agentFiles.length} files\n'),
     );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
   group('the Claude Code settings file', () {
-    const stale =
-        '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"PostToolUse":'
-        '[{"matcher":"Write","hooks":[{"type":"command","command":'
-        '"specstone","args":["hook","post-edit"]}]}]}}\n';
+    const stale = _staleSettings;
 
     Future<Directory> fixture(String settings) => gitFixture({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -1799,37 +1712,9 @@ sections:
     }, skip: hasGit ? null : 'git is not available');
   });
 
-  test('a dry run from the folder holding the docs link plans code_root '
-      'when the legacy paths resolve from there', () async {
-    final tree = await writeTree(
-      linkedAcme({
-        legacyFrPath: implementingDoc('Validate credentials', ['lib/a.dart']),
-        'code/lib/a.dart': 'class A {}\n',
-        // Git for Windows may store a link as a file; the plan needs none.
-        '.gitignore': 'code/docs\n',
-      }),
-    );
-    if (!linkCodeDocs(tree)) return;
-    commitRepo(Directory('${tree.path}/ws'));
-    final code = Directory('${tree.path}/ws/code');
-    locateSetupTrust(code, homeDirectory: testHome()).record();
-    final out = StringBuffer();
-
-    expect(await _run(code, out, dryRun: true), 0);
-
-    expect(
-      out.toString(),
-      matches(
-        RegExp(
-          r'\n  \.specstone/config\.yaml: .*; code_root code \(1 of 2 paths\)\n',
-        ),
-      ),
-    );
-  }, skip: hasGit ? null : 'git is not available');
-
   test('a dry run over a journal that does not '
       'parse refuses as bare migrate does', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = (await upgradeFixture()).project;
     File('${root.path}/${MoveJournal.journalPath}')
       ..parent.createSync(recursive: true)
       ..writeAsStringSync('{');
@@ -1859,7 +1744,7 @@ sections:
 
   test('a dry run prints plan <hash>, the hash of the plan text above '
       'it, before its last line', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = (await upgradeFixture()).project;
     final out = StringBuffer();
 
     expect(await _run(root, out, dryRun: true), 0);
@@ -1869,8 +1754,8 @@ sections:
     expect(lines[lines.length - 2], 'dry run: nothing written');
     final planLine = lines[lines.length - 3];
     final plan = text.substring(0, text.lastIndexOf(planLine));
-    expect(plan, startsWith('legacy migration: '));
-    final inputs = planLegacyRun(
+    expect(plan, startsWith('pack upgrade: '));
+    final inputs = planUpgradeRun(
       root,
       templates: TemplateResolver(),
       homeDirectory: testHome(),
@@ -1884,7 +1769,7 @@ sections:
 
     test('prints the plan, its hash line, and the dirty-tree line, exits 0, '
         'and writes nothing', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final before = _bytesUnder(root);
       final head = headOf(root);
@@ -1893,7 +1778,7 @@ sections:
       expect(await _run(root, out, dryRun: true), 0);
 
       final lines = out.toString().split('\n');
-      expect(out.toString(), startsWith('legacy migration: '));
+      expect(out.toString(), startsWith('pack upgrade: '));
       expect(lines[lines.length - 2], dirtyLine);
       expect(lines[lines.length - 3], matches(RegExp(r'^plan [0-9a-f]{12}$')));
       expect(_bytesUnder(root), before);
@@ -1902,10 +1787,9 @@ sections:
 
     test('hashes the files as they are, edits not yet committed '
         'included', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final clean = await _dryRunPlanHash(root);
-      File('${root.path}/docs/prds/d01_context.md')
-          .writeAsStringSync('edited\n');
+      File('${root.path}/$acmeRunbookPath').writeAsStringSync('edited\n');
       final out = StringBuffer();
 
       expect(await _run(root, out, dryRun: true), 0);
@@ -1913,7 +1797,7 @@ sections:
       final text = out.toString();
       final planLine = 'plan ${_planHashIn(text)}\n';
       final plan = text.substring(0, text.lastIndexOf(planLine));
-      final inputs = planLegacyRun(
+      final inputs = planUpgradeRun(
         root,
         templates: TemplateResolver(),
         homeDirectory: testHome(),
@@ -1923,7 +1807,7 @@ sections:
     }, skip: hasGit ? null : 'git is not available');
 
     test('a clean tree prints the plain last line', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final out = StringBuffer();
 
       expect(await _run(root, out, dryRun: true), 0);
@@ -1934,7 +1818,7 @@ sections:
 
     test('--plan with its hash is still working_tree_dirty and writes '
         'nothing', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final hash = await _dryRunPlanHash(root);
       final before = _bytesUnder(root);
@@ -1960,7 +1844,8 @@ sections:
     }, skip: hasGit ? null : 'git is not available');
 
     test('outside a git work tree is still git_work_tree_required', () async {
-      final root = await writeTree(acmeLegacy);
+      acmeInTestHome();
+      final root = await writeTree(upgradeFiles());
       final out = StringBuffer();
 
       await expectLater(
@@ -1978,7 +1863,8 @@ sections:
 
     test('bare migrate outside a git work tree prints no plan and writes no '
         'file', () async {
-      final root = await writeTree(acmeLegacy);
+      acmeInTestHome();
+      final root = await writeTree(upgradeFiles());
       final before = treeBytes(root);
       final out = StringBuffer();
 
@@ -2002,9 +1888,9 @@ sections:
     test('--yes with a stale plan hash is working_tree_dirty on a dirty tree '
         'and git_work_tree_required outside git, before any hash '
         'check', () async {
-      final dirty = await gitFixture(acmeLegacy);
+      final dirty = (await upgradeFixture()).project;
       File('${dirty.path}/notes.txt').writeAsStringSync('x\n');
-      final outside = await writeTree(acmeLegacy);
+      final outside = await writeTree(upgradeFiles());
 
       for (final (root, code) in [
         (dirty, MigrateFaultCode.workingTreeDirty),
@@ -2033,11 +1919,11 @@ sections:
   test('a committed edit to a doc between '
       'the dry run and --yes changes the plan hash, so --yes refuses '
       'plan_mismatch and writes nothing', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = (await upgradeFixture()).project;
     final hash = await _dryRunPlanHash(root);
-    File('${root.path}/docs/prds/d01_context.md').writeAsStringSync('later\n');
+    File('${root.path}/$acmeRunbookPath').writeAsStringSync('later\n');
     commitAll(root, 'edit a doc');
-    final legacy = _bytesUnder(root);
+    final before = _bytesUnder(root);
     final head = headOf(root);
 
     await expectLater(
@@ -2055,14 +1941,14 @@ sections:
         ),
       ),
     );
-    expect(_bytesUnder(root), legacy);
+    expect(_bytesUnder(root), before);
     expect(headOf(root), head);
   }, skip: hasGit ? null : 'git is not available');
 
   test('a commit that touches no input '
       'between the dry run and --yes leaves the plan hash, so --yes '
       'applies', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = (await upgradeFixture()).project;
     final hash = await _dryRunPlanHash(root);
     File('${root.path}/notes.txt').writeAsStringSync('later\n');
     commitAll(root, 'unrelated');
@@ -2083,7 +1969,7 @@ sections:
 
   test("--yes with the dry run's plan hash applies the plan with no "
       "prompt, as the Owner's y does", () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = (await upgradeFixture()).project;
     final hash = await _dryRunPlanHash(root);
     final out = StringBuffer();
 
@@ -2101,12 +1987,12 @@ sections:
     );
 
     expect(status, 0);
-    expect(out.toString(), startsWith('legacy migration: '));
+    expect(out.toString(), startsWith('pack upgrade: '));
     expect(out.toString(), isNot(contains('apply? [y/N] ')));
     final subjects = (git(root, ['log', '--format=%s']).stdout as String)
         .trim()
         .split('\n');
-    expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+    expect(subjects, [_commit2Message, _commit1Message, _fixtureSubject]);
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
@@ -2116,8 +2002,8 @@ sections:
   ]) {
     test('--yes with $label prints the plan, refuses plan_mismatch, '
         'exit 75, and writes nothing', () async {
-      final root = await gitFixture(acmeLegacy);
-      final legacy = _bytesUnder(root);
+      final root = (await upgradeFixture()).project;
+      final before = _bytesUnder(root);
       final head = headOf(root);
       final out = StringBuffer();
 
@@ -2141,16 +2027,16 @@ sections:
               ),
         ),
       );
-      expect(out.toString(), startsWith('legacy migration: '));
-      expect(_bytesUnder(root), legacy);
+      expect(out.toString(), startsWith('pack upgrade: '));
+      expect(_bytesUnder(root), before);
       expect(headOf(root), head);
     }, skip: hasGit ? null : 'git is not available');
   }
 
   test('no interactive terminal prints the '
       'plan, then refuses owner_terminal_required, exit 77', () async {
-    final root = await gitFixture(acmeLegacy);
-    final legacy = _bytesUnder(root);
+    final root = (await upgradeFixture()).project;
+    final before = _bytesUnder(root);
     final out = StringBuffer();
 
     await expectLater(
@@ -2167,18 +2053,17 @@ sections:
             ),
       ),
     );
-    expect(out.toString(), startsWith('legacy migration: '));
-    expect(out.toString(), endsWith('specs/f01_login/INTEGRATION.md\n'));
-    expect(_bytesUnder(root), legacy);
+    expect(out.toString(), startsWith('pack upgrade: '));
+    expect(out.toString(), endsWith('.specstone/config.yaml: acme 1.1.0\n'));
+    expect(_bytesUnder(root), before);
   }, skip: hasGit ? null : 'git is not available');
 
   test('a plan refusal in bare migrate comes after the git '
       'checks', () async {
-    const duplicateWithContext = {
-      ...duplicateGroupLegacy,
-      'docs/prds/d01_context.md': '# D-01 — Context\n',
-    };
-    final clean = await gitFixture(duplicateWithContext);
+    const collidingRunbook = '$acmeRunbookText\n## Procedure\n\nHeld.\n';
+    final clean = (await upgradeFixture(
+      files: {acmeRunbookPath: collidingRunbook},
+    )).project;
     final out = StringBuffer();
 
     await expectLater(
@@ -2187,13 +2072,15 @@ sections:
         isA<MigrateFault>().having(
           (f) => f.code,
           'code',
-          MigrateFaultCode.groupSlugDuplicate,
+          MigrateFaultCode.upgradeCollision,
         ),
       ),
     );
     expect(out.toString(), isEmpty);
 
-    final dirty = await gitFixture(duplicateWithContext);
+    final dirty = (await upgradeFixture(
+      files: {acmeRunbookPath: collidingRunbook},
+    )).project;
     File.fromUri(dirty.uri.resolve('notes.txt')).writeAsStringSync('x\n');
     final dirtyOut = StringBuffer();
 
@@ -2210,98 +2097,17 @@ sections:
     expect(dirtyOut.toString(), isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test(
-    'bare migrate over two groups that share a slug writes nothing',
-    () async {
-      final root = await gitFixture({
-        ...duplicateGroupLegacy,
-        'docs/prds/d01_context.md': '# D-01 — Context\n',
-      });
-      final before = _bytesUnder(root);
-      final head = headOf(root);
-      final out = StringBuffer();
-
-      await expectLater(
-        () => _run(root, out, answers: ['y']),
-        throwsA(
-          isA<MigrateFault>()
-              .having(
-                (f) => f.code,
-                'code',
-                MigrateFaultCode.groupSlugDuplicate,
-              )
-              .having((f) => f.exitStatus, 'exit', 65),
-        ),
-      );
-
-      expect(out.toString(), isEmpty);
-      expect(_bytesUnder(root), before);
-      expect(headOf(root), head);
-      expect(MoveJournal.pending(root), isFalse);
-    },
-    skip: hasGit ? null : 'git is not available',
-  );
-
-  test('two moves onto one path, and a move cycle, refuse legacy_collision in '
-      'the dry run and in bare migrate, with nothing printed or '
-      'written', () async {
-    const cycleIndex = '''
-## Spec map
-
-| Code path | Spec path | feature_id |
-|-----------|-----------|------------|
-| `c/` | `specs/f01_alpha/q/` | `f02_beta` |
-| `c/` | `specs/z/` | `f02_beta` |
-| `c/` | `specs/f02_beta/q/` | `f01_alpha` |
-| `c/` | `specs/y/` | `f01_alpha` |
-''';
-    const context = {'docs/prds/d01_context.md': '# D-01 — Context\n'};
-    final trees = {
-      'two moves onto one path': {
-        ...context,
-        'docs/prds/features/co01_utilities/co01_01_slot/FEATURE.md': '# A\n',
-        'docs/prds/features/co01_utilities/ai01_slot/FEATURE.md': '# B\n',
-      },
-      'a move cycle': {
-        ...context,
-        'docs/prds/features/f01_alpha/FEATURE.md': '# F-01 — Alpha\n',
-        'docs/prds/features/f02_beta/FEATURE.md': '# F-02 — Beta\n',
-        'docs/specs/INDEX.md': cycleIndex,
-        for (final folder in ['f01_alpha/q', 'z', 'f02_beta/q', 'y'])
-          'docs/specs/$folder/s02_api_n.md': '# S\n',
-      },
-    };
-
-    for (final MapEntry(key: reason, value: files) in trees.entries) {
-      for (final dryRun in [true, false]) {
-        final root = await gitFixture(files);
-        final before = _bytesUnder(root);
-        final out = StringBuffer();
-
-        await expectLater(
-          () => _run(root, out, dryRun: dryRun, answers: ['y']),
-          throwsA(
-            isA<MigrateFault>()
-                .having((f) => f.code, 'code', MigrateFaultCode.legacyCollision)
-                .having((f) => f.exitStatus, 'exit', 65),
-          ),
-          reason: '$reason, dry run $dryRun',
-        );
-
-        expect(out.toString(), isEmpty, reason: '$reason, dry run $dryRun');
-        expect(_bytesUnder(root), before, reason: '$reason, dry run $dryRun');
-      }
-    }
-  }, skip: hasGit ? null : 'git is not available');
-
   test('a dangling override and an upgrade collision refuse in the dry run '
       'and in bare migrate, with nothing printed or written', () async {
-    final dangling = await gitFixture({
-      '.specstone/config.yaml': _belowSince,
-      '.specstone/templates/ghost.yaml':
-          'id: ghost\nsections:\n  - {id: body, header: Body}\n',
-    });
-    final (:project, :home) = await _upgradeFixture();
+    final UpgradeFixture(project: dangling, home: danglingHome) =
+        await upgradeFixture();
+    File('${dangling.path}/.specstone/templates/ghost.yaml')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        'id: ghost\nsections:\n  - {id: body, header: Body}\n',
+      );
+    commitAll(dangling, 'ghost');
+    final UpgradeFixture(:project, :home) = await upgradeFixture();
     File('${project.path}/docs/prds/runbooks/deploy/RUNBOOK.md')
         .writeAsStringSync(
           '# Deploy\n\n## Steps\n\nRun it.\n\n'
@@ -2309,7 +2115,11 @@ sections:
         );
     commitAll(project, 'collide');
     final cases = [
-      (root: dangling, home: null, code: MigrateFaultCode.overrideDangling),
+      (
+        root: dangling,
+        home: danglingHome,
+        code: MigrateFaultCode.overrideDangling,
+      ),
       (root: project, home: home, code: MigrateFaultCode.upgradeCollision),
     ];
 
@@ -2330,34 +2140,9 @@ sections:
     }
   }, skip: hasGit ? null : 'git is not available');
 
-  test('a legacy collision refuses in --dry-run and bare '
-      'migrate before any plan line prints', () async {
-    final root = await gitFixture({
-      ...acmeLegacy,
-      'docs/prds/FEATURES.md': '# Features\n',
-    });
-    final before = _bytesUnder(root);
-    Matcher refusal() => throwsA(
-      isA<MigrateFault>().having(
-        (f) => f.code,
-        'code',
-        MigrateFaultCode.legacyCollision,
-      ),
-    );
-    final dryOut = StringBuffer();
-    final out = StringBuffer();
-
-    await expectLater(() => _run(root, dryOut, dryRun: true), refusal());
-    await expectLater(() => _run(root, out, answers: ['y']), refusal());
-
-    expect(dryOut.toString(), isEmpty);
-    expect(out.toString(), isEmpty);
-    expect(_bytesUnder(root), before);
-  }, skip: hasGit ? null : 'git is not available');
-
   test('a plan that moves no file journals one commit', () {
     final plan = RunPlan(
-      header: 'legacy migration: x',
+      header: 'pack upgrade: x',
       moves: [],
       prunes: [],
       rewrites: [],
@@ -2380,7 +2165,8 @@ sections:
   test('a root whose path holds a space migrates; '
       'migrate after an applied run prints nothing to '
       'migrate', () async {
-    final root = await _spacedFixture(acmeLegacy);
+    final root = await _spacedUpgradeFixture(upgradeFiles());
+    acmeInTestHome();
     final out = StringBuffer();
 
     expect(await _run(root, out, answers: ['y']), 0);
@@ -2392,32 +2178,6 @@ sections:
     final again = StringBuffer();
     expect(await _run(root, again), 0);
     expect(again.toString(), 'nothing to migrate\n');
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('a git-ignored file in a moved '
-      'cross-cutting folder moves on disk and stays out of both '
-      'commits', () async {
-    final root = await gitFixture({...acmeLegacy, '.gitignore': '.DS_Store\n'});
-    File('${root.path}/docs/specs/shared/.DS_Store')
-        .writeAsStringSync('finder\n');
-    final out = StringBuffer();
-
-    expect(await _run(root, out, answers: ['y']), 0);
-
-    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
-        .trim()
-        .split('\n');
-    expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
-    expect(
-      File('${root.path}/docs/specs/topics/shared/.DS_Store')
-          .readAsStringSync(),
-      'finder\n',
-    );
-    final committed =
-        git(root, ['log', '--name-only', '--format=', 'HEAD~2..HEAD']).stdout
-            as String;
-    expect(committed, isNot(contains('.DS_Store')));
-    expect(MoveJournal.pending(root), isFalse);
   }, skip: hasGit ? null : 'git is not available');
 
   group('resume and replay', () {
@@ -2571,11 +2331,13 @@ sections:
       'plans and writes no agent file there, names it, and finishes',
       () async {
         final base = await _twoRepositories({
-          'proj/.specstone/config.yaml':
-              '${_belowSince}code_root: ../mono/services/api\n',
+          'proj/.specstone/config.yaml': _upgradeConfig(
+            'code_root: ../mono/services/api\n',
+          ),
           'mono/services/api/main.dart': 'void main() {}\n',
         }, other: 'mono');
         final project = Directory('${base.path}/proj');
+        final home = await acmeHome();
         final topFile = File('${base.path}/mono/AGENTS.md');
         final dryOut = StringBuffer();
         final dryWarnings = <String>[];
@@ -2587,10 +2349,25 @@ sections:
         ];
 
         expect(
-          await _run(project, dryOut, dryRun: true, warnings: dryWarnings),
+          await _run(
+            project,
+            dryOut,
+            home: home,
+            dryRun: true,
+            warnings: dryWarnings,
+          ),
           0,
         );
-        expect(await _run(project, out, answers: ['y'], warnings: warnings), 0);
+        expect(
+          await _run(
+            project,
+            out,
+            home: home,
+            answers: ['y'],
+            warnings: warnings,
+          ),
+          0,
+        );
 
         expect(dryOut.toString(), isNot(contains('mono')));
         expect(out.toString(), isNot(contains('mono/AGENTS.md')));
@@ -2606,61 +2383,6 @@ sections:
       skip: skipGit,
     );
 
-    test('a '
-        'legacy migrate stopped at commit 1, before its config exists, '
-        'resumes and still writes no agent file at the top of a repository '
-        'outside the project', () async {
-      final base = await _twoRepositories(
-        {
-          for (final MapEntry(:key, :value) in acmeLegacy.entries)
-            'proj/$key': value,
-          'proj/$legacyFrPath': implementingDoc('Validate credentials', [
-            'lib/a.dart',
-          ]),
-          'app/lib/a.dart': 'class A {}\n',
-        },
-        other: 'app',
-        links: {'app/docs': '../proj/docs'},
-      );
-      final project = Directory('${base.path}/proj');
-      final app = Directory('${base.path}/app');
-      locateSetupTrust(app, homeDirectory: testHome()).record();
-      final hook = File('${project.path}/.git/hooks/pre-commit')
-        ..parent.createSync(recursive: true)
-        ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
-      expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
-      final warnings = <String>[];
-
-      await expectLater(
-        () => _run(app, StringBuffer(), answers: ['y'], warnings: warnings),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.gitFailed,
-          ),
-        ),
-      );
-      expect(
-        File('${project.path}/.specstone/config.yaml').existsSync(),
-        isFalse,
-      );
-
-      hook.deleteSync();
-      expect(await _run(app, StringBuffer()), 0);
-
-      expect(MoveJournal.pending(project), isFalse);
-      expect(warnings, [
-        '../app/AGENTS.md reaches outside the project root; left as it is',
-        '../app reaches outside the project root; left as it is',
-      ]);
-      expect(File('${app.path}/AGENTS.md').existsSync(), isFalse);
-      expect(
-        File('${project.path}/.specstone/config.yaml').readAsStringSync(),
-        contains('code_root: ../app\n'),
-      );
-    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit);
-
     group('a root '
         'AGENTS.md that is a link', () {
       test(
@@ -2669,8 +2391,9 @@ sections:
         () async {
           final base = await _twoRepositories(
             {
-              'proj/.specstone/config.yaml':
-                  '${_belowSince}code_root: ../app\n',
+              'proj/.specstone/config.yaml': _upgradeConfig(
+                'code_root: ../app\n',
+              ),
               'app/AGENTS.md':
                   'Owner\n<!-- BEGIN specstone v0.0.1 -->\nold rules\n'
                   '<!-- END specstone -->\n',
@@ -2686,6 +2409,7 @@ sections:
           final status = await _run(
             project,
             out,
+            home: await acmeHome(),
             answers: ['y'],
             warnings: warnings,
           );
@@ -2705,48 +2429,11 @@ sections:
         skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
       );
 
-      test(
-        'a root CLAUDE.md linked to a file outside the project is '
-        'named and left, and the journal clears',
-        () async {
-          final base = await _twoRepositories(
-            {
-              'proj/.specstone/config.yaml': _belowSince,
-              'shared/CLAUDE.md': 'Shared\n',
-            },
-            other: 'shared',
-            links: {'proj/CLAUDE.md': '../shared/CLAUDE.md'},
-          );
-          final project = Directory('${base.path}/proj');
-          final out = StringBuffer();
-          final warnings = <String>[];
-
-          expect(
-            await _run(project, out, answers: ['y'], warnings: warnings),
-            0,
-          );
-
-          expect(warnings, [
-            'CLAUDE.md reaches outside the project root; left as it is',
-          ]);
-          expect(
-            File('${base.path}/shared/CLAUDE.md').readAsStringSync(),
-            'Shared\n',
-          );
-          expect(
-            Link('${project.path}/CLAUDE.md').targetSync(),
-            '../shared/CLAUDE.md',
-          );
-          expect(MoveJournal.pending(project), isFalse);
-        },
-        skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
-      );
-
       test('a linked .specstone/AGENT.md leading outside the project is '
           'named and left, and the file outside keeps its bytes', () async {
         final base = await _twoRepositories(
           {
-            'proj/.specstone/config.yaml': _belowSince,
+            'proj/.specstone/config.yaml': _upgradeConfig(),
             'victim.txt': 'mine\n',
             'shared/keep.txt': '',
           },
@@ -2760,6 +2447,7 @@ sections:
           await _run(
             project,
             StringBuffer(),
+            home: await acmeHome(),
             answers: ['y'],
             warnings: warnings,
           ),
@@ -2772,37 +2460,6 @@ sections:
         expect(File('${base.path}/victim.txt').readAsStringSync(), 'mine\n');
         expect(MoveJournal.pending(project), isFalse);
       }, skip: Platform.isWindows ? 'links need a privilege' : skipGit);
-
-      test(
-        'a CLAUDE.md linked into .git is named and left, and '
-        '.git/config keeps its bytes',
-        () async {
-          final base = await _twoRepositories(
-            {'proj/.specstone/config.yaml': _belowSince, 'shared/keep.txt': ''},
-            other: 'shared',
-            links: {'proj/CLAUDE.md': '.git/config'},
-          );
-          final project = Directory('${base.path}/proj');
-          final config = File('${project.path}/.git/config');
-          final before = config.readAsStringSync();
-          final warnings = <String>[];
-
-          expect(
-            await _run(
-              project,
-              StringBuffer(),
-              answers: ['y'],
-              warnings: warnings,
-            ),
-            0,
-          );
-
-          expect(warnings, ['CLAUDE.md lies under .git; left as it is']);
-          expect(config.readAsStringSync(), before);
-          expect(MoveJournal.pending(project), isFalse);
-        },
-        skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit,
-      );
 
       test(
         'to the CLAUDE.md of the project takes one block and the '
@@ -2841,10 +2498,14 @@ sections:
     });
 
     test('a run stopped after commit 1 finishes with no second y', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
-      expect(hasDoc(root, 'prds/d01_context.md'), isFalse);
-      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
+      expect(hasDoc(root, 'prds/runbooks/deploy/RUNBOOK.md'), isFalse);
+      expect(hasDoc(root, 'prds/ops/deploy/RUNBOOK.md'), isTrue);
+      expect(
+        File('${root.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.0.0'),
+      );
       final out = StringBuffer();
 
       final status = await runMigrate(
@@ -2863,15 +2524,14 @@ sections:
       final subjects = (git(root, ['log', '--format=%s']).stdout as String)
           .trim()
           .split('\n');
-      expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+      expect(subjects, [_commit2Message, _commit1Message, _fixtureSubject]);
       expect(MoveJournal.pending(root), isFalse);
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
       final lines = out.toString().trim().split('\n');
-      expect(lines[lines.length - 4], matches(r'^commit 1 [0-9a-f]{7,}: .*$'));
-      expect(lines[lines.length - 4], endsWith(_commit1Message));
-      expect(lines[lines.length - 3], matches(r'^commit 2 [0-9a-f]{7,}: .*$'));
-      expect(lines[lines.length - 3], endsWith(_commit2Message));
-      expect(lines[lines.length - 2], _trustLine);
+      expect(lines[lines.length - 3], matches(r'^commit 1 [0-9a-f]{7,}: .*$'));
+      expect(lines[lines.length - 3], endsWith(_commit1Message));
+      expect(lines[lines.length - 2], matches(r'^commit 2 [0-9a-f]{7,}: .*$'));
+      expect(lines[lines.length - 2], endsWith(_commit2Message));
       expect(
         lines.last,
         matches(r'^check: \d+ findings left; run specstone check to see them$'),
@@ -2885,7 +2545,8 @@ sections:
     test('a resumed '
         'migrate leaves an edited doc and an edited CLAUDE.md as they are and '
         'finishes the rest', () async {
-      final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+      final root = (await upgradeFixture(files: {'CLAUDE.md': _staleClaude}))
+          .project;
       _stopAfterCommit1(root);
       final journal = jsonDecode(
         File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
@@ -2911,12 +2572,15 @@ sections:
         expect(File('${root.path}/$key').readAsStringSync(), value);
       }
       expect(MoveJournal.pending(root), isFalse);
-      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
+      expect(
+        File('${root.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.1.0'),
+      );
     }, skip: skipGit);
 
     test('--dry-run lists the remaining steps and writes '
         'nothing', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final head = headOf(root);
       final journal = File('${root.path}/${MoveJournal.journalPath}')
@@ -2932,7 +2596,7 @@ sections:
         '(.specstone/trash/journal.json)',
       );
       expect(lines[1], 'remaining steps:');
-      expect(lines, contains('  write docs/prds/PROJECT.md'));
+      expect(lines, contains('  write $acmeMovedRunbookPath'));
       expect(lines.last, 'dry run: nothing written');
       expect(headOf(root), head);
       expect(
@@ -2943,7 +2607,7 @@ sections:
 
     test('bare migrate with no terminal lists the '
         'remaining steps and exits 77', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final head = headOf(root);
       final out = StringBuffer();
@@ -2961,14 +2625,14 @@ sections:
         ),
       );
       expect(out.toString(), contains('remaining steps:\n'));
-      expect(out.toString(), contains('  write docs/prds/PROJECT.md\n'));
+      expect(out.toString(), contains('  write $acmeMovedRunbookPath\n'));
       expect(headOf(root), head);
       expect(MoveJournal.pending(root), isTrue);
     }, skip: skipGit);
 
     test("--yes with the dry run's plan hash finishes the stopped "
         'run with no terminal', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final hash = await _dryRunPlanHash(root);
       final out = StringBuffer();
@@ -2992,7 +2656,7 @@ sections:
 
     test('a resume plan hash survives a new commit and '
         'changes with the cursor file', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final cursor = File('${root.path}/${MoveJournal.cursorPath}')
         ..writeAsStringSync('0');
@@ -3016,7 +2680,7 @@ sections:
 
     test('--yes with a stale plan hash leaves the stopped run '
         'pending, plan_mismatch', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final head = headOf(root);
       final out = StringBuffer();
@@ -3098,7 +2762,7 @@ sections:
 
     test('a commit a hook refuses stops the run, and the '
         'next migrate resumes it', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final hook = File('${root.path}/.git/hooks/pre-commit')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
@@ -3129,13 +2793,13 @@ sections:
       final subjects = (git(root, ['log', '--format=%s']).stdout as String)
           .trim()
           .split('\n');
-      expect(subjects, [_commit2Message, _commit1Message, 'legacy']);
+      expect(subjects, [_commit2Message, _commit1Message, _fixtureSubject]);
       expect(MoveJournal.pending(root), isFalse);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
     test('a resume commits only its own paths and leaves '
         "the Owner's staged change staged", () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final hook = File('${root.path}/.git/hooks/pre-commit')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
@@ -3170,7 +2834,7 @@ sections:
 
     test('the resume lists only the commits of the '
         "journal's steps", () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       expect(
         git(root, [
@@ -3193,7 +2857,7 @@ sections:
 
     test('git that cannot start during a resume is '
         'git_work_tree_required', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
 
       await expectLater(
@@ -3222,7 +2886,7 @@ sections:
 
     test('a resume under a git older than '
         '2.25 is git_work_tree_required, and no step runs', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final before = _bytesUnder(root);
 
@@ -3256,7 +2920,7 @@ sections:
 
     test('git that cannot start after the checks is '
         'git_failed naming the command, and the journal stays', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
 
       await expectLater(
         () => runMigrate(
@@ -3306,9 +2970,9 @@ sections:
     );
 
     WriteStep docWrite() => WriteStep(
-      'docs/prds/d01_context.md',
+      acmeRunbookPath,
       'replaced\n',
-      before: textHashOf(acmeLegacy['docs/prds/d01_context.md']!),
+      before: textHashOf(acmeRunbookText),
     );
 
     final outsideWrite = WriteStep(
@@ -3329,7 +2993,7 @@ sections:
       ];
 
       for (final (:recorded, :steps, :refusal) in cases) {
-        final root = await gitFixture(acmeLegacy);
+        final root = (await upgradeFixture()).project;
         writeJournal(root, steps, recorded: recorded);
         final before = treeBytes(root);
         final out = StringBuffer();
@@ -3359,7 +3023,7 @@ sections:
       ];
 
       for (final (:recorded, :steps, :refusal) in cases) {
-        final root = await gitFixture(acmeLegacy);
+        final root = (await upgradeFixture()).project;
         writeJournal(root, steps, recorded: recorded);
         final before = treeBytes(root);
 
@@ -3377,7 +3041,7 @@ sections:
     test('a bare run over a migrate journal no run recorded refuses '
         'output_not_writable after its git check, and the journal '
         'stays', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       writeJournal(root, [
         docWrite(),
         CommitStep(message: 'agent files', paths: const [], base: headOf(root)),
@@ -3398,7 +3062,7 @@ sections:
     test('a bare run over a recorded migrate journal whose step leaves the '
         'roots refuses with the message of the step path, before any '
         'step', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       writeJournal(root, [
         docWrite(),
         outsideWrite,
@@ -3417,7 +3081,7 @@ sections:
 
     test('a commit git cannot start is git_failed, exit 75, naming the '
         'command, and the journal stays', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
 
       await expectLater(
         () => _run(
@@ -3453,7 +3117,7 @@ sections:
 
     test('a dry run over a journal with a step left refuses with the whole '
         'working_tree_dirty message before any git call', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _writeF02Journal(root);
       final calls = <List<String>>[];
       final out = StringBuffer();
@@ -3519,7 +3183,7 @@ sections:
 
     test('--dry-run lists a commit step only when the git log lacks its '
         'commit', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final made = StringBuffer();
       expect(await _run(root, made, dryRun: true), 0);
@@ -3536,7 +3200,7 @@ sections:
 
     test('a resume plan hash changes with the journal file, and --yes with the '
         'old hash is plan_mismatch, exit 75', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final hash = await _dryRunPlanHash(root);
       final head = headOf(root);
@@ -3586,7 +3250,7 @@ sections:
     test('a dry run outside a work tree, or under git '
         '2.24, refuses git_work_tree_required, as does a resume dry run '
         'outside one', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       final out = StringBuffer();
 
       await expectLater(
@@ -3632,18 +3296,13 @@ sections:
 
     test('a dry run over untrusted '
         'roots refuses output_not_writable before any git call', () async {
-      final tree = await writeTree(linkedAcme({}));
-      if (!linkCodeDocs(tree)) return;
+      final linked = await linkedUpgradeFixture();
+      if (linked == null) return;
       final calls = <List<String>>[];
       final out = StringBuffer();
 
       await expectLater(
-        () => _run(
-          Directory('${tree.path}/ws/code'),
-          out,
-          dryRun: true,
-          runGit: _fakeGit(calls),
-        ),
+        () => _run(linked.code, out, dryRun: true, runGit: _fakeGit(calls)),
         trustRefusal(),
       );
       expect(calls, isEmpty);
@@ -3652,7 +3311,7 @@ sections:
 
     test('a resume dry run over a dirty tree prints the '
         'remaining steps and a plan line', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final out = StringBuffer();
@@ -3664,7 +3323,7 @@ sections:
     }, skip: skipGit);
 
     test('a resume dry run --json holds dirty false', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final out = StringBuffer();
@@ -3677,21 +3336,16 @@ sections:
 
     test('a dry run over a pending journal refuses '
         'untrusted roots first and replays nothing', () async {
-      final tree = await writeTree(linkedAcme({}));
-      if (!linkCodeDocs(tree)) return;
-      final project = Directory('${tree.path}/ws');
+      final linked = await linkedUpgradeFixture();
+      if (linked == null) return;
+      final LinkedUpgradeFixture(:project, :code) = linked;
       final calls = <List<String>>[];
       _writeF02Journal(project);
       final journal = File('${project.path}/${MoveJournal.journalPath}');
       final before = journal.readAsStringSync();
 
       await expectLater(
-        () => _run(
-          Directory('${tree.path}/ws/code'),
-          StringBuffer(),
-          dryRun: true,
-          runGit: _fakeGit(calls),
-        ),
+        () => _run(code, StringBuffer(), dryRun: true, runGit: _fakeGit(calls)),
         trustRefusal(),
       );
 
@@ -3701,7 +3355,7 @@ sections:
 
     test('a dry run over a pending journal with a step '
         'left replays nothing and refuses before any git call', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _writeF02Journal(root);
       final journal = File('${root.path}/${MoveJournal.journalPath}');
       final before = journal.readAsStringSync();
@@ -3723,8 +3377,8 @@ sections:
       expect(out.toString(), isEmpty);
       expect(journal.readAsStringSync(), before);
       expect(
-        File('${root.path}/docs/prds/d01_context.md').readAsStringSync(),
-        acmeLegacy['docs/prds/d01_context.md'],
+        File('${root.path}/$acmeRunbookPath').readAsStringSync(),
+        acmeRunbookText,
       );
     }, skip: skipGit);
 
@@ -3733,13 +3387,13 @@ sections:
 
     test('a dry run over a pending journal whose step '
         'is applied plans the tree as it stands and names it dirty', () async {
-      final root = await gitFixture({
-        ...acmeLegacy,
-        '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
-      });
+      final root = (await upgradeFixture(
+        files: {
+          '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+        },
+      )).project;
       _writeF02Journal(root);
-      File('${root.path}/docs/prds/d01_context.md')
-          .writeAsStringSync('replaced\n');
+      File('${root.path}/$acmeRunbookPath').writeAsStringSync('replaced\n');
       final journal = File('${root.path}/${MoveJournal.journalPath}');
       final before = journal.readAsStringSync();
       final out = StringBuffer();
@@ -3760,11 +3414,12 @@ sections:
 
     test('a dry run over a pending journal with no '
         'step left and a clean tree passes the git checks and plans', () async {
-      final root = await gitFixture({
-        ...acmeLegacy,
-        'docs/prds/d01_context.md': 'replaced\n',
-        '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
-      });
+      final root = (await upgradeFixture(
+        files: {
+          acmeRunbookPath: 'replaced\n',
+          '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+        },
+      )).project;
       _writeF02Journal(root);
       final out = StringBuffer();
       final calls = <List<String>>[];
@@ -3779,22 +3434,24 @@ sections:
     test('a dry run over a two-step journal goes by '
         'the cursor: a step left refuses, none left passes', () async {
       const replaced = 'replaced\n';
-      const first = 'docs/prds/d01_context.md';
-      const second = 'docs/prds/d02_features.md';
+      const first = acmeRunbookPath;
+      const second = 'docs/prds/notes.md';
+      const secondText = '# Notes\n';
       for (final (:cursor, :secondDone, :refuses) in [
         (cursor: 1, secondDone: false, refuses: true),
         (cursor: 1, secondDone: true, refuses: false),
         (cursor: 2, secondDone: false, refuses: false),
       ]) {
-        final root = await gitFixture({
-          ...acmeLegacy,
-          first: replaced,
-          if (secondDone) second: replaced,
-          '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
-        });
+        final root = (await upgradeFixture(
+          files: {
+            first: replaced,
+            second: secondDone ? replaced : secondText,
+            '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
+          },
+        )).project;
         writeJournal(root, [
-          WriteStep(first, replaced, before: textHashOf(acmeLegacy[first]!)),
-          WriteStep(second, replaced, before: textHashOf(acmeLegacy[second]!)),
+          WriteStep(first, replaced, before: textHashOf(acmeRunbookText)),
+          WriteStep(second, replaced, before: textHashOf(secondText)),
         ]);
         File('${root.path}/${MoveJournal.cursorPath}')
             .writeAsStringSync('$cursor');
@@ -3824,21 +3481,15 @@ sections:
 
     test('a resume dry run over untrusted roots refuses output_not_writable '
         'before any git call', () async {
-      final tree = await writeTree(linkedAcme({'.gitignore': 'code/docs\n'}));
-      if (!linkCodeDocs(tree)) return;
-      final ws = Directory('${tree.path}/ws');
-      commitRepo(ws);
+      final linked = await linkedUpgradeFixture(commit: true);
+      if (linked == null) return;
+      final LinkedUpgradeFixture(project: ws, :code) = linked;
       _stopAfterCommit1(ws);
       final calls = <List<String>>[];
       final out = StringBuffer();
 
       await expectLater(
-        () => _run(
-          Directory('${ws.path}/code'),
-          out,
-          dryRun: true,
-          runGit: _fakeGit(calls),
-        ),
+        () => _run(code, out, dryRun: true, runGit: _fakeGit(calls)),
         trustRefusal(),
       );
 
@@ -3848,7 +3499,7 @@ sections:
 
     test('a resume dry run under git '
         '2.24 refuses git_work_tree_required and names 2.25', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       _stopAfterCommit1(root);
       final out = StringBuffer();
 
@@ -3873,15 +3524,13 @@ sections:
     }, skip: skipGit);
 
     group('an upgrade dry run', () {
-      final upgrade = {'.specstone/config.yaml': _belowSince};
-
       test('over a dirty tree prints the '
           'plan and names the clean tree the run needs', () async {
-        final root = await gitFixture(upgrade);
+        final UpgradeFixture(project: root, :home) = await upgradeFixture();
         File('${root.path}/notes.txt').writeAsStringSync('x\n');
         final out = StringBuffer();
 
-        expect(await _run(root, out, dryRun: true), 0);
+        expect(await _run(root, out, home: home, dryRun: true), 0);
 
         expect(out.toString(), contains('\nplan '));
         expect(
@@ -3894,13 +3543,14 @@ sections:
 
       test('outside a work tree refuses '
           'git_work_tree_required', () async {
-        final root = await gitFixture(upgrade);
+        final UpgradeFixture(project: root, :home) = await upgradeFixture();
         final out = StringBuffer();
 
         await expectLater(
           () => _run(
             root,
             out,
+            home: home,
             dryRun: true,
             runGit: _fakeGit([], outsideWorkTree: true),
           ),
@@ -3912,13 +3562,14 @@ sections:
 
       test('under git 2.24 refuses '
           'git_work_tree_required and names 2.25', () async {
-        final root = await gitFixture(upgrade);
+        final UpgradeFixture(project: root, :home) = await upgradeFixture();
         final out = StringBuffer();
 
         await expectLater(
           () => _run(
             root,
             out,
+            home: home,
             dryRun: true,
             runGit: _fakeGit([], version: '2.24.0'),
           ),
@@ -3939,7 +3590,8 @@ sections:
 
     test('a dry run over a tree dirty only by a '
         'git-ignored file prints the plan', () async {
-      final root = await gitFixture({...acmeLegacy, '.gitignore': '*.log\n'});
+      final root = (await upgradeFixture(files: {'.gitignore': '*.log\n'}))
+          .project;
       File('${root.path}/build.log').writeAsStringSync('x\n');
       final out = StringBuffer();
 
@@ -3950,7 +3602,7 @@ sections:
 
     test('an untracked file counts whatever the git '
         'configuration hides', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = (await upgradeFixture()).project;
       expect(
         git(root, ['config', 'status.showUntrackedFiles', 'no']).exitCode,
         0,
@@ -4047,16 +3699,17 @@ sections:
 
     test('a bare run with no home folder refuses the trust record before the '
         'missing home, and writes nothing', () async {
-      final tree = await _linkedTree();
-      if (tree == null) return;
-      final ws = Directory('${tree.path}/ws');
+      // A personal pack pin would need the home folder this run lacks.
+      final linked = await linkedUpgradeFixture(files: _agentOnlyFiles());
+      if (linked == null) return;
+      final LinkedUpgradeFixture(:tree, project: ws, :code) = linked;
       final before = treeBytes(ws);
       final out = StringBuffer();
 
       await expectLater(
         () => runMigrate(
           MigrateRequest(
-            workingDirectory: Directory('${ws.path}/code'),
+            workingDirectory: code,
             homeDirectory: null,
             templates: TemplateResolver(),
             dryRun: false,
@@ -4076,19 +3729,16 @@ sections:
         'plan-hash check each come before the no-home refusal', () async {
       final refusals = {
         'a plan refusal': (
-          files: {
-            ...duplicateGroupLegacy,
-            'docs/prds/d01_context.md': '# D-01 — Context\n',
-          },
+          files: {..._agentOnlyFiles(), settingsFilePath: '{"hooks": []}'},
           confirmation: OwnerConfirmation.prompt,
           matcher: isA<MigrateFault>().having(
             (f) => f.code,
             'code',
-            MigrateFaultCode.groupSlugDuplicate,
+            MigrateFaultCode.agentBlockMalformed,
           ),
         ),
         'no interactive terminal': (
-          files: acmeLegacy,
+          files: _agentOnlyFiles(),
           confirmation: OwnerConfirmation.missing,
           matcher: isA<WriteFault>().having(
             (f) => f.code,
@@ -4097,7 +3747,7 @@ sections:
           ),
         ),
         'a stale plan hash under --yes': (
-          files: acmeLegacy,
+          files: _agentOnlyFiles(),
           confirmation: OwnerConfirmation.given,
           matcher: isA<MigrateFault>().having(
             (f) => f.code,
@@ -4135,21 +3785,16 @@ sections:
 
     test('a bare run over a pending journal refuses before its replay and any '
         'git call, and leaves the journal', () async {
-      final tree = await _linkedTree();
-      if (tree == null) return;
-      final ws = Directory('${tree.path}/ws');
+      final linked = await linkedUpgradeFixture();
+      if (linked == null) return;
+      final LinkedUpgradeFixture(:tree, project: ws, :code) = linked;
       _writeF02Journal(ws);
       final before = treeBytes(ws);
       final calls = <List<String>>[];
       final out = StringBuffer();
 
       await expectLater(
-        () => _run(
-          Directory('${ws.path}/code'),
-          out,
-          answers: ['y'],
-          runGit: _fakeGit(calls),
-        ),
+        () => _run(code, out, answers: ['y'], runGit: _fakeGit(calls)),
         _untrustedRefusal(tree),
       );
 
@@ -4161,23 +3806,47 @@ sections:
 
     test('a write command refuses to replay a pending journal, leaves it, and '
         'changes nothing', () async {
-      final tree = await _linkedTree({
-        '.specstone/config.yaml': shippedPinsConfig(),
-      });
-      if (tree == null) return;
-      final ws = Directory('${tree.path}/ws');
+      final linked = await linkedUpgradeFixture(
+        files: {'.specstone/config.yaml': shippedPinsConfig()},
+      );
+      if (linked == null) return;
+      final LinkedUpgradeFixture(:tree, project: ws, :code) = linked;
       _writeF02Journal(ws);
       final journal = File('${ws.path}/${MoveJournal.journalPath}');
       final journalBytes = journal.readAsBytesSync();
       final before = _bytesUnder(ws);
 
       await expectLater(
-        () => writeIn(Directory('${ws.path}/code'), (session) {}),
+        () => writeIn(code, (session) {}),
         _untrustedRefusal(tree),
       );
 
       // Opening the project makes the index `.gitignore`, as any read does.
       expect(_bytesUnder(ws)..remove('.specstone/.gitignore'), before);
+      expect(journal.readAsBytesSync(), journalBytes);
+    });
+
+    test('a write command refuses a pending migrate journal in a tree whose '
+        'config is not written yet, and leaves it', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': '# Project\n'});
+      writeJournal(root, [
+        const MoveStep('docs/prds/a.md', 'docs/prds/b.md'),
+        const CommitStep(message: 'move', paths: ['a'], base: 'abc'),
+      ]);
+      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
+      final journal = File('${root.path}/${MoveJournal.journalPath}');
+      final journalBytes = journal.readAsBytesSync();
+
+      expect(
+        () => writeIn(root, (session) {}),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.migratePending)
+              .having((f) => f.exitStatus, 'exit', 75)
+              .having((f) => f.file, 'file', MoveJournal.journalPath),
+        ),
+      );
+
       expect(journal.readAsBytesSync(), journalBytes);
     });
 
@@ -4195,21 +3864,16 @@ sections:
       };
 
       for (final MapEntry(key: reason, value: write) in journals.entries) {
-        final tree = await _linkedTree();
-        if (tree == null) return;
-        final ws = Directory('${tree.path}/ws');
+        final linked = await linkedUpgradeFixture();
+        if (linked == null) return;
+        final LinkedUpgradeFixture(:tree, project: ws, :code) = linked;
         write(ws);
         final before = treeBytes(ws);
         final calls = <List<String>>[];
         final out = StringBuffer();
 
         await expectLater(
-          () => _run(
-            Directory('${ws.path}/code'),
-            out,
-            dryRun: true,
-            runGit: _fakeGit(calls),
-          ),
+          () => _run(code, out, dryRun: true, runGit: _fakeGit(calls)),
           _untrustedRefusal(tree),
           reason: reason,
         );
@@ -4223,10 +3887,9 @@ sections:
     test(
       'a bare resume refuses before its git check and writes nothing',
       () async {
-        final tree = await _linkedTree({'.gitignore': 'code/docs\n'});
-        if (tree == null) return;
-        final ws = Directory('${tree.path}/ws');
-        commitRepo(ws);
+        final linked = await linkedUpgradeFixture(commit: true);
+        if (linked == null) return;
+        final LinkedUpgradeFixture(:tree, project: ws, :code) = linked;
         _stopAfterCommit1(ws);
         final before = treeBytes(ws);
         final head = headOf(ws);
@@ -4234,8 +3897,7 @@ sections:
         final out = StringBuffer();
 
         await expectLater(
-          () =>
-              _run(Directory('${ws.path}/code'), out, runGit: _fakeGit(calls)),
+          () => _run(code, out, runGit: _fakeGit(calls)),
           _untrustedRefusal(tree),
         );
 
@@ -4248,64 +3910,11 @@ sections:
       skip: skipGit,
     );
   });
-
-  group('a planned create onto a path that holds an entry', () {
-    final skipGit = hasGit ? null : 'git is not available';
-    Matcher refusedAt(String path) => throwsA(
-      isA<MigrateFault>()
-          .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
-          .having((f) => f.file, 'file', path),
-    );
-
-    test('a legacy tree that holds the override file '
-        'the run creates refuses in the dry run, nothing written', () async {
-      final root = await gitFixture({
-        ...acmeLegacy,
-        '.specstone/templates/gnfr.yaml': 'id: gnfr\n',
-      });
-      final before = _bytesUnder(root);
-      final out = StringBuffer();
-
-      await expectLater(
-        () => _run(root, out, dryRun: true),
-        refusedAt('.specstone/templates/gnfr.yaml'),
-      );
-
-      expect(out.toString(), isEmpty);
-      expect(_bytesUnder(root), before);
-    }, skip: skipGit);
-
-    test('a draft path the volume reads as the name '
-        'of a file there refuses in the dry run, nothing written', () async {
-      final root = await gitFixture({
-        ...acmeLegacy,
-        'docs/specs/tech_stack.md': '# Stack\n',
-      });
-      if (!File('${root.path}/docs/specs/TECH_STACK.md').existsSync()) {
-        markTestSkipped('the volume tells names apart by case');
-        return;
-      }
-      final before = _bytesUnder(root);
-      final out = StringBuffer();
-
-      await expectLater(
-        () => _run(root, out, dryRun: true),
-        refusedAt('docs/specs/TECH_STACK.md'),
-      );
-
-      expect(out.toString(), isEmpty);
-      expect(_bytesUnder(root), before);
-    }, skip: skipGit);
-  });
 }
 
 /// Writes a pending F-02 journal, one write step and no commit, at [root].
 void _writeF02Journal(Directory root) => writeJournal(root, [
-  WriteStep(
-    'docs/prds/d01_context.md',
-    'replaced\n',
-    before: textHashOf(acmeLegacy['docs/prds/d01_context.md']!),
-  ),
+  WriteStep(acmeRunbookPath, 'replaced\n', before: textHashOf(acmeRunbookText)),
 ]);
 
 /// Starts real git like [runMigrateGit], records each argument list in
@@ -4330,10 +3939,10 @@ RunGit _fakeGit(
 String headOf(Directory root) =>
     (git(root, ['rev-parse', 'HEAD']).stdout as String).trim();
 
-/// Leaves [root] as a crash after commit 1 of the legacy plan does: the
+/// Leaves [root] as a crash after commit 1 of the upgrade plan does: the
 /// journal saved, its steps applied through the first commit.
 void _stopAfterCommit1(Directory root) {
-  final steps = planLegacyRun(
+  final steps = planUpgradeRun(
     root,
     templates: TemplateResolver(),
     homeDirectory: testHome(),
@@ -4347,6 +3956,7 @@ void _stopAfterCommit1(Directory root) {
     projectRoot: root,
     docsRoot: Directory('${root.path}/docs'),
     homeDirectory: testHome(),
+    trust: trustOf(root),
   );
   for (final step in steps) {
     step.apply(target);

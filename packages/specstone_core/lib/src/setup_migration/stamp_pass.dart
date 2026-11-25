@@ -28,7 +28,6 @@ import 'package:specstone_core/src/setup_migration/renumber_index.dart';
 import 'package:specstone_core/src/setup_migration/tracked_blocks.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 
 // MARK: - Constants
 
@@ -45,10 +44,8 @@ const List<String> _contractSectionKeys = [
 // MARK: - StampPass
 
 /// The last step of a pack upgrade: it stamps the approval hash on each doc
-/// that counted as approved before the run and re-stamps each
-/// `confirmed` entry that matched before the run, every one in the one-time
-/// run, else each whose block the cite pass or the link rewrites alone
-/// rewrote.
+/// that counted as approved before the run and re-stamps each matched
+/// `confirmed` entry whose block the link rewrites alone rewrote.
 ///
 /// One pass computes every after-hash, over the text each doc has after every
 /// other step, so no earlier step stamps a value a later one changes.
@@ -70,46 +67,27 @@ final class StampPass {
   /// An entry is paired with the one at its position in the doc before the
   /// run; a doc whose `confirmed` entries changed in number keeps them.
   ///
-  /// [pins] are the pack pins before the run: a doc counts as approved when it
-  /// did not await approval under them, its hash then read by their
-  /// [statusesOutsideApproval] rule. The stamped hash follows the rule of
-  /// [pinsAfter], the pins the run leaves, so a record approved while its
-  /// statuses counted takes the hash that leaves them out.
-  /// [restampsFingerprints] holds for the one-time run alone, which
-  /// re-stamps every matched entry. [citedFrom] holds, for each doc the cite
-  /// pass rewrote, its text before that pass; an entry whose block that
-  /// rewrite changed is re-stamped too. [linkedFrom] holds, for each doc the
-  /// run's link rewrites changed, its text after the steps and before those
-  /// rewrites; an entry whose block the steps left as before the run and the
-  /// rewrites changed is re-stamped too, and no other. A typed doc whose
-  /// frontmatter is not valid YAML, before or after, is skipped and named on
-  /// the plan line. A doc of [typedByAdd], by DocPath, is left as written: the
-  /// add made it a draft awaiting approval.
+  /// [linkedFrom] holds, for each doc the run's link rewrites changed, its
+  /// text after the steps and before those rewrites; an entry whose block the
+  /// steps left as before the run and the rewrites changed is re-stamped, and
+  /// no other. A typed doc whose frontmatter is not valid YAML, before or
+  /// after, is skipped and named on the plan line. A doc of [typedByAdd], by
+  /// DocPath, is left as written: the add made it a draft awaiting approval.
   factory plan(
     List<StampDoc> before,
     List<StampDoc> after, {
-    required Map<String, PackVersion> pins,
-    required Map<String, PackVersion> pinsAfter,
-    required bool restampsFingerprints,
-    Map<String, String> citedFrom = const {},
     Set<String> typedByAdd = const {},
     Map<String, String> linkedFrom = const {},
   }) {
-    final ran = stampsHaveRun(pins);
-    final statusesOutside = statusesOutsideApproval(pins);
-    final statusesOutsideAfter = statusesOutsideApproval(pinsAfter);
     final skipped = <String>[];
     final beforeAt = {for (final doc in before) doc.docPath: doc};
     final world = _World(after);
     final beforeWorld = _World(before);
     final linkedWorld = _worldOf(after, linkedFrom);
     final restamps = _restampRule(
-      after,
       world,
       before: beforeWorld,
       linked: linkedWorld,
-      everyMatched: restampsFingerprints,
-      citedFrom: citedFrom,
     );
     final linkOnly = linkedWorld == null
         ? null
@@ -123,18 +101,8 @@ final class StampPass {
       final old = beforeAt[doc.docPath];
       if (type == null || old == null) continue;
       if (typedByAdd.contains(doc.docPath)) continue;
-      final beforeHash = comparedApprovalHash(
-        old.lf,
-        old.type,
-        statusesOutside: statusesOutside,
-      );
-      if (beforeHash == null ||
-          comparedApprovalHash(
-                doc.lf,
-                type,
-                statusesOutside: statusesOutsideAfter,
-              ) ==
-              null) {
+      final beforeHash = comparedApprovalHash(old.lf, old.type);
+      if (beforeHash == null || comparedApprovalHash(doc.lf, type) == null) {
         skipped.add(doc.docPath);
         continue;
       }
@@ -146,12 +114,8 @@ final class StampPass {
       var lf = entries.lfText;
       // A doc that did not await approval before the run counts as approved;
       // one `check` flagged then (a stale hash, a bad value) stays.
-      if (!awaitsApproval(
-        ApprovalFields.of(Doc.parse(old.lf)),
-        beforeHash,
-        stampsHaveRun: ran,
-      )) {
-        lf = withApprovalHash(lf, type, statusesOutside: statusesOutsideAfter);
+      if (!awaitsApproval(ApprovalFields.of(Doc.parse(old.lf)), beforeHash)) {
+        lf = withApprovalHash(lf, type);
       }
       if (lf == doc.lf) continue;
       stamped[doc.docPath] = lf;
@@ -249,31 +213,21 @@ RestampedEntries withEntriesRestamped(
 /// block's fingerprint after the run.
 typedef _Restamps = bool Function(String docPath, String label);
 
-/// Returns which matched entries the pass re-stamps: every one when
-/// [everyMatched] holds, else each whose block the cite pass changed, or the
-/// link rewrites alone changed; null when it re-stamps none.
+/// Returns which matched entries the pass re-stamps: each whose block the link
+/// rewrites alone changed; null when it re-stamps none.
 ///
-/// The cite pass changed a block whose fingerprint over the [citedFrom] texts
-/// differs from the one in [world]. The link rewrites alone changed one whose
-/// fingerprint in [linked], the world before those rewrites, equals the one in
-/// [before] and differs from the one in [world].
+/// The link rewrites alone changed one whose fingerprint in [linked], the
+/// world before those rewrites, equals the one in [before] and differs from
+/// the one in [world].
 _Restamps? _restampRule(
-  List<StampDoc> after,
   _World world, {
   required _World before,
   required _World? linked,
-  required bool everyMatched,
-  required Map<String, String> citedFrom,
 }) {
-  if (everyMatched) return (_, _) => true;
-  final uncited = _worldOf(after, citedFrom);
-  if (uncited == null && linked == null) return null;
+  if (linked == null) return null;
   return (docPath, label) {
     final now = world.currentFingerprint(docPath, label);
-    if (uncited != null && uncited.currentFingerprint(docPath, label) != now) {
-      return true;
-    }
-    final unlinked = linked?.currentFingerprint(docPath, label);
+    final unlinked = linked.currentFingerprint(docPath, label);
     return unlinked != null &&
         unlinked != now &&
         unlinked == before.currentFingerprint(docPath, label);
@@ -600,12 +554,11 @@ final class _World {
       }();
 
   /// Whether the entry [label] [fingerprint] of the doc at [docPath] equals
-  /// the fingerprint of its block, by the current recipe or the 1.1.0 one.
+  /// the fingerprint of its block.
   bool matches(String docPath, String label, String fingerprint) {
     final block = _blockOf(docPath, label);
     if (block == null) return false;
-    return fingerprint == fingerprintOf(block) ||
-        fingerprint == legacyFingerprintOf(block);
+    return fingerprint == fingerprintOf(block);
   }
 
   /// The fingerprint of the block [label] names in the doc at [docPath]; null
@@ -618,7 +571,7 @@ final class _World {
   String? _blockOf(String docPath, String label) {
     final target = _index.confirmedTarget(label, docPath);
     if (target == null) return null;
-    final (blockPath, key) = target.block;
+    final BlockRef(docPath: blockPath, :key) = target;
     final doc = _byPath[blockPath];
     if (doc == null) return null;
     return (_blocks[blockPath] ??= trackedBlocksOf(doc))[key];

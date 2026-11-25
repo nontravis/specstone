@@ -16,6 +16,7 @@ import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/models/ranked_fault_files.dart';
 import 'package:specstone_core/src/templates/pack_chain.dart';
+import 'package:specstone_core/src/templates/pack_floors.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -26,7 +27,8 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 /// Loads the layers of one project and merges them into a [MergedSet].
 ///
-/// The load runs in stages: the config; every listed pack's manifest read and
+/// The load runs in stages: the config; every listed shipped pin checked
+/// against its floor; every listed pack's manifest read and
 /// its pin, name, and version checked, packs by name in code point order; the
 /// packs ordered by their `extends` chains; each pack's doc-type files, then
 /// its feature pattern files, parsed in pack load order; the project
@@ -35,17 +37,38 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 /// that order is the one fault raised (one fault per run), so no chain fault
 /// or doc-type file fault surfaces before every manifest check passes.
 final class TemplateResolver {
-  new({Map<String, Uint8List>? shippedFiles, Set<String>? generatorKinds})
-    : _shippedFiles = shippedFiles ?? shippedPackFiles,
-      _generatorKinds = generatorKinds ?? shippedGeneratorKinds;
+  /// Builds a resolver over [shippedFiles], the binary's own when null.
+  ///
+  /// [floors] defaults to [PackFloors.shipped] over the binary's own files
+  /// and to [PackFloors.none] over any other [shippedFiles].
+  new({
+    Map<String, Uint8List>? shippedFiles,
+    Set<String>? generatorKinds,
+    PackFloors? floors,
+  }) : _shippedFiles = shippedFiles ?? shippedPackFiles,
+       _generatorKinds = generatorKinds ?? shippedGeneratorKinds,
+       _floors =
+           floors ??
+           (shippedFiles == null ? PackFloors.shipped : PackFloors.none);
 
   final Map<String, Uint8List> _shippedFiles;
+
+  final PackFloors _floors;
 
   /// The generator kinds a layer's `generators` entry may name.
   final Set<String> _generatorKinds;
 
   /// The generator kinds a layer's `generators` entry may name.
   Set<String> get generatorKinds => Set.unmodifiable(_generatorKinds);
+
+  /// Throws `pack_pin_below_floor` for the first of [pins] under its floor.
+  ///
+  /// Checks every pin against this resolver's floors, in code point order;
+  /// a resolver with no floors never throws.
+  void requireAtFloor(Map<String, PackVersion> pins) {
+    final belowFloor = _floors.firstBelow(pins);
+    if (belowFloor != null) throw belowFloor;
+  }
 
   /// Resolves the doc types of the project at [workingDirectory].
   ///
@@ -235,12 +258,15 @@ final class TemplateResolver {
   /// Loads the listed packs' manifests, checking every pin.
   ///
   /// Packs load by name in code point order, whatever the YAML
-  /// order of `packs:`. A listed pack ships when its name is a top-level
+  /// order of `packs:`. A listed shipped pin under its floor is
+  /// `pack_pin_below_floor`, checked over every pin before any pack loads. A
+  /// listed pack ships when its name is a top-level
   /// folder of the shipped files; its pin must equal its carried version
   /// (`pack_pin_older`, `pack_pin_newer`). A pack that does not ship loads
   /// from the home folder (`pack_not_found`, `pack_name_mismatch`,
   /// `personal_pack_version_differs`). Unlisted packs never load.
   List<LoadedPack> _listedPacks(ProjectConfig config, Directory? home) {
+    requireAtFloor(config.pins);
     final names = config.pins.keys.toList()..sort(compareCodePoints);
     return [
       for (final name in names) _checkedPack(name, config.pins[name]!, home),
@@ -405,7 +431,6 @@ final class TemplateResolver {
     _checkGeneratorKinds(loadOrder);
     _checkRecordTargets(packs);
     _checkBulletLineTargets(packs, layerLists);
-    _checkDropDefaultLineTargets(packs, layerLists);
     _checkMarkRetrimTargets(packs, layerLists);
     _checkDropSectionTargets(packs, layerLists);
     _checkDropDocTypeTargets(packs);
@@ -463,9 +488,8 @@ final class TemplateResolver {
     );
   }
 
-  /// Throws `unknown_value` for the first `move_to_record` or `merge_doc` step
-  /// whose `to` names no doc type its pack, or a pack its chain reaches,
-  /// defines.
+  /// Throws `unknown_value` for the first `merge_doc` step whose `to` names no
+  /// doc type its pack, or a pack its chain reaches, defines.
   void _checkRecordTargets(List<ParsedPack> packs) {
     final extendsOf = extendsMapOf([
       for (final ParsedPack(:pack) in packs) pack,
@@ -487,17 +511,6 @@ final class TemplateResolver {
   ) {
     for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkBulletLineTargets(layerLists);
-    }
-  }
-
-  /// Throws `unknown_value` for the first `drop_default_lines` doc type whose
-  /// layers, `extends` chain included, define no `entities` or `invariants`.
-  void _checkDropDefaultLineTargets(
-    List<ParsedPack> packs,
-    Map<String, DocTypeLayers> layerLists,
-  ) {
-    for (final ParsedPack(:pack) in packs) {
-      pack.manifest.checkDropDefaultLineTargets(layerLists);
     }
   }
 

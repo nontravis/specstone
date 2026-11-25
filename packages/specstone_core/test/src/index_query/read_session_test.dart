@@ -220,7 +220,6 @@ void main() {
                 docPath: 'README.md',
                 bytes: utf8.encode('# Readme\n\n## Body\nnarwhal\n'),
                 match: const NoDocType(),
-                statusesOutside: true,
               ),
             ),
           );
@@ -259,7 +258,6 @@ void main() {
                   docPath: 'README.md',
                   bytes: utf8.encode('# Readme\n\n## Body\nround $fills\n'),
                   match: const NoDocType(),
-                  statusesOutside: true,
                 ),
               ),
             );

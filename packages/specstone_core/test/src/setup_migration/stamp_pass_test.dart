@@ -8,7 +8,6 @@ import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -21,27 +20,23 @@ const _gnfrPath = 'prds/GNFR.md';
 const _nfPath = 'prds/features/f01_a/us01_b/nf01_d.md';
 
 const _one = '### Scenario 1 — [happy] one\n\n- **Given** g';
-const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
-const _renumbered = '### Scenario 9 — [edge] lettered\n\n- **Given** g';
-
-PackVersion _version(String text) =>
-    PackVersion.parse(text, file: 'config.yaml', key: 'packs');
-
-Map<String, PackVersion> get _belowBoth => {
-  'prd-core': _version('1.0.0'),
-  'software-tech': _version('1.0.0'),
-};
 
 final _approvedHash = RegExp(r'^approved: "[0-9a-f]{12}"$', multiLine: true);
 
-/// The approval hash by the rule of the pins every run here starts from, all
-/// below the statuses pin.
-String _hashOf(String lf, MergedDocType? type) =>
-    approvalHashOf(lf, type, statusesOutside: false);
+String _hashOf(String lf, MergedDocType? type) => approvalHashOf(lf, type);
 
 /// [lf] stamped with [_hashOf].
-String _stamped(String lf, MergedDocType? type) =>
-    withApprovalHash(lf, type, statusesOutside: false);
+String _stamped(String lf, MergedDocType? type) => withApprovalHash(lf, type);
+
+/// [docs], each approved by the hash of its content.
+Map<String, String> _approved(Map<String, String> docs) => {
+  for (final MapEntry(key: docPath, value: lf) in docs.entries)
+    docPath: _stamped(lf, _typeAt(docPath)),
+};
+
+/// [lf] with its heading changed, so its approval hash is stale.
+String _edited(String lf) =>
+    lf.replaceFirst(RegExp('^# ', multiLine: true), '# Edited ');
 
 String _story(String scenarios) =>
     '# B\n\n## Acceptance Criteria\n\n$scenarios\n';
@@ -66,18 +61,12 @@ List<StampDoc> _docs(Map<String, String> texts) => [
 ({StampPass pass, Map<String, String> applied}) _run(
   Map<String, String> before,
   Map<String, String> after, {
-  Map<String, PackVersion>? pins,
-  Map<String, PackVersion>? pinsAfter,
-  bool restampsFingerprints = true,
   Set<String> typedByAdd = const {},
   Map<String, String> linkedFrom = const {},
 }) {
   final pass = StampPass.plan(
     _docs(before),
     _docs(after),
-    pins: pins ?? _belowBoth,
-    pinsAfter: pinsAfter ?? pins ?? _belowBoth,
-    restampsFingerprints: restampsFingerprints,
     typedByAdd: typedByAdd,
     linkedFrom: linkedFrom,
   );
@@ -104,48 +93,40 @@ void main() {
   });
 
   group('the approval hash stamp', () {
-    test('a doc with approved: true and a doc with neither key take the '
-        'approval hash of their content; a draft keeps its frontmatter', () {
-      final docs = {
-        _storyPath: '---\napproved: true\n---\n${_story(_one)}',
+    test('a doc approved by its hash takes the approval hash of its content '
+        'after the run; a draft keeps its frontmatter', () {
+      final approved = _approved({
+        _storyPath: _story(_one),
         _frPath: _tracing('  - S1 ${fingerprintOf(_one)}\n'),
+      });
+      final before = {
+        ...approved,
         _draftFrPath: '---\ndraft: true\n---\n# D\n',
       };
+      final after = {
+        _storyPath: _edited(approved[_storyPath]!),
+        _frPath: _edited(approved[_frPath]!),
+        _draftFrPath: _edited(before[_draftFrPath]!),
+      };
 
-      final run = _runUnchanged(docs);
+      final run = _run(before, after);
 
-      final story = run.applied[_storyPath]!;
-      expect(story, matches(_approvedHash));
-      expect(
-        story,
-        '---\napproved: "${_hashOf(story, _typeAt(_storyPath))}"\n---\n'
-        '${_story(_one)}',
-      );
-      expect(run.applied[_frPath], matches(_approvedHash));
-      expect(run.applied[_draftFrPath], docs[_draftFrPath]);
+      for (final docPath in [_storyPath, _frPath]) {
+        final stamped = run.applied[docPath]!;
+        expect(stamped, matches(_approvedHash));
+        expect(stamped, _stamped(after[docPath]!, _typeAt(docPath)));
+      }
+      expect(run.applied[_draftFrPath], after[_draftFrPath]);
       expect(run.pass.planLine, 'stamps: 2 approval hashes, 0 fingerprints');
     });
 
-    test('a doc with no frontmatter gains one holding only the hash', () {
-      final run = _runUnchanged({_storyPath: _story(_one)});
-
-      final stamped = run.applied[_storyPath]!;
-      expect(stamped, startsWith('---\napproved: "'));
-      expect(
-        stamped,
-        contains('"\n---\n\n# B\n'),
-        reason: 'the fence is closed and a blank line follows it',
-      );
-    });
-
     test('a doc the pass leaves as written is not counted', () {
-      final first = _runUnchanged({_storyPath: _story(_one)});
-      final settled = {_storyPath: first.applied[_storyPath]!};
+      final settled = _approved({_storyPath: _story(_one)});
 
-      final second = _runUnchanged(settled);
+      final run = _runUnchanged(settled);
 
-      expect(second.applied, settled);
-      expect(second.pass.planLine, isNull);
+      expect(run.applied, settled);
+      expect(run.pass.planLine, isNull);
     });
 
     test('an untyped doc is left as written', () {
@@ -165,6 +146,20 @@ void main() {
       expect(run.applied, after);
     });
 
+    test('a doc with approved: true, a doc with neither key, and a doc whose '
+        'hash matches take no stamp', () {
+      final docs = {
+        _storyPath: '---\napproved: true\n---\n${_story(_one)}',
+        _frPath: _tracing('  - S1 ${fingerprintOf(_one)}\n'),
+        ..._approved({_draftFrPath: '# D\n'}),
+      };
+
+      final run = _runUnchanged(docs);
+
+      expect(run.applied, docs);
+      expect(run.pass.planLine, isNull);
+    });
+
     test('a stale string hash and a digits-only value stay as written', () {
       final docs = {
         _storyPath: '---\napproved: "000000000000"\n---\n${_story(_one)}',
@@ -175,18 +170,6 @@ void main() {
 
       expect(run.applied, docs);
       expect(run.pass.planLine, isNull);
-    });
-
-    test('approved: true is stamped while the pins before the run are below '
-        'both, and left once one of them has the stamps', () {
-      final docs = {_storyPath: '---\napproved: true\n---\n${_story(_one)}'};
-      final mixed = {
-        'prd-core': _version('1.7.0'),
-        'software-tech': _version('1.3.0'),
-      };
-
-      expect(_run(docs, docs).applied[_storyPath], matches(_approvedHash));
-      expect(_run(docs, docs, pins: mixed).applied, docs);
     });
 
     test('a doc whose frontmatter is not valid YAML keeps its bytes, its '
@@ -210,7 +193,9 @@ void main() {
 
     test('the skipped paths of a plan with none are empty, and the line '
         'ends after the two counts', () {
-      final run = _runUnchanged({_storyPath: _story(_one)});
+      final before = _approved({_storyPath: _story(_one)});
+
+      final run = _run(before, {_storyPath: _edited(before[_storyPath]!)});
 
       expect(run.pass.paths, isEmpty);
       expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
@@ -224,44 +209,14 @@ void main() {
       );
     });
 
-    test('an upgrade past the one-time run stamps a doc that was approved '
-        'before it, and keeps confirmed entries as written', () {
-      final before = {
-        _storyPath: _story(_one),
-        _frPath: _tracing('  - S1 000000000000\n'),
-      };
-      final approvedBefore = {
-        _storyPath: _stamped(before[_storyPath]!, _typeAt(_storyPath)),
-        _frPath: before[_frPath]!,
-      };
-      final after = {
-        _storyPath: approvedBefore[_storyPath]!.replaceFirst('# B', '# B2'),
-        _frPath: approvedBefore[_frPath]!,
-      };
-
-      final run = _run(
-        approvedBefore,
-        after,
-        pins: {
-          'prd-core': _version('1.7.0'),
-          'software-tech': _version('1.4.0'),
-        },
-        restampsFingerprints: false,
-      );
-
-      expect(
-        run.applied[_storyPath],
-        _stamped(after[_storyPath]!, _typeAt(_storyPath)),
-      );
-      expect(run.applied[_frPath], after[_frPath]);
-      expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
-    });
-
     test('a doc the add newly types gets no approval hash', () {
-      final before = {_storyPath: _story(_one), _frPath: _story(_one)};
+      final before = _approved({
+        _storyPath: _story(_one),
+        _frPath: _story(_one),
+      });
       final after = {
         for (final MapEntry(:key, :value) in before.entries)
-          key: '---\ndraft: true\n---\n$value',
+          key: _edited(value),
       };
 
       final run = _run(before, after, typedByAdd: {_storyPath});
@@ -287,16 +242,13 @@ void main() {
 
       test('an approved doc a mark step wrote is stamped with the hash approve '
           'gives', () {
-        final before = {_frPath: _tracing('  - S1 000000000000\n')};
+        final before = _approved({_frPath: _tracing('  - S1 000000000000\n')});
         final after = {_frPath: marked};
 
-        final run = _run(before, after, restampsFingerprints: false);
+        final run = _run(before, after);
 
         final stamped = run.applied[_frPath]!;
-        expect(
-          stamped,
-          withApprovalHash(marked, _typeAt(_frPath), statusesOutside: false),
-        );
+        expect(stamped, withApprovalHash(marked, _typeAt(_frPath)));
         expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
       });
 
@@ -310,7 +262,7 @@ void main() {
         };
         final after = {_frPath: draft};
 
-        final run = _run(before, after, restampsFingerprints: false);
+        final run = _run(before, after);
 
         expect(run.applied[_frPath], draft);
       });
@@ -318,72 +270,20 @@ void main() {
   });
 
   group('the entry fingerprint stamp', () {
-    test('a matched entry takes the fingerprint of its upstream block after '
-        'the run, whether the run rewrote the block or not', () {
-      const reworded = '### Scenario 1 — [happy] one\n\n- **Given** a g';
-      const untouched = '### Scenario 2 — [edge] two\n\n- **Given** h';
-      final before = {
-        _storyPath: _story('$_one\n\n$untouched'),
-        _frPath: _tracing(
-          '  - S1 ${fingerprintOf(_one)}\n  - S2 ${fingerprintOf(untouched)}\n',
-        ),
-      };
-      final after = {
-        _storyPath: _story('$reworded\n\n$untouched'),
-        _frPath: before[_frPath]!,
-      };
-
-      final run = _run(before, after);
-
-      expect(
-        run.applied[_frPath],
-        contains(
-          '  - S1 ${fingerprintOf(reworded)}\n'
-          '  - S2 ${fingerprintOf(untouched)}\n',
-        ),
-      );
-      expect(run.pass.planLine, 'stamps: 2 approval hashes, 1 fingerprints');
-    });
-
-    test('an entry stamped by the 1.1.0 recipe matches, and takes the '
-        'layout-blind fingerprint of its block laid out', () {
-      const unpadded =
-          '### Scenario 1 — [happy] Table\n| Item | Count |\n| --- | --- |\n'
-          '| apple | 2 |';
-      const laidOut =
-          '### Scenario 1 — [happy] Table\n\n| Item  | Count |\n'
-          '| ----- | ----- |\n| apple | 2     |';
-      expect(legacyFingerprintOf(unpadded), isNot(fingerprintOf(unpadded)));
-      final before = {
-        _storyPath: _story(unpadded),
-        _frPath: _tracing('  - S1 ${legacyFingerprintOf(unpadded)}\n'),
-      };
-      final after = {_storyPath: _story(laidOut), _frPath: before[_frPath]!};
-
-      final run = _run(before, after);
-
-      expect(fingerprintOf(laidOut), fingerprintOf(unpadded));
-      expect(
-        run.applied[_frPath],
-        contains('  - S1 ${fingerprintOf(unpadded)}\n'),
-      );
-    });
-
     test('a matched entry with a link-only upstream change takes the new fingerprint', () {
       const folded =
           '### Scenario 1 — [happy] one\n\n- **Given** [domain:login](../x.md)';
       const relinked =
           '### Scenario 1 — [happy] one\n\n- **Given** [architecture:login](../x.md)';
-      final before = {
+      final before = _approved({
         _storyPath: _story(folded),
         _frPath: _tracing('  - S1 ${fingerprintOf(folded)}\n'),
-      };
+      });
       final after = {_storyPath: _story(relinked), _frPath: before[_frPath]!};
 
       final run = _run(
         before,
         after,
-        restampsFingerprints: false,
         linkedFrom: {_storyPath: before[_storyPath]!},
       );
 
@@ -410,7 +310,6 @@ void main() {
       final run = _run(
         before,
         after,
-        restampsFingerprints: false,
         linkedFrom: {_storyPath: _story(stepped)},
       );
 
@@ -421,62 +320,69 @@ void main() {
     });
 
     test('an entry already suspect keeps its fingerprint', () {
-      final docs = {
-        _storyPath: _story(_one),
+      const folded =
+          '### Scenario 1 — [happy] one\n\n- **Given** [domain:login](../x.md)';
+      const relinked =
+          '### Scenario 1 — [happy] one\n\n- **Given** [architecture:login](../x.md)';
+      final before = _approved({
+        _storyPath: _story(folded),
         _frPath: _tracing('  - S1 000000000000\n'),
+      });
+      final after = {
+        _storyPath: _story(relinked),
+        _frPath: _edited(before[_frPath]!),
       };
 
-      final run = _runUnchanged(docs);
+      final run = _run(
+        before,
+        after,
+        linkedFrom: {_storyPath: before[_storyPath]!},
+      );
 
       expect(run.applied[_frPath], contains('  - S1 000000000000\n'));
       expect(run.pass.planLine, 'stamps: 2 approval hashes, 0 fingerprints');
     });
 
-    test('a renumbered block: the entry the renumber pass renamed takes the '
-        'fingerprint of the block at its new number', () {
-      final before = {
-        _storyPath: _story('$_one\n\n$_lettered'),
-        _frPath: _tracing('  - S6a ${fingerprintOf(_lettered)}\n'),
-      };
-      final after = {
-        _storyPath: _story('$_one\n\n$_renumbered'),
-        _frPath: _tracing('  - S9 ${fingerprintOf(_lettered)}\n'),
-      };
-
-      final run = _run(before, after);
-
-      expect(
-        run.applied[_frPath],
-        contains('  - S9 ${fingerprintOf(_renumbered)}\n'),
-      );
-    });
-
     test('a quoted entry keeps its quotes', () {
-      const reworded = '### Scenario 1 — [happy] one\n\n- **Given** a g';
-      final old = fingerprintOf(_one);
-      final before = {
-        _storyPath: _story(_one),
-        _frPath: '---\nconfirmed:\n  - "S1 $old"\n---\n# C\n',
-      };
-      final after = {...before, _storyPath: _story(reworded)};
+      const folded =
+          '### Scenario 1 — [happy] one\n\n- **Given** [domain:login](../x.md)';
+      const relinked =
+          '### Scenario 1 — [happy] one\n\n- **Given** [architecture:login](../x.md)';
+      final before = _approved({
+        _storyPath: _story(folded),
+        _frPath:
+            '---\nconfirmed:\n  - "S1 ${fingerprintOf(folded)}"\n---\n# C\n',
+      });
+      final after = {...before, _storyPath: _story(relinked)};
 
-      final run = _run(before, after);
+      final run = _run(
+        before,
+        after,
+        linkedFrom: {_storyPath: before[_storyPath]!},
+      );
 
       expect(
         run.applied[_frPath],
-        contains('  - "S1 ${fingerprintOf(reworded)}"\n'),
+        contains('  - "S1 ${fingerprintOf(relinked)}"\n'),
       );
     });
 
     test('the approval hash covers the stamped entries', () {
-      const reworded = '### Scenario 1 — [happy] one\n\n- **Given** a g';
-      final before = {
-        _storyPath: _story(_one),
-        _frPath: _tracing('  - S1 ${fingerprintOf(_one)}\n'),
-      };
-      final after = {_storyPath: _story(reworded), _frPath: before[_frPath]!};
+      const folded =
+          '### Scenario 1 — [happy] one\n\n- **Given** [domain:login](../x.md)';
+      const relinked =
+          '### Scenario 1 — [happy] one\n\n- **Given** [architecture:login](../x.md)';
+      final before = _approved({
+        _storyPath: _story(folded),
+        _frPath: _tracing('  - S1 ${fingerprintOf(folded)}\n'),
+      });
+      final after = {_storyPath: _story(relinked), _frPath: before[_frPath]!};
 
-      final stamped = _run(before, after).applied[_frPath]!;
+      final stamped = _run(
+        before,
+        after,
+        linkedFrom: {_storyPath: before[_storyPath]!},
+      ).applied[_frPath]!;
 
       final type = _typeAt(_frPath);
       expect(stamped, contains('approved: "${_hashOf(stamped, type)}"'));
@@ -485,8 +391,10 @@ void main() {
 
     test('an entry naming an NFR of a gnfr section with no prefix_id takes the '
         'fingerprint of its Statement', () {
-      const statement = '- **Statement:** The tool shall pass WCAG 2.2 AA.';
-      const reworded = '- **Statement:** The tool shall pass WCAG 2.2 AAA.';
+      const statement =
+          '- **Statement:** The tool shall pass [domain:wcag](../x.md).';
+      const reworded =
+          '- **Statement:** The tool shall pass [architecture:wcag](../x.md).';
       String gnfr(String text) =>
           '# GNFR\n\n## Usability\n\n### NFR-U01 — WCAG\n$text\n';
       final shipped = _typeAt(_gnfrPath)!;
@@ -508,9 +416,7 @@ void main() {
       final pass = StampPass.plan(
         [doc(_gnfrPath, gnfr(statement)), doc(_nfPath, nf)],
         [doc(_gnfrPath, gnfr(reworded)), doc(_nfPath, nf)],
-        pins: _belowBoth,
-        pinsAfter: _belowBoth,
-        restampsFingerprints: true,
+        linkedFrom: {_gnfrPath: gnfr(statement)},
       );
 
       expect(
@@ -554,9 +460,6 @@ void main() {
       final pass = StampPass.plan(
         [StampDoc(docPath: _storyPath, lf: approved, type: held)],
         [StampDoc(docPath: _storyPath, lf: moved, type: dropped)],
-        pins: _belowBoth,
-        pinsAfter: _belowBoth,
-        restampsFingerprints: false,
       );
 
       final stamped = pass.apply(_storyPath, moved);
@@ -567,31 +470,28 @@ void main() {
   });
 
   group('records across the statuses rule', () {
-    final below = {
-      'prd-core': _version('1.7.0'),
-      'software-tech': _version('1.6.0'),
-    };
-    final at = {
-      'prd-core': _version('1.7.0'),
-      'software-tech': _version('1.7.0'),
-    };
     const record =
         "---\nstatuses:\n  - 'b:implemented'\nimplements:\n"
         "  - 'b:app/a.dart'\n---\n\n# Record\n";
 
-    test('a record approved by the hash that counted its statuses takes the '
-        'hash that leaves them out', () {
+    test('a record approved by its hash takes the hash that leaves its '
+        'statuses out', () {
       final type = _typeAt(_recordPath);
-      final approved = withApprovalHash(record, type, statusesOutside: false);
-      final docs = {_recordPath: approved};
+      final approved = _approved({_recordPath: record});
+      final changed = _edited(approved[_recordPath]!);
 
-      final run = _run(docs, docs, pins: below, pinsAfter: at);
+      final run = _run(approved, {_recordPath: changed});
 
       final stamped = run.applied[_recordPath]!;
-      expect(stamped, withApprovalHash(approved, type, statusesOutside: true));
+      expect(stamped, withApprovalHash(changed, type));
+      final changedStatus = stamped.replaceFirst(
+        "'b:implemented'",
+        "'b:planned'",
+      );
+      expect(changedStatus, isNot(stamped));
       expect(
-        approvalHashOf(stamped, type, statusesOutside: true),
-        isNot(approvalHashOf(stamped, type, statusesOutside: false)),
+        approvalHashOf(stamped, type),
+        approvalHashOf(changedStatus, type),
       );
       expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
     });
@@ -609,29 +509,10 @@ void main() {
         ),
       };
 
-      final run = _run(docs, docs, pins: below, pinsAfter: at);
+      final run = _runUnchanged(docs);
 
       expect(run.applied, docs);
       expect(run.pass.planLine, isNull);
-    });
-
-    test('an upgrade that keeps the pins below the rule re-stamps a changed '
-        'record by the rule that counts the statuses', () {
-      final type = _typeAt(_recordPath);
-      final approved = withApprovalHash(record, type, statusesOutside: false);
-      final changed = approved.replaceFirst('# Record', '# Login record');
-
-      final run = _run(
-        {_recordPath: approved},
-        {_recordPath: changed},
-        pins: below,
-        pinsAfter: below,
-      );
-
-      expect(
-        run.applied[_recordPath],
-        withApprovalHash(changed, type, statusesOutside: false),
-      );
     });
   });
 }

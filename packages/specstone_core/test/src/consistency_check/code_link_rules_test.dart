@@ -1164,8 +1164,6 @@ void main() {
             );
       String of(String text, String path) =>
           fileCodeFingerprint(utf8.encode(text), path: path);
-      String legacyOf(String text) =>
-          legacyFileCodeFingerprint(utf8.encode(text));
 
       expect(
         fingerprint(),
@@ -1181,16 +1179,10 @@ void main() {
         ]),
       );
       expect(
-        fingerprint(fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes)),
-        folderCodeFingerprint([
-          FileFingerprint(
-            path: 'lib/a.dart',
-            fingerprint: legacyOf('// note\nint a;\n'),
-          ),
-          FileFingerprint(
-            path: 'lib/b.dart',
-            fingerprint: legacyOf('int b;\n'),
-          ),
+        fingerprint(fileHash: (_, _) => 'aaaaaaaaaaaa'),
+        folderCodeFingerprint(const [
+          FileFingerprint(path: 'lib/a.dart', fingerprint: 'aaaaaaaaaaaa'),
+          FileFingerprint(path: 'lib/b.dart', fingerprint: 'aaaaaaaaaaaa'),
         ]),
       );
     });

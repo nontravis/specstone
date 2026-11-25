@@ -18,14 +18,14 @@ Make this your first CLI call, before git, a file read, or any other command, gi
 specstone list user_story --status planned --json
 ```
 
-- **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
-  or they keep using the old skills. Stop: run nothing more, and read or write no doc.
+- **78, `project_not_found`:** tell the Owner no Specstone project is found here; `specstone init` starts one.
+  Stop: run nothing more, and read or write no doc.
 - **`argument_missing` naming two or more code targets:** ask the Owner which code target the plan is for, given
   target names and a drafts list alike; the answer is `code target:` in step 2, and `--target <name>` on a rerun of
   this list when no target is given. A one-target project's list refuses nothing: ask nothing, pass none. Learn it
   from the refusal, never from `.specstone/config.yaml`.
 - **Any other non-zero exit:** report the CLI's error and stop.
-- **0:** the project is on the new format: the CLI looks for
+- **0:** a project is found: the CLI looks for
   `.specstone/config.yaml` here and in each folder above. Run no `check`: the gate is the agent file's own, run by
   whoever follows it.
 

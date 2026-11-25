@@ -57,11 +57,8 @@ IndexedDoc draftAt(WriteSession session, String name, String? codeTarget) {
   return doc;
 }
 
-bool waitsForApproval(WriteSession session, IndexedDoc doc) => awaitsApproval(
-  ApprovalFields.ofIndexed(doc),
-  doc.approvalHash,
-  stampsHaveRun: session.project.stampsHaveRun,
-);
+bool waitsForApproval(WriteSession session, IndexedDoc doc) =>
+    awaitsApproval(ApprovalFields.ofIndexed(doc), doc.approvalHash);
 
 /// Throws `output_not_writable` unless the Owner trusts the roots [doc] lies
 /// in, before git runs or a view shows: an approval written there would be
@@ -95,11 +92,7 @@ WriteFault changedSinceHashed(List<IndexedDoc> changed) => WriteFault(
 void writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
   final text = utf8.decode(bytes);
   final undrafted = withKeyBlock(toLf(text), 'draft', null);
-  final approved = withApprovalHash(
-    undrafted,
-    session.index.typeOf(doc),
-    statusesOutside: session.project.statusesOutsideApproval,
-  );
+  final approved = withApprovalHash(undrafted, session.index.typeOf(doc));
   final written = session.writeDoc(doc.docPath, approved, LineEnding.of(text));
   ApprovedCopyStore(session.project.projectRoot).save(written);
 }
@@ -134,8 +127,7 @@ void pruneApprovedCopiesLocked(WriteSession session) {
           } on FileSystemException {
             return;
           }
-          final isReadable =
-              comparedApprovalHash(text, null, statusesOutside: true) != null;
+          final isReadable = comparedApprovalHash(text, null) != null;
           if (!isReadable) return;
           final fields = ApprovalFields.of(Doc.parse(text));
           final mark = fields.approvedValue;
@@ -161,10 +153,5 @@ bool _awaitsApprovalOnDisk(
   ApprovalFields fields,
 ) => awaitsApproval(
   fields,
-  comparedApprovalHash(
-    text,
-    doc == null ? null : session.index.typeOf(doc),
-    statusesOutside: session.project.statusesOutsideApproval,
-  ),
-  stampsHaveRun: session.project.stampsHaveRun,
+  comparedApprovalHash(text, doc == null ? null : session.index.typeOf(doc)),
 );

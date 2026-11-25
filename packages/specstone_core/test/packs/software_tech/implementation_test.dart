@@ -67,18 +67,7 @@ void main() {
     );
 
     expect(manifest.version.toString(), '1.25.0');
-    expect(manifest.migrations.map((m) => m.from.toString()), [
-      '1.4.0',
-      '1.6.0',
-      '1.7.0',
-      '1.13.0',
-      '1.14.0',
-      '1.16.0',
-      '1.17.0',
-      '1.19.0',
-      '1.20.0',
-      '1.23.0',
-    ]);
+    expect(manifest.migrations, isEmpty);
   });
 
   test(

@@ -1578,7 +1578,6 @@ void main() {
         docPath: '',
         bytes: utf8.encode(text),
         match: MatchedDocType(capped),
-        statusesOutside: false,
       );
       return sizeExcessesOf(doc, content, capped);
     }

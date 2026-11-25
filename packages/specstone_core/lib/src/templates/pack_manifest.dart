@@ -20,9 +20,6 @@ const _keys = {
   'shared_required_patterns',
 };
 
-const _entitiesSection = 'entities';
-const _invariantsSection = 'invariants';
-
 /// The `pack.yaml` of one pack: its name, version, and optional base pack.
 final class PackManifest {
   new _({
@@ -96,25 +93,20 @@ final class PackManifest {
     }
   }
 
-  /// Throws `unknown_value` for the first `move_to_record` or `merge_doc` step
-  /// whose `to` is outside [docTypeIds].
+  /// Throws `unknown_value` for the first `merge_doc` step whose `to` is
+  /// outside [docTypeIds].
   ///
-  /// The key is `migrations[<i>].steps[<j>].move_to_record.to` or
-  /// `migrations[<i>].steps[<j>].merge_doc.to`.
+  /// The key is `migrations[<i>].steps[<j>].merge_doc.to`.
   void checkRecordTargets(Set<String> docTypeIds) {
     for (final (i, migration) in migrations.indexed) {
       for (final (j, step) in migration.steps.indexed) {
-        final (kind, to) = switch (step) {
-          MoveToRecord() => (step.kind, step.to),
-          MergeDoc() => (step.kind, step.toId),
-          _ => (step.kind, null),
-        };
-        if (to == null || docTypeIds.contains(to)) continue;
+        if (step is! MergeDoc || docTypeIds.contains(step.toId)) continue;
         throw TemplateFault(
           FaultCode.unknownValue,
-          'the $kind target $to is not a doc type the pack defines',
+          'the ${step.kind} target ${step.toId} is not a doc type the pack '
+          'defines',
           file: file,
-          key: 'migrations[$i].steps[$j].$kind.to',
+          key: 'migrations[$i].steps[$j].${step.kind}.to',
         );
       }
     }
@@ -272,31 +264,6 @@ final class PackManifest {
     }
   }
 
-  /// Throws `unknown_value` for the first `drop_default_lines` doc type that
-  /// [layerLists] lacks, or whose `extends` chain defines no `entities` or no
-  /// `invariants` section, a layer that disables the section included.
-  ///
-  /// The key is `migrations[<i>].steps[<j>].drop_default_lines.doc_types`.
-  void checkDropDefaultLineTargets(Map<String, DocTypeLayers> layerLists) {
-    for (final (i, migration) in migrations.indexed) {
-      for (final (j, step) in migration.steps.indexed) {
-        if (step is! DropDefaultLines) continue;
-        final folded = laterFoldedIds(i, j);
-        for (final docType in step.docTypes) {
-          if (folded.contains(docType)) continue;
-          final problem = _dropTargetProblem(docType, layerLists);
-          if (problem == null) continue;
-          throw TemplateFault(
-            FaultCode.unknownValue,
-            problem,
-            file: file,
-            key: 'migrations[$i].steps[$j].drop_default_lines.doc_types',
-          );
-        }
-      }
-    }
-  }
-
   /// Throws `unknown_value` for the first `mark_retrim` id that names no doc
   /// type of [layerLists] or no section any layer of a listed type or of its
   /// `extends` chain defines, a layer that disables the section included.
@@ -401,24 +368,6 @@ final class PackManifest {
       file: file,
       key: '$key.section',
     );
-  }
-
-  String? _dropTargetProblem(
-    String docType,
-    Map<String, DocTypeLayers> layerLists,
-  ) {
-    if (!layerLists.containsKey(docType)) {
-      return 'the drop_default_lines doc type $docType is not a doc type '
-          'the packs define';
-    }
-    final defined = _definedSectionIds(docType, layerLists);
-    for (final section in const [_entitiesSection, _invariantsSection]) {
-      if (!defined.contains(section)) {
-        return 'the drop_default_lines doc type $docType has no $section '
-            'section';
-      }
-    }
-    return null;
   }
 
   /// Returns the section ids any layer of [docType] or of its `extends` chain

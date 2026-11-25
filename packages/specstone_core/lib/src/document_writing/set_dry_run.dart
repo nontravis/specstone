@@ -190,7 +190,6 @@ String _writtenTextOf(
     target: target,
     base: base,
     text: text,
-    statusesOutside: session.project.statusesOutsideApproval,
   );
   final retired = retireRemovedIds(
     docPath: doc.docPath,

@@ -25,7 +25,6 @@ DocContent _contentOf(String text, {String docPath = 'doc.md'}) =>
       docPath: docPath,
       bytes: utf8.encode(text),
       match: const NoDocType(),
-      statusesOutside: true,
     ).content;
 
 LineFacts _factsOf(String text, {String docPath = 'doc.md'}) =>
@@ -124,7 +123,6 @@ void main() {
         docPath: 'doc.md',
         bytes: utf8.encode('${'>' * 20000}x\n'),
         match: const NoDocType(),
-        statusesOutside: true,
       );
 
       expect(parsed.doc.warnings, isEmpty);
@@ -488,7 +486,6 @@ void main() {
       docPath: 'specs/topics/a.md',
       bytes: utf8.encode(text),
       match: MatchedDocType(type),
-      statusesOutside: true,
       idPrefixes: const {'INV-'},
     ).content.lineFacts;
 
@@ -626,7 +623,6 @@ void main() {
           '`domain:x` INV-3\n',
         ),
         match: MatchedDocType(type),
-        statusesOutside: true,
         idPrefixes: const {'INV-'},
       ).content.lineFacts;
       const written = [
@@ -665,7 +661,6 @@ void main() {
           docPath: 'doc.md',
           bytes: utf8.encode('# T\n\nsee INV-1 here\n'),
           match: const NoDocType(),
-          statusesOutside: true,
           idPrefixes: const {'INV-'},
         ).content.lineFacts.bareItemIds,
         isEmpty,

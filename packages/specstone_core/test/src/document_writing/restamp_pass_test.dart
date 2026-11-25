@@ -18,8 +18,7 @@ import '../../helpers/check_fixture.dart'
 import '../../helpers/cold_node.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/per_fr_row_fixture.dart';
-import '../../helpers/shipped_pins.dart'
-    show shippedPinsConfig, shippedStatusesOutside;
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/write_fixture.dart'
     show getDoc, readDoc, treeBytes, writeIn;
 
@@ -84,11 +83,7 @@ void _expectApprovedAgain(Directory root, String docPath) {
   expect(fields.isDraft, isFalse);
   expect(
     fields.approvedValue,
-    approvalHashOf(
-      text,
-      (match as MatchedDocType).docType,
-      statusesOutside: shippedStatusesOutside,
-    ),
+    approvalHashOf(text, (match as MatchedDocType).docType),
   );
 }
 

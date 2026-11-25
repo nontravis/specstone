@@ -1,9 +1,7 @@
 // The test names and file literals are plan text kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
-import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
@@ -13,7 +11,6 @@ import 'package:specstone_core/src/document_writing/audited_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
-import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart' show answerGet;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -23,7 +20,6 @@ import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
-import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
@@ -32,8 +28,6 @@ import '../../helpers/check_fixture.dart'
     as check
     show checkOf, edit, loginRecord, loginStory, writeCheckProject;
 import '../../helpers/git_repo.dart';
-import '../../helpers/shipped_pins.dart'
-    show pinStatusesBelow, statusesBelowResolver;
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/temp_tree.dart';
@@ -47,52 +41,14 @@ String approvedMark(Directory root, String docPath) {
   final lfText = toLf(readDoc(root, docPath));
   final hash = writeIn(
     root,
-    (s) => approvalHashOf(
-      lfText,
-      s.docTypeAt(docPath),
-      statusesOutside: s.project.statusesOutsideApproval,
-    ),
+    (s) => approvalHashOf(lfText, s.docTypeAt(docPath)),
   );
   return 'approved: "$hash"';
 }
 
 /// Whether a walk of [root] shows the doc at [docPath].
-bool walksDoc(Directory root, String docPath, {bool below = false}) => runIn(
-  root,
-  (s) => approveDryRun(s).text.contains('`docs/$docPath`'),
-  below: below,
-);
-
-/// Runs [body] in a session on [root]; `below` opens it with shipped packs that
-/// carry the versions of [belowPins], since the shipped ones refuse an older pin.
-T runIn<T>(
-  Directory root,
-  T Function(WriteSession session) body, {
-  bool below = false,
-}) {
-  if (!below) return writeIn(root, body);
-  final files = {...shippedPackFiles};
-  for (final MapEntry(:key, :value) in {
-    'prd-core': '1.6.0',
-    'software-tech': '1.3.0',
-  }.entries) {
-    final manifest = utf8.decode(files['$key/pack.yaml']!);
-    files['$key/pack.yaml'] = Uint8List.fromList(
-      utf8.encode(
-        manifest.replaceFirst(
-          RegExp(r'^version: .*$', multiLine: true),
-          'version: $value',
-        ),
-      ),
-    );
-  }
-  return WriteSession.run(
-    body,
-    templates: TemplateResolver(shippedFiles: files),
-    workingDirectory: root,
-    homeDirectory: null,
-  );
-}
+bool walksDoc(Directory root, String docPath) =>
+    writeIn(root, (s) => approveDryRun(s).text.contains('`docs/$docPath`'));
 
 /// Returns an LF feature body whose ApprovalHash matches `shape`, found by
 /// trying a counter in the text.
@@ -100,20 +56,13 @@ String bodyWithHash(Directory root, String docPath, RegExp shape) =>
     writeIn(root, (s) {
       for (var i = 0; i < 100000; i++) {
         final body = '# Signup\n\n## Problem\n\nUsers create an account $i.\n';
-        final hash = approvalHashOf(
-          body,
-          s.docTypeAt(docPath),
-          statusesOutside: s.project.statusesOutsideApproval,
-        );
+        final hash = approvalHashOf(body, s.docTypeAt(docPath));
         if (shape.hasMatch(hash)) {
           return body;
         }
       }
       throw StateError('no text hashes to $shape');
     });
-
-/// The config of a project pinned below the approval stamps.
-const belowPins = 'packs:\n  prd-core: 1.6.0\n  software-tech: 1.3.0\n';
 
 /// Returns the given answers in order, then null.
 String? Function() answers(List<String?> list) {
@@ -1392,11 +1341,6 @@ void main() {
   group('what awaits approval', () {
     const editedFr = 'The system shall check the email and more.\n';
 
-    Future<Directory> pinnedBelow({Map<String, String> extra = const {}}) =>
-        writeWriteProject(
-          extra: {'.specstone/config.yaml': belowPins, ...extra},
-        );
-
     test('an approved doc edited in an editor is walked, its view showing the edit; one whose hash matches is not', () async {
       final root = await writeWriteProject();
       expect(walksDoc(root, fr11), isFalse);
@@ -1423,14 +1367,12 @@ void main() {
       );
     });
 
-    test('a doc with neither key is walked once the stamps have run, and not in a project pinned below them', () async {
+    test('a doc with neither key is walked', () async {
       const unmarked = '# Signup\n\n## Problem\n\nUsers create an account.\n';
-      final stamped = await writeWriteProject(
+      final root = await writeWriteProject(
         extra: {'docs/$signupFeature': unmarked},
       );
-      expect(walksDoc(stamped, signupFeature), isTrue);
-      final below = await pinnedBelow(extra: {'docs/$signupFeature': unmarked});
-      expect(walksDoc(below, signupFeature, below: true), isFalse);
+      expect(walksDoc(root, signupFeature), isTrue);
     });
 
     test('walk_drafts: a doc whose frontmatter is not valid YAML is never walked, so a y never writes a hash the index cannot read', () async {
@@ -1442,30 +1384,13 @@ void main() {
       expect(walksDoc(root, signupFeature), isFalse);
     });
 
-    test('approved: true is walked once the stamps have run and not below them', () async {
+    test('approved: true is walked', () async {
       const mark =
           '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n';
-      final stamped = await writeWriteProject(
+      final root = await writeWriteProject(
         extra: {'docs/$signupFeature': mark},
       );
-      expect(walksDoc(stamped, signupFeature), isTrue);
-      final below = await pinnedBelow(extra: {'docs/$signupFeature': mark});
-      expect(walksDoc(below, signupFeature, below: true), isFalse);
-    });
-
-    test('walk_drafts below the pins: neither an approved: true doc nor a doc with neither key is walked, and no draft waits', () async {
-      final root = await pinnedBelow(
-        extra: {
-          'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n',
-          'docs/$signupArch': '# Signup architecture\n',
-        },
-      );
-      final answer = runIn(
-        root,
-        (s) => approveDryRun(s, names: ['signup']),
-        below: true,
-      );
-      expect(answer.text, 'no draft waits for approval\n');
+      expect(walksDoc(root, signupFeature), isTrue);
     });
 
     test('an approved: value YAML reads as a number is walked even when its digits match, and y writes the hash double-quoted', () async {
@@ -1473,11 +1398,7 @@ void main() {
       final body = bodyWithHash(root, signupFeature, RegExp(r'^[0-9]{12}$'));
       final hash = writeIn(
         root,
-        (s) => approvalHashOf(
-          body,
-          s.docTypeAt(signupFeature),
-          statusesOutside: s.project.statusesOutsideApproval,
-        ),
+        (s) => approvalHashOf(body, s.docTypeAt(signupFeature)),
       );
       docFile(
         root,
@@ -1568,7 +1489,7 @@ void main() {
       },
     );
 
-    test('y on approved: true once the stamps have run writes the hash in place of the mark', () async {
+    test('y on approved: true writes the hash in place of the mark', () async {
       final root = await writeWriteProject(
         extra: {
           'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\nUsers create an account.\n',
@@ -1669,42 +1590,6 @@ void main() {
         hash: getDoc(root, address)['base']! as String,
       );
 
-      Matcher notADraft(String address) => throwsA(
-        isA<WriteFault>()
-            .having((f) => f.code, 'code', WriteFaultCode.draftNotFound)
-            .having(
-              (f) => f.message,
-              'message',
-              '$address is no draft waiting for approval',
-            ),
-      );
-
-      test(
-        'below the pins, approved: true and neither key are draft_not_found',
-        () async {
-          final root = await pinnedBelow(
-            extra: {
-              'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n',
-              'docs/$signupArch': '# Signup architecture\n',
-            },
-          );
-          for (final (address, path) in [
-            ('feature:signup', signupFeature),
-            ('architecture:signup', signupArch),
-          ]) {
-            final hash = baseHashOf(toLf(readDoc(root, path)));
-            expect(
-              () => runIn(
-                root,
-                (s) => approveNamed(s, [SeenDraft(name: address, hash: hash)]),
-                below: true,
-              ),
-              notADraft(address),
-            );
-          }
-        },
-      );
-
       test('an edited approved doc awaits approval, and its hash approves it with the new hash written', () async {
         final root = await writeWriteProject();
         docFile(root, fr11).writeAsStringSync(
@@ -1727,33 +1612,36 @@ void main() {
         expect(walksDoc(root, fr11), isFalse);
       });
 
-      test('once the stamps have run, approved: true and neither key await approval and are approved', () async {
-        final root = await writeWriteProject(
-          extra: {
-            'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n',
-            'docs/$signupArch': '# Signup architecture\n',
-          },
-        );
-        final answer = writeIn(
-          root,
-          (s) => approveNamed(s, [
-            seen(root, 'feature:signup'),
-            seen(root, 'architecture:signup'),
-          ]),
-        );
-        expect(
-          answer.text,
-          'approved feature:signup\napproved architecture:signup\n',
-        );
-        expect(
-          readDoc(root, signupFeature),
-          contains(approvedMark(root, signupFeature)),
-        );
-        expect(
-          readDoc(root, signupArch),
-          contains(approvedMark(root, signupArch)),
-        );
-      });
+      test(
+        'approved: true and neither key await approval and are approved',
+        () async {
+          final root = await writeWriteProject(
+            extra: {
+              'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n',
+              'docs/$signupArch': '# Signup architecture\n',
+            },
+          );
+          final answer = writeIn(
+            root,
+            (s) => approveNamed(s, [
+              seen(root, 'feature:signup'),
+              seen(root, 'architecture:signup'),
+            ]),
+          );
+          expect(
+            answer.text,
+            'approved feature:signup\napproved architecture:signup\n',
+          );
+          expect(
+            readDoc(root, signupFeature),
+            contains(approvedMark(root, signupFeature)),
+          );
+          expect(
+            readDoc(root, signupArch),
+            contains(approvedMark(root, signupArch)),
+          );
+        },
+      );
 
       test(
         'a number-valued approved: awaits approval even when its digits match',
@@ -1766,11 +1654,7 @@ void main() {
           );
           final hash = writeIn(
             root,
-            (s) => approvalHashOf(
-              body,
-              s.docTypeAt(signupFeature),
-              statusesOutside: s.project.statusesOutsideApproval,
-            ),
+            (s) => approvalHashOf(body, s.docTypeAt(signupFeature)),
           );
           docFile(
             root,
@@ -2459,101 +2343,83 @@ void main() {
     );
   });
 
-  group('a record status and the statuses pin', () {
-    for (final below in [false, true]) {
-      final where = below ? 'below the statuses pin' : 'at the statuses pin';
-      const from = 'email_login/check_password:implemented';
-      const to = 'email_login/check_password:planned';
-      T at<T>(Directory root, T Function(WriteSession session) body) =>
-          writeIn(root, body, templates: below ? statusesBelowResolver : null);
+  group('a record status and the approval hash', () {
+    const from = 'email_login/check_password:implemented';
+    const to = 'email_login/check_password:planned';
 
-      /// Writes the fixture project with its record a draft, pinned [where],
-      /// and approves the record.
-      Future<Directory> approvedRecord() async {
-        final root = await check.writeCheckProject(
-          extra: check.edit(check.loginRecord, [
-            ('statuses:\n', 'draft: true\nstatuses:\n'),
-          ]),
-        );
-        if (below) pinStatusesBelow(root);
-        at(
-          root,
-          (s) =>
-              approveDrafts(s, readLine: answers(['y']), out: StringBuffer()),
-        );
-        return root;
-      }
-
-      String approvedValue(Directory root) =>
-          RegExp('approved: "([0-9a-f]{12})"')
-              .firstMatch(readDoc(root, check.loginRecord))![1]!;
-
-      bool walksRecord(Directory root) => at(
+    /// Writes the fixture project with its record a draft and approves the
+    /// record.
+    Future<Directory> approvedRecord() async {
+      final root = await check.writeCheckProject(
+        extra: check.edit(check.loginRecord, [
+          ('statuses:\n', 'draft: true\nstatuses:\n'),
+        ]),
+      );
+      writeIn(
         root,
-        (s) => approveDryRun(s).text.contains('`${check.loginRecord}`'),
+        (s) => approveDrafts(s, readLine: answers(['y']), out: StringBuffer()),
       );
-
-      test(
-        '$where, the index stores the hash approve writes, and a statuses set compares by it',
-        () async {
-          final root = await approvedRecord();
-          expect(readDoc(root, check.loginRecord), isNot(contains('draft')));
-          final written = approvedValue(root);
-          at(root, (s) {
-            expect(s.project.statusesOutsideApproval, !below);
-            expect(s.index.at(check.loginRecord)!.approvalHash, written);
-            expect(
-              approvalHashOf(
-                toLf(readDoc(root, check.loginRecord)),
-                s.docTypeAt(check.loginRecord),
-                statusesOutside: !below,
-              ),
-              written,
-            );
-          });
-          expect(walksRecord(root), isFalse);
-
-          final base = at(root, (s) {
-            final docs =
-                answerGet(s.index, [check.loginRecord]).json['docs']! as List;
-            final bases = (docs.single as Map)['bases']! as Map;
-            return (bases['fields']! as Map)['statuses']! as String;
-          });
-          final status = at(
-            root,
-            (s) => answerSet(
-              s,
-              SetRequest.parse(
-                'implementation:login',
-                field: 'statuses',
-                base: base,
-              ),
-              "- 'email_login:implemented'\n- '$to'\n",
-            ),
-          );
-
-          expect(
-            ((status.json['docs']! as List).single as Map)['draft'],
-            below,
-          );
-          expect(approvedValue(root), written);
-          expect(walksRecord(root), below);
-        },
-      );
-
-      test(
-        '$where, a status edited by hand ${below ? 'makes the record a draft the walk takes' : 'leaves the record unwalked'}',
-        () async {
-          final root = await approvedRecord();
-          final file = docFile(root, check.loginRecord);
-          final text = file.readAsStringSync();
-          expect(text, contains(from));
-          file.writeAsStringSync(text.replaceFirst(from, to));
-
-          expect(walksRecord(root), below);
-        },
-      );
+      return root;
     }
+
+    String approvedValue(Directory root) =>
+        RegExp('approved: "([0-9a-f]{12})"')
+            .firstMatch(readDoc(root, check.loginRecord))![1]!;
+
+    bool walksRecord(Directory root) => writeIn(
+      root,
+      (s) => approveDryRun(s).text.contains('`${check.loginRecord}`'),
+    );
+
+    test('the index stores the hash approve writes, and a statuses set compares by it', () async {
+      final root = await approvedRecord();
+      expect(readDoc(root, check.loginRecord), isNot(contains('draft')));
+      final written = approvedValue(root);
+      writeIn(root, (s) {
+        expect(s.index.at(check.loginRecord)!.approvalHash, written);
+        expect(
+          approvalHashOf(
+            toLf(readDoc(root, check.loginRecord)),
+            s.docTypeAt(check.loginRecord),
+          ),
+          written,
+        );
+      });
+      expect(walksRecord(root), isFalse);
+
+      final base = writeIn(root, (s) {
+        final docs =
+            answerGet(s.index, [check.loginRecord]).json['docs']! as List;
+        final bases = (docs.single as Map)['bases']! as Map;
+        return (bases['fields']! as Map)['statuses']! as String;
+      });
+      final status = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(
+            'implementation:login',
+            field: 'statuses',
+            base: base,
+          ),
+          "- 'email_login:implemented'\n- '$to'\n",
+        ),
+      );
+
+      expect(((status.json['docs']! as List).single as Map)['draft'], false);
+      expect(approvedValue(root), written);
+      expect(walksRecord(root), isFalse);
+    });
+
+    test('a status edited by hand leaves the record unwalked', () async {
+      final root = await approvedRecord();
+      final file = docFile(root, check.loginRecord);
+      final text = file.readAsStringSync();
+      expect(text, contains(from));
+      file.writeAsStringSync(text.replaceFirst(from, to));
+
+      expect(walksRecord(root), isFalse);
+    });
   });
 
   group('approve edge cases of the walk, the named call, and the views', () {

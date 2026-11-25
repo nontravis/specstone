@@ -171,9 +171,7 @@ PlannedLines? _plannedLinesIn(
     recordItemsOf(feature, index.childrenOf).keys.toList(),
     taken,
   );
-  final statusesOutside = session.project.statusesOutsideApproval;
-  String hashOf(String lfText) =>
-      approvalHashOf(lfText, recordType, statusesOutside: statusesOutside);
+  String hashOf(String lfText) => approvalHashOf(lfText, recordType);
   return PlannedLines(
     docPath: recordDocPath,
     items: taken,

@@ -1,6 +1,4 @@
-import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/release_version.dart';
-import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -8,26 +6,10 @@ import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/legacy_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _packs = ['prd-core', 'software-tech'];
-
-DocTypeMatcher _matcherWith(Map<String, String> overrides) {
-  final set = TemplateResolver().resolveCarried(
-    packNames: _packs,
-    homeDirectory: null,
-    projectLayers: parseOverrides(overrides),
-  );
-  return DocTypeMatcher(set, targetNames: const []);
-}
-
-String? _matchedId(DocTypeMatcher matcher, String docPath) =>
-    switch (matcher.match(docPath)) {
-      MatchedDocType(:final docType) => docType.id,
-      _ => null,
-    };
 
 void main() {
   group('project files', () {
@@ -236,143 +218,6 @@ void main() {
       }
     });
 
-    test('an ARCHITECTURE renamed one to one covers each '
-        'Code path of its old folder, in row order', () {
-      final rows = [
-        const SpecMapRow(
-          codePath: 'lib/a/',
-          specPath: 'specs/api/auth/',
-          featureId: 'f01_login',
-        ),
-        const SpecMapRow(
-          codePath: 'lib/other/',
-          specPath: 'specs/other/',
-          featureId: 'f02_other',
-        ),
-        const SpecMapRow(
-          codePath: 'lib/b/',
-          specPath: 'specs/api/auth/',
-          featureId: 'f01_login',
-        ),
-      ];
-
-      final covers = coversOf('specs/api/auth/', rows);
-
-      expect(covers?.block, 'covers:\n  - lib/a/\n  - lib/b/\n');
-      expect(covers?.label, 'covers (2 paths)');
-      expect(coversOf('specs/missing/', rows), isNull);
-    });
-
-    test('the acme fixture covers one path', () {
-      final rows = readSpecMap(acmeLegacy['docs/specs/INDEX.md']!);
-
-      final covers = coversOf('specs/api/auth/', rows);
-
-      expect(covers?.block, 'covers:\n  - api/auth/\n');
-      expect(covers?.label, 'covers (1 path)');
-    });
-
-    test('a grouped tree gets the nine path overrides and none for a '
-        'dropped or error doc type, and they load', () {
-      final overrides = groupedPathOverrides();
-
-      expect(overrides.keys, [
-        for (final id in [
-          'feature',
-          'user_story',
-          'fr',
-          'nf',
-          'architecture',
-          'api',
-          'integration',
-          'security',
-          'implementation',
-        ])
-          '.specstone/templates/$id.yaml',
-      ]);
-      final matcher = _matcherWith(overrides);
-      expect(
-        _matchedId(matcher, 'prds/features/utilities/f01_slot/FEATURE.md'),
-        'feature',
-      );
-      expect(
-        _matchedId(
-          matcher,
-          'prds/features/utilities/f01_slot/us01_place/fr02_fill.md',
-        ),
-        'fr',
-      );
-      expect(_matchedId(matcher, 'specs/utilities/f01_slot/API.md'), 'api');
-      expect(
-        _matchedId(matcher, 'specs/utilities/f01_slot/SECURITY.md'),
-        'security',
-      );
-      expect(
-        _matchedId(matcher, 'specs/utilities/f01_slot/IMPLEMENTATION.md'),
-        'implementation',
-      );
-    });
-
-    test('a grouped tree writes each story, NFR, and spec doc path with the '
-        'group as the first slug', () {
-      final overrides = groupedPathOverrides();
-      const prds = 'prds/features/{slug}/f{nn}_{slug}';
-      const specs = 'specs/{slug}/f{nn}_{slug}';
-
-      expect(
-        {
-          for (final id in [
-            'user_story',
-            'nf',
-            'architecture',
-            'integration',
-            'security',
-          ])
-            id: overrides['.specstone/templates/$id.yaml'],
-        },
-        {
-          'user_story': 'path: $prds/us{nn}_{slug}/USER_STORY.md\n',
-          'nf': 'path: $prds/us{nn}_{slug}/nf{nn}_{slug}.md\n',
-          'architecture': 'path: $specs/ARCHITECTURE.md\n',
-          'integration': 'path: $specs/INTEGRATION.md\n',
-          'security': 'path: $specs/SECURITY.md\n',
-        },
-      );
-    });
-
-    test('a legacy NFR category with no GNFR section '
-        'becomes a gnfr section override', () {
-      final entry = gnfrOverride(['Data integrity', 'Token efficiency']);
-
-      expect(entry?.key, '.specstone/templates/gnfr.yaml');
-      expect(
-        entry?.value,
-        'sections:\n'
-        '  - id: data_integrity\n'
-        "    header: 'Data integrity'\n"
-        '  - id: token_efficiency\n'
-        "    header: 'Token efficiency'\n",
-      );
-      final set = TemplateResolver().resolveCarried(
-        packNames: _packs,
-        homeDirectory: null,
-        projectLayers: parseOverrides({entry!.key: entry.value}),
-      );
-      final headers = [
-        for (final section in set.lookup('gnfr')!.sections) section.header,
-      ];
-      expect(headers, contains('Data integrity'));
-      expect(gnfrOverride([]), isNull);
-    });
-
-    test('an id a carried section holds is taken, so the '
-        'override adds a section', () {
-      final entry = gnfrOverride(['Safety!'], carriedIds: {'safety'})!;
-
-      expect(entry.value, contains('id: safety_2\n'));
-      expect(entry.value, isNot(contains('id: safety\n')));
-    });
-
     test("the singular types' paths, one per target for a per-target type "
         'with two targets', () {
       final set = TemplateResolver().resolveCarried(
@@ -437,94 +282,6 @@ void main() {
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
       ]);
-    });
-
-    test('free-text legacy headers round-trip through the '
-        'gnfr override', () {
-      const headers = [
-        'Cost: low',
-        'ความปลอดภัย',
-        'Data integrity',
-        'Data-integrity',
-        'true',
-        'a # b',
-        "it's",
-        '2024',
-        '&anchor',
-      ];
-
-      final entry = gnfrOverride(headers)!;
-      final set = TemplateResolver().resolveCarried(
-        packNames: _packs,
-        homeDirectory: null,
-        projectLayers: parseOverrides({entry.key: entry.value}),
-      );
-
-      final sections = set.lookup('gnfr')!.sections;
-      final ids = [for (final section in sections) section.id];
-      expect(ids.toSet(), hasLength(ids.length));
-      final merged = sections.map((section) => section.header);
-      for (final header in headers) {
-        expect(merged, contains(header));
-      }
-      expect(entry.value, contains('id: category_2\n'));
-      expect(entry.value, contains("id: 'true'\n"));
-      expect(entry.value, contains('id: data_integrity\n'));
-      expect(entry.value, contains('id: data_integrity_2\n'));
-    });
-
-    test('headers Cost, cost and Cost 2 get three distinct '
-        'ids and keep three sections', () {
-      final entry = gnfrOverride(['Cost', 'cost', 'Cost 2'])!;
-
-      final set = TemplateResolver().resolveCarried(
-        packNames: _packs,
-        homeDirectory: null,
-        projectLayers: parseOverrides({entry.key: entry.value}),
-      );
-
-      final sections = [
-        for (final section in set.lookup('gnfr')!.sections)
-          if (const ['Cost', 'cost', 'Cost 2'].contains(section.header))
-            section,
-      ];
-      final ids = [for (final section in sections) section.id];
-      expect(sections, hasLength(3));
-      expect(ids.toSet(), hasLength(3));
-    });
-
-    test('covers skips an empty Code path and quotes a '
-        'path holding a colon', () {
-      final rows = [
-        const SpecMapRow(codePath: '', specPath: 'specs/a/', featureId: 'f01'),
-        const SpecMapRow(
-          codePath: 'lib/x: y/',
-          specPath: 'specs/a/',
-          featureId: 'f01',
-        ),
-        const SpecMapRow(codePath: '', specPath: 'specs/b/', featureId: 'f02'),
-      ];
-
-      final covers = coversOf('specs/a/', rows);
-
-      expect(covers?.block, "covers:\n  - 'lib/x: y/'\n");
-      expect(covers?.label, 'covers (1 path)');
-      expect(coversOf('specs/b/', rows), isNull);
-    });
-
-    test('covers quotes a path YAML reads as a number or '
-        'a word', () {
-      final rows = [
-        for (final codePath in ['2024', 'true', 'null', '1.5'])
-          SpecMapRow(codePath: codePath, specPath: 'specs/a/', featureId: 'f'),
-      ];
-
-      final covers = coversOf('specs/a/', rows);
-
-      expect(
-        covers?.block,
-        "covers:\n  - '2024'\n  - 'true'\n  - 'null'\n  - '1.5'\n",
-      );
     });
 
     test('a project-layer singular doc type follows the '

@@ -6,8 +6,6 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/document_writing/approval.dart'
-    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/approve_drafts.dart'
     show approveDryRun;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
@@ -20,14 +18,12 @@ import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_batch.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
-import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
-import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -36,12 +32,11 @@ import '../../helpers/check_fixture.dart'
     show checkOf, loginRecord, spots, writeCheckProject;
 import '../../helpers/git_repo.dart' show hasGit;
 import '../../helpers/index_fixture.dart' show openSession;
-import '../../helpers/legacy_fixture.dart' show acmeLegacy, gitFixture;
+import '../../helpers/legacy_fixture.dart' show gitFixture;
 import '../../helpers/matrix_record_fixture.dart' show writeMatrixRecordProject;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
-import '../../helpers/shipped_pins.dart'
-    show pinStatusesBelow, shippedPinsConfig, statusesBelowResolver;
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -1094,39 +1089,6 @@ void main() {
     expect(File(journalPathOf(root)).existsSync(), isFalse);
   });
 
-  test('init on a legacy tree with no home folder refuses with output_not_writable, exit 73, and the journal as its file, and changes nothing', () async {
-    final root = await gitFixture(acmeLegacy);
-    final before = treeBytes(root);
-    final out = StringBuffer();
-
-    await expectLater(
-      () async => await runInit(
-        InitRequest(
-          workingDirectory: root,
-          homeDirectory: null,
-          templates: TemplateResolver(),
-          confirmation: OwnerConfirmation.prompt,
-          readLine: () => 'y',
-          out: out,
-        ),
-      ),
-      throwsA(
-        isA<RenderFault>()
-            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-            .having((f) => f.exitStatus, 'exit', 73)
-            .having((f) => f.file, 'file', '.specstone/trash/journal.json')
-            .having(
-              (f) => f.message,
-              'message',
-              'cannot write .specstone/trash/journal.json: no home folder to record it in',
-            ),
-      ),
-    );
-
-    expect(out.toString(), isNot(contains('apply?')));
-    expect(treeBytes(root), before);
-  }, skip: hasGit ? null : 'git is not available');
-
   test('a single set, a batch of unchanged blocks, a migrate with nothing to do, and every dry run are unaffected by the no-home refusal', () async {
     final root = await writeWriteProject();
     final before = docBytes(root);
@@ -1210,12 +1172,16 @@ void main() {
     }
 
     if (!hasGit) return;
-    final legacy = await gitFixture(acmeLegacy);
-    final legacyBefore = treeBytes(legacy);
+    final upgrade = await gitFixture({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      'docs/prds/features/f01_login/FEATURE.md':
+          '## Benefit hypothesis\n\ng\n\n\n## Problem\n\np\n',
+    });
+    final upgradeBefore = treeBytes(upgrade);
     final plan = StringBuffer();
     final planStatus = await runMigrate(
       MigrateRequest(
-        workingDirectory: legacy,
+        workingDirectory: upgrade,
         homeDirectory: null,
         templates: TemplateResolver(),
         dryRun: true,
@@ -1226,8 +1192,11 @@ void main() {
     );
 
     expect(planStatus, 0);
-    expect(plan.toString(), startsWith('legacy migration: '));
-    expect(treeBytes(legacy), legacyBefore);
+    expect(
+      plan.toString(),
+      startsWith('pack upgrade: pins unchanged, layout only'),
+    );
+    expect(treeBytes(upgrade), upgradeBefore);
   });
 
   test('a batch in a project whose roots wait for the trust record of the Owner refuses with the trust text before any change', () async {
@@ -1447,7 +1416,7 @@ void main() {
     const from = 'email_login/check_password:implemented';
     const to = 'email_login/check_password:planned';
 
-    test('at the statuses pin leaves the approved record approved', () async {
+    test('leaves the approved record approved', () async {
       final root = await writeCheckProject();
       final before = readDoc(root, loginRecord);
       final approved = RegExp('approved: "[0-9a-f]{12}"')
@@ -1464,32 +1433,6 @@ void main() {
       );
       expect(answer.json['blocks'], [containsPair('draft', false)]);
       expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
-    });
-
-    test('below the statuses pin drafts the record', () async {
-      final root = await writeCheckProject();
-      pinStatusesBelow(root);
-      T below<T>(T Function(WriteSession session) body) =>
-          writeIn(root, body, templates: statusesBelowResolver);
-      below((s) {
-        final file = docFile(root, loginRecord);
-        file.writeAsStringSync(
-          withApprovalHash(
-            withKeyBlock(file.readAsStringSync(), 'approved', null),
-            s.docTypeAt(loginRecord),
-            statusesOutside: false,
-          ),
-        );
-      });
-      final text = below((s) => answerGet(s.index, [loginRecord]).text);
-
-      final answer = below(
-        (s) =>
-            answerSetBatch(s, parseBatchFile('batch.md', edit(text, from, to))),
-      );
-
-      expect(readDoc(root, loginRecord), contains('draft: true\n'));
-      expect(answer.json['blocks'], [containsPair('draft', true)]);
     });
   });
 

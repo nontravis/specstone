@@ -87,8 +87,8 @@ Each job has its own reference. A failed load: report it and stop; never search.
 
 ## Workflow
 
-1. **Gate**: run `specstone folder`; on exit 78 `project_not_found`, tell the Owner the project is still on the old
-   format and `specstone migrate` moves it, then stop. Run no `check`.
+1. **Gate**: run `specstone folder`; on exit 78 `project_not_found`, tell the Owner no Specstone project is found
+   here and `specstone init` starts one, then stop. Run no `check`.
 2. **Audit**: follow the On-Demand reference through its report. Run again a `specstone` command that ends
    `index_busy`; it is no CLI error. Then stop.
 

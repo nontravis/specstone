@@ -4,9 +4,6 @@ import 'package:specstone_core/src/consistency_check/models/id_at.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
-import 'package:specstone_core/src/document_writing/move_item.dart'
-    show positionWidthOf;
-import 'package:specstone_core/src/document_writing/retired_ids.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -26,15 +23,13 @@ const _scenarioRefPrefix = 'S';
 
 // MARK: - Types
 
-/// One item ID of a doc and the number the renumber pass gives it: a lettered
-/// ID, or an edge case or scenario that moves to its position.
-typedef LetteredItem = ({String docPath, IdAt item, String from, String to});
+/// One lettered item ID of a doc: the item and the ID as written.
+final class LetteredItem {
+  const new({required this.docPath, required this.item, required this.from});
 
-/// Returns the `S<N>` ref of the scenario ID [id], `Scenario <N>`; any other
-/// ID as it is.
-String scenarioRefOf(String id) {
-  if (!id.startsWith(scenarioIdPrefix)) return id;
-  return '$_scenarioRefPrefix${id.substring(scenarioIdPrefix.length)}';
+  final String docPath;
+  final IdAt item;
+  final String from;
 }
 
 /// Returns the key of the scenario block [number] names, by the value of its
@@ -56,7 +51,7 @@ String scenarioBlockKeyOfId(String id) =>
 
 // MARK: - RenumberDoc
 
-/// One typed doc of the renumber pass, read for its structure only, as
+/// One typed doc of the stamp pass, read for its structure only, as
 /// `check` reads its items and blocks: no markdown parse runs.
 final class RenumberDoc {
   new(this.docPath, this.lf, this.type) : name = docNameOf(docPath, type);
@@ -74,10 +69,7 @@ final class RenumberDoc {
 
   late final List<IdAt> items = idsInDoc(content, type);
 
-  /// The doc's renumbered IDs: each lettered ID with the next free number of
-  /// its prefix, counted as `check`'s `item_id_lettered` counts it, and each
-  /// edge case or scenario of a section holding a lettered one with its
-  /// position.
+  /// The doc's lettered item IDs.
   late final List<LetteredItem> lettered = _mayHoldLettered()
       ? _letteredOf()
       : const [];
@@ -137,62 +129,11 @@ final class RenumberDoc {
     return false;
   }
 
-  List<LetteredItem> _letteredOf() {
-    final read = [
-      for (final item in items)
-        if (item.id case final id?) (item: item, id: id),
-    ];
-    final next = nextFreeIds([
-      for (final entry in read) entry.id,
-    ], retired: RetiredIds.readFrom(lf).ids);
-    final positions = _positionNumbers();
-    final renumbered = <LetteredItem>[];
-    for (final (index, (:item, :id)) in read.indexed) {
-      final to = isPositionalPrefix(id.prefix) ? positions[item] : next[index];
-      if (to == null) continue;
-      renumbered.add((docPath: docPath, item: item, from: id.written, to: to));
-    }
-    return renumbered;
-  }
-
-  /// The new number of each edge case or scenario that moves to its position
-  /// in a section holding a lettered one, keyed by item.
-  Map<IdAt, String> _positionNumbers() {
-    final sections = <String, List<IdAt>>{};
-    for (final item in items) {
-      if (isPositionalPrefix(item.prefix)) {
-        (sections[item.sectionKey] ??= []).add(item);
-      }
-    }
-    final numbers = <IdAt, String>{};
-    for (final held in sections.values) {
-      if (held.any((item) => item.id is LetteredId)) {
-        numbers.addAll(_sectionPositions(held));
-      }
-    }
-    return numbers;
-  }
-
-  /// The new number of each item of [held], one section's edge cases or
-  /// scenarios, that differs from its position.
-  Map<IdAt, String> _sectionPositions(List<IdAt> held) {
-    final width = positionWidthOf(held.first.prefix, [
-      for (final item in held) item.id,
-    ]);
-    final numbers = <IdAt, String>{};
-    for (final (index, item) in held.indexed) {
-      final position = BigInt.from(index + 1);
-      final moves = switch (item.id) {
-        LetteredId() => true,
-        ItemId(:final number) => number != position,
-        _ => false,
-      };
-      if (!moves) continue;
-      numbers[item] =
-          '${item.prefix}${position.toString().padLeft(width, '0')}';
-    }
-    return numbers;
-  }
+  List<LetteredItem> _letteredOf() => [
+    for (final item in items)
+      if (item.id case final id? when id is LetteredId)
+        LetteredItem(docPath: docPath, item: item, from: id.written),
+  ];
 
   Map<String, String> _unprefixedNfrStatementsOf() {
     final statements = <String, String>{};

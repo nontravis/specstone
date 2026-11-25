@@ -7,9 +7,12 @@ import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_floors.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/shipped_pins.dart';
@@ -19,6 +22,9 @@ const _configPath = '.specstone/config.yaml';
 const _frozenX = 'prd-core/frozen/x.yaml';
 
 Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
+
+PackVersion _version(String text) =>
+    PackVersion.parse(text, file: 'test', key: 'version');
 
 /// The shipped fixture: `prd-core` holds `feature`, `software-tech` holds
 /// `architecture`.
@@ -100,6 +106,114 @@ void main() {
               ),
         ),
       );
+    });
+
+    test('a pin below its floor is pack_pin_below_floor', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.0.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        floors: PackFloors({'prd-core': _version('1.1.0')}),
+      );
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
+              .having((f) => f.file, 'file', _configPath)
+              .having((f) => f.key, 'key', 'packs.prd-core')
+              .having(
+                (f) => f.message,
+                'message',
+                allOf(
+                  contains('prd-core'),
+                  contains('1.0.0'),
+                  contains('1.1.0'),
+                  contains(specstoneVersion),
+                  contains('migrate the project with Specstone 2.0.x first'),
+                ),
+              ),
+        ),
+      );
+    });
+
+    test('a below-floor pin wins over a newer pin of a pack that sorts '
+        'first', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 2.0.0\n  software-tech: 0.9.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        floors: PackFloors({'software-tech': _version('1.0.0')}),
+      );
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
+              .having((f) => f.key, 'key', 'packs.software-tech'),
+        ),
+      );
+    });
+
+    test('requireAtFloor throws the first below-floor pin of its floors and '
+        'passes a pin at its floor or a resolver with none', () {
+      final floors = PackFloors({
+        'prd-core': _version('1.1.0'),
+        'software-tech': _version('1.0.0'),
+      });
+      final withFloors = TemplateResolver(
+        shippedFiles: shipped(),
+        floors: floors,
+      );
+      final pins = {
+        'prd-core': _version('1.0.0'),
+        'software-tech': _version('0.9.0'),
+      };
+
+      expect(
+        () => withFloors.requireAtFloor(pins),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
+              .having((f) => f.key, 'key', 'packs.prd-core'),
+        ),
+      );
+      expect(
+        () => withFloors.requireAtFloor({'prd-core': _version('1.1.0')}),
+        returnsNormally,
+      );
+      expect(
+        () => TemplateResolver(shippedFiles: shipped()).requireAtFloor(pins),
+        returnsNormally,
+      );
+    });
+
+    test('a personal pack pin resolves against its home pack.yaml, '
+        'floors set', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 0.1.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-software/pack.yaml':
+            'name: nont-software\nversion: 0.1.0\n',
+      });
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        floors: PackFloors({'prd-core': _version('1.1.0')}),
+      );
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('feature'), isNotNull);
     });
 
     test('equal pins resolve the listed packs', () async {
@@ -1007,47 +1121,6 @@ path: prds/notes/{slug}/NOTE.md
       });
     });
 
-    test('a move_to_record whose to names no doc type the '
-        'pack defines is unknown_value', () async {
-      String manifest(String to) =>
-          'name: software-tech\nversion: 1.1.0\nmigrations:\n'
-          '  - from: 1.0.0\n    steps:\n'
-          '      - move_to_record: {doc_types: [feature], fields: [status],'
-          ' to: $to}\n';
-      final home = await writeTree({});
-      final project = await writeTree({
-        _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.1.0\n',
-      });
-      TemplateResolver resolverTo(String to) => TemplateResolver(
-        shippedFiles: {
-          ...shipped(),
-          'software-tech/pack.yaml': _bytes(manifest(to)),
-        },
-      );
-
-      expect(
-        () =>
-            resolverTo('archtecture')
-                .resolve(workingDirectory: project, homeDirectory: home),
-        throwsA(
-          isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.unknownValue)
-              .having((f) => f.file, 'file', 'packs/software-tech/pack.yaml')
-              .having(
-                (f) => f.key,
-                'key',
-                'migrations[0].steps[0].move_to_record.to',
-              ),
-        ),
-      );
-      expect(
-        resolverTo('architecture')
-            .resolve(workingDirectory: project, homeDirectory: home)
-            .lookup('architecture'),
-        isNotNull,
-      );
-    });
-
     group('a bullet_lines step', () {
       Map<String, Uint8List> files({
         String docType = 'feature',
@@ -1118,159 +1191,6 @@ path: prds/notes/{slug}/NOTE.md
         );
 
         expect(merged.lookup('feature'), isNotNull);
-      });
-    });
-
-    group('a drop_default_lines step', () {
-      const defining =
-          'id: ledger\ndescription: A ledger\npath: ledgers/{slug}.md\n'
-          'sections:\n  - id: entities\n    header: Entities\n'
-          '  - id: invariants\n    header: Invariants\n';
-
-      Map<String, Uint8List> files({
-        String docType = 'ledger',
-        String ledger = defining,
-        Map<String, String> more = const {},
-      }) => {
-        ...shipped(),
-        'prd-core/pack.yaml': _bytes(
-          'name: prd-core\nversion: 1.1.0\nmigrations:\n'
-          '  - from: 1.0.0\n    steps:\n'
-          '      - drop_default_lines: {doc_types: [$docType]}\n',
-        ),
-        'prd-core/ledger.yaml': _bytes(ledger),
-        for (final MapEntry(:key, :value) in more.entries) key: _bytes(value),
-      };
-
-      Future<MergedSet> resolveWith(
-        Map<String, Uint8List> shippedFiles, {
-        Map<String, String> project = const {},
-      }) async => TemplateResolver(shippedFiles: shippedFiles).resolve(
-        workingDirectory: await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          ...project,
-        }),
-        homeDirectory: await writeTree({}),
-      );
-
-      final unknownAtDocTypes = isA<TemplateFault>()
-          .having((f) => f.code, 'code', FaultCode.unknownValue)
-          .having(
-            (f) => f.code.exitStatus,
-            'exit',
-            FaultCode.unknownValue.exitStatus,
-          )
-          .having((f) => f.file, 'file', 'packs/prd-core/pack.yaml')
-          .having(
-            (f) => f.key,
-            'key',
-            'migrations[0].steps[0].drop_default_lines.doc_types',
-          );
-
-      test('a drop_default_lines doc type no layer defines is '
-          'unknown_value', () async {
-        await expectLater(
-          resolveWith(files(docType: 'ledgr')),
-          throwsA(unknownAtDocTypes),
-        );
-        expect(await resolveWith(files()), isA<MergedSet>());
-      });
-
-      test('a drop_default_lines doc type missing invariants or entities is '
-          'unknown_value', () async {
-        for (final present in ['entities', 'invariants']) {
-          await expectLater(
-            resolveWith(
-              files(
-                ledger:
-                    'id: ledger\ndescription: A ledger\n'
-                    'path: ledgers/{slug}.md\n'
-                    'sections:\n  - id: $present\n    header: Header\n',
-              ),
-            ),
-            throwsA(unknownAtDocTypes),
-            reason: 'only $present is defined',
-          );
-        }
-      });
-
-      test('a drop_default_lines section a project layer disables still '
-          'loads', () async {
-        for (final disabled in ['entities', 'invariants']) {
-          final merged = await resolveWith(
-            files(),
-            project: {
-              '.specstone/templates/ledger.yaml':
-                  'sections:\n  - id: $disabled\n    disabled: true\n',
-            },
-          );
-
-          expect(merged.lookup('ledger'), isNotNull, reason: disabled);
-        }
-      });
-
-      test('a drop_default_lines doc type finds its sections through '
-          'extends', () async {
-        final merged = await resolveWith(
-          files(
-            docType: 'child',
-            more: {
-              'prd-core/child.yaml':
-                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
-            },
-          ),
-        );
-
-        expect(merged.lookup('child'), isNotNull);
-      });
-
-      test('a drop_default_lines doc type finds its sections two extends '
-          'hops up', () async {
-        final merged = await resolveWith(
-          files(
-            docType: 'grandchild',
-            more: {
-              'prd-core/child.yaml':
-                  'id: child\nextends: ledger\npath: children/{slug}.md\n',
-              'prd-core/grandchild.yaml':
-                  'id: grandchild\nextends: child\n'
-                  'path: grandchildren/{slug}.md\n',
-            },
-          ),
-        );
-
-        expect(merged.lookup('grandchild'), isNotNull);
-      });
-
-      test('a drop_default_lines extends cycle ends in a refusal, not a '
-          'hang', () async {
-        final result = await resolveWith(
-          files(
-            docType: 'left',
-            more: {
-              'prd-core/left.yaml':
-                  'id: left\nextends: right\npath: lefts/{slug}.md\n',
-              'prd-core/right.yaml':
-                  'id: right\nextends: left\npath: rights/{slug}.md\n',
-            },
-          ),
-        ).then<Object>((set) => set, onError: (Object e) => e);
-
-        expect(result, isA<TemplateFault>());
-      });
-
-      test('the shipped software-tech drop_default_lines entry loads '
-          'clean', () {
-        final merged = TemplateResolver().resolveCarried(
-          packNames: ['prd-core', 'software-tech'],
-          homeDirectory: null,
-        );
-
-        // The 1.20.0 entry folds domain into architecture, so no layer of
-        // the shipped pack defines it.
-        expect(merged.lookup('architecture'), isNotNull);
-        expect(merged.lookup('domain'), isNull);
-        expect(merged.lookup('project_domain'), isNull);
       });
     });
 
@@ -1538,7 +1458,6 @@ path: prds/notes/{slug}/NOTE.md
 
     group('an earlier step on a doc type a later merge_doc folds', () {
       const steps =
-          '      - drop_default_lines: {doc_types: [x]}\n'
           '      - mark_retrim: {doc_types: [x], sections: [goal]}\n'
           '      - bullet_lines: {doc_type: x, section: goal, prefixes: [A]}\n';
       const merge =
@@ -1571,7 +1490,7 @@ path: prds/notes/{slug}/NOTE.md
         homeDirectory: await writeTree({}),
       );
 
-      test('drop_default_lines, mark_retrim, and bullet_lines on x load '
+      test('mark_retrim and bullet_lines on x load '
           'before a merge_doc from x', () async {
         final merged = await resolveWith(files(tail: merge));
 
@@ -1639,7 +1558,7 @@ path: prds/notes/{slug}/NOTE.md
                 .having(
                   (f) => f.key,
                   'key',
-                  'migrations[0].steps[2].bullet_lines.doc_type',
+                  'migrations[0].steps[1].bullet_lines.doc_type',
                 ),
           ),
         );
@@ -1661,7 +1580,7 @@ path: prds/notes/{slug}/NOTE.md
                 .having(
                   (f) => f.key,
                   'key',
-                  'migrations[0].steps[3].bullet_lines.doc_type',
+                  'migrations[0].steps[2].bullet_lines.doc_type',
                 ),
           ),
         );

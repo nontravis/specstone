@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:specstone_core/src/document_writing/approval.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/templates/pack_floors.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
@@ -19,37 +17,22 @@ String shippedPinsConfig([
 }
 
 /// The `config.yaml` text of [shippedPinsConfig] with [pack] pinned one minor
-/// below its shipped version.
+/// below its floor, then the `<pack>: <version>` line [extra] when given.
 ///
-/// The pin is `MAJOR.MINOR-1.0`, so it stays one minor older after a bump.
-String shippedPinsOneMinorBelow(String pack) {
-  final shipped = PackVersion.parse(
-    shippedPackVersions()[pack]!,
-    file: 'shipped',
-    key: pack,
-  );
-  if (shipped.minor == 0) {
-    throw StateError('$pack ships at $shipped, with no minor below it');
-  }
-  final below = '${shipped.major}.${shipped.minor - 1}.0';
-  final pinned = '  $pack: $shipped\n';
+/// The pin derives from the floor, so a version bump moves no fixture.
+String shippedPinsBelowFloor({String pack = 'prd-core', String? extra}) {
+  final floor = PackFloors.shipped.byPack[pack]!;
+  final pinned = '  $pack: ${shippedPackVersions()[pack]}\n';
   final config = shippedPinsConfig();
   if (!config.contains(pinned)) {
-    throw StateError('shippedPinsConfig does not pin $pack at $shipped');
+    throw StateError('shippedPinsConfig does not pin $pack as expected');
   }
-  return config.replaceFirst(pinned, '  $pack: $below\n');
+  final below = config.replaceFirst(
+    pinned,
+    '  $pack: ${floor.major}.${floor.minor - 1}.0\n',
+  );
+  return extra == null ? below : '$below  $extra\n';
 }
-
-/// Whether a project on the shipped pins keeps a record's statuses outside
-/// the approval hash, the rule every shipped-pin fixture hashes by.
-final bool shippedStatusesOutside = statusesOutsideApproval({
-  for (final MapEntry(:key, :value) in shippedPackVersions().entries)
-    key: PackVersion.parse(value, file: 'shipped', key: key),
-});
-
-/// The `software-tech` version just below the pin that keeps a record's
-/// statuses outside the approval hash.
-const statusesBelowVersion = '1.6.0';
 
 /// The shipped pack files less each key of [without], such as
 /// `prd-core/glossary.yaml`.
@@ -129,23 +112,4 @@ TemplateResolver resolverCarrying(
     );
   }
   return TemplateResolver(shippedFiles: files);
-}
-
-/// The resolver of a project whose config [pinStatusesBelow] rewrote.
-final TemplateResolver statusesBelowResolver = resolverCarrying({
-  'software-tech': statusesBelowVersion,
-});
-
-/// Pins `software-tech` in the config of [root] at [statusesBelowVersion],
-/// in place of its shipped version; open it with [statusesBelowResolver].
-void pinStatusesBelow(Directory root) {
-  final config = File('${root.path}/.specstone/config.yaml');
-  final shipped = 'software-tech: ${shippedPackVersions()['software-tech']}';
-  final text = config.readAsStringSync();
-  if (!text.contains(shipped)) {
-    throw StateError('${config.path} does not pin $shipped');
-  }
-  config.writeAsStringSync(
-    text.replaceFirst(shipped, 'software-tech: $statusesBelowVersion'),
-  );
 }

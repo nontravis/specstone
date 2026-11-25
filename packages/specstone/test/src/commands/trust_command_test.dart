@@ -378,39 +378,37 @@ void main() {
       expect(fromParent.out, _noRecordNeeded(docs, ws.path));
     }, skip: _linksUnavailable);
 
-    test(
-      'before a config exists the roots come from the nearest legacy'
-      ' context doc or pending journal, else the working folder itself',
-      () async {
-        final base = await writeTree({
-          'legacy/docs/prds/d01_context.md': '# Context\n',
-          'legacy/sub/deep/keep.txt': '',
-          'journal/.specstone/trash/journal.json': '{}',
-          'journal/sub/keep.txt': '',
-          'bare/docs/keep.md': '# Keep\n',
-          'bare/child/keep.txt': '',
-        });
-        final top = Directory(base.path).resolveSymbolicLinksSync();
-        String at(String relative) =>
-            '$top${Platform.pathSeparator}'
-            '${relative.replaceAll('/', Platform.pathSeparator)}';
+    test('before a config exists the roots come from the nearest pending'
+        ' journal, else the working folder itself, a lone legacy context doc'
+        ' included', () async {
+      final base = await writeTree({
+        'legacy/docs/prds/d01_context.md': '# Context\n',
+        'legacy/sub/deep/keep.txt': '',
+        'journal/.specstone/trash/journal.json': '{}',
+        'journal/sub/keep.txt': '',
+        'bare/docs/keep.md': '# Keep\n',
+        'bare/child/keep.txt': '',
+      });
+      final top = Directory(base.path).resolveSymbolicLinksSync();
+      String at(String relative) =>
+          '$top${Platform.pathSeparator}'
+          '${relative.replaceAll('/', Platform.pathSeparator)}';
 
-        for (final (start, project) in [
-          ('legacy/sub/deep', 'legacy'),
-          ('journal/sub', 'journal'),
-          ('bare/child', 'bare/child'),
-        ]) {
-          final run = await _run(Directory(at(start)), ['trust']);
+      for (final (start, project) in [
+        ('legacy/sub/deep', 'legacy/sub/deep'),
+        ('journal/sub', 'journal'),
+        ('bare/child', 'bare/child'),
+      ]) {
+        final run = await _run(Directory(at(start)), ['trust']);
 
-          expect(run.status, 0, reason: '$start ${run.err}');
-          expect(
-            run.out,
-            _noRecordNeeded(at('$project/docs'), at(project)),
-            reason: start,
-          );
-        }
-      },
-    );
+        expect(run.status, 0, reason: '$start ${run.err}');
+        expect(
+          run.out,
+          _noRecordNeeded(at('$project/docs'), at(project)),
+          reason: start,
+        );
+      }
+    });
 
     test('no usable home exits 73 after the roots and the terminal check,'
         ' before the prompt', () async {

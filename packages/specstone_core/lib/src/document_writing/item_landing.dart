@@ -645,7 +645,6 @@ String numberedByPosition(String lfText, MergedDocType type) {
     docPath: _numberedDocPath,
     bytes: utf8.encode(lfText),
     match: MatchedDocType(type),
-    statusesOutside: false,
   ).content;
   final lines = lfText.split('\n');
   final sections = <String, List<IdAt>>{};
@@ -670,8 +669,8 @@ String numberedByPosition(String lfText, MergedDocType type) {
   return lines.join('\n');
 }
 
-// Only item IDs and lines are read, so the placeholder doc path and
-// `statusesOutside: false` change no result.
+// Only item IDs and lines are read, so the placeholder doc path changes no
+// result.
 const _numberedDocPath = 'doc.md';
 
 /// Returns [raw], an item's first line whose ID reads [id], with its ID and

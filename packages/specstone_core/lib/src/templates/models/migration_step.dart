@@ -81,52 +81,6 @@ final class MoveFile extends MigrationStep {
   String get kind => 'move_file';
 }
 
-/// A `move_to_record` step: the [fields] of the docs of [docTypes] move into
-/// their entries of the record doc type [to].
-final class MoveToRecord extends MigrationStep {
-  const new({required this.docTypes, required this.fields, required this.to});
-
-  /// The ids of the doc types whose values move.
-  final List<String> docTypes;
-
-  /// The ids of the fields that move.
-  final List<String> fields;
-
-  /// The id of the record doc type that receives the values.
-  final String to;
-
-  @override
-  bool touches(String docTypeId) => docTypes.contains(docTypeId);
-
-  @override
-  String get kind => 'move_to_record';
-}
-
-/// A `stamp_code_fingerprints` step: `migrate` writes the current code
-/// fingerprint on each code link it picks; the step takes no keys.
-final class StampCodeFingerprints extends MigrationStep {
-  const new();
-
-  @override
-  bool touches(String docTypeId) => false;
-
-  @override
-  String get kind => 'stamp_code_fingerprints';
-}
-
-/// A `restamp_code_fingerprints` step: `migrate` rewrites the code
-/// fingerprint of each code link stamped under the rule before comment and
-/// blank lines were dropped; the step takes no keys.
-final class RestampCodeFingerprints extends MigrationStep {
-  const new();
-
-  @override
-  bool touches(String docTypeId) => false;
-
-  @override
-  String get kind => 'restamp_code_fingerprints';
-}
-
 /// A `relink_merged_docs` step: `migrate` repairs the links an earlier
 /// `merge_doc`, `drop_section`, or `rename_section` step of its pack left
 /// behind; the step takes no keys.
@@ -165,36 +119,6 @@ final class BulletLines extends MigrationStep {
 
   @override
   String get kind => 'bullet_lines';
-}
-
-/// A `drop_default_lines` step: each invariant's nested line that states only
-/// the default the guide prints leaves the docs of [docTypes].
-final class DropDefaultLines extends MigrationStep {
-  const new({required this.docTypes});
-
-  /// The ids of the doc types whose docs this step rewrites.
-  final List<String> docTypes;
-
-  @override
-  bool touches(String docTypeId) => docTypes.contains(docTypeId);
-
-  @override
-  String get kind => 'drop_default_lines';
-}
-
-/// A `strip_shared_copies` step: `migrate` removes each project layer line and
-/// field that equals a merged shared entry reaching its doc type; the step
-/// takes no keys.
-///
-/// It reaches no doc: the plan strips the project layer files as a whole.
-final class StripSharedCopies extends MigrationStep {
-  const new();
-
-  @override
-  bool touches(String docTypeId) => false;
-
-  @override
-  String get kind => 'strip_shared_copies';
 }
 
 /// A `drop_shared_lines` step: the shared line [ids] this pack version no

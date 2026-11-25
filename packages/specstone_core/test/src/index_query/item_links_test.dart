@@ -17,7 +17,6 @@ LineFacts _factsOf(String text) => parseIndexedDoc(
   docPath: 'doc.md',
   bytes: utf8.encode(text),
   match: const NoDocType(),
-  statusesOutside: true,
 ).content.lineFacts;
 
 /// A link of [text] to [anchor] of other.md, placed on file line 8.

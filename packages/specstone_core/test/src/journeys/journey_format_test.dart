@@ -4,8 +4,6 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
-import 'package:specstone_core/src/index_query/item_words.dart'
-    show itemIdPrefixesOf;
 import 'package:specstone_core/src/journeys/journey_generators.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -14,14 +12,12 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
 import 'package:specstone_core/src/rendering/models/opened_resolver.dart';
-import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/cold_node.dart';
 import '../../helpers/index_fixture.dart';
-import '../../helpers/shipped_pins.dart' show shippedStatusesOutside;
 
 const _story = 'login/email_login';
 const _journeyKey = 'docs/prds/journeys/sign_in/JOURNEY.md';
@@ -245,11 +241,8 @@ void main() {
     String withFront(String text, String frontMatter) =>
         '$frontMatter${text.substring(text.indexOf('# Sign in'))}';
 
-    String approved(String text) => withApprovalHash(
-      text,
-      fixtureDocTypeOf(journeyDocPath),
-      statusesOutside: shippedStatusesOutside,
-    );
+    String approved(String text) =>
+        withApprovalHash(text, fixtureDocTypeOf(journeyDocPath));
 
     test('format re-pastes an edited '
         'scenario and the journey stays suspect', () async {
@@ -320,54 +313,6 @@ void main() {
       expect(journey.status, FileStatus.unchanged);
       expect(_read(root), first);
       expect(await check(root), isEmpty);
-    });
-
-    test('a cite the cite pass links in a story and in its pasted copy '
-        'stays as the next format pastes it', () async {
-      const storyKey = 'docs/$loginStory';
-      final cited = loginScenario1.replaceFirst(
-        'home page',
-        'home page of `feature:login`',
-      );
-      final root = await _project(
-        _journey([_step('1', 'Open', 'S1')]),
-        extra: edit(loginStory, [(loginScenario1, cited)]),
-      );
-      _format(root);
-      String lf(String key) =>
-          File.fromUri(root.uri.resolve(key)).readAsStringSync();
-      const docPaths = [loginFeature, loginStory, journeyDocPath];
-      final pass = CitePass.plan(
-        [
-          for (final docPath in docPaths)
-            (
-              docPath: docPath,
-              lf: lf('docs/$docPath'),
-              type: fixtureDocTypeOf(docPath),
-              target: null,
-            ),
-        ],
-        idPrefixes: itemIdPrefixesOf(docPaths.map(fixtureDocTypeOf)),
-        layoutPaths: const {},
-      );
-      for (final (docPath, key) in [
-        (loginStory, storyKey),
-        (journeyDocPath, _journeyKey),
-      ]) {
-        File.fromUri(root.uri.resolve(key))
-            .writeAsStringSync(pass.apply(docPath, lf(key)));
-      }
-      final linked = _read(root);
-
-      final report = _format(root);
-
-      expect(
-        linked,
-        contains('home page of [feature:login](../../features/f01_login/'),
-      );
-      final journey = report.files.singleWhere((f) => f.path == _journeyKey);
-      expect(journey.status, FileStatus.unchanged);
-      expect(_read(root), linked);
     });
 
     test('a step added by hand stays unconfirmed until the '

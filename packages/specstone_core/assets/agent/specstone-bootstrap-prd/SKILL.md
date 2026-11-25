@@ -20,8 +20,8 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 
 `<folder>` and `XXXXXX` are as `specstone-expert-sdd`'s project gate gives.
 
-- **78, `project_not_found`:** tell the Owner the project stays on the old format until `specstone migrate` moves
-  it. Stop: run, read, write nothing.
+- **78, `project_not_found`:** tell the Owner no Specstone project is found here; `specstone init` starts
+  one. Stop: run, read, write nothing.
 - **0 or 1:** go on, even from a subfolder. Never look for `.specstone/`. Search it for this skill's
   findings.
 - **Any other exit:** report the CLI's error and stop.

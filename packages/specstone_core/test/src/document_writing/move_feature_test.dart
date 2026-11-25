@@ -838,11 +838,7 @@ void main() {
       docFile(root, shopDomain).writeAsStringSync(
         writeIn(
           root,
-          (s) => withApprovalHash(
-            approvedText,
-            s.docTypeAt(shopDomain),
-            statusesOutside: s.project.statusesOutsideApproval,
-          ),
+          (s) => withApprovalHash(approvedText, s.docTypeAt(shopDomain)),
         ),
       );
       final hash = RegExp(r'^approved: "([^"]+)"$', multiLine: true);

@@ -16,9 +16,35 @@ void main() {
       expect(MigrateFaultCode.gitWorkTreeRequired.exitStatus, 78);
     });
 
-    test('group_slug_duplicate exits 65', () {
-      expect(MigrateFaultCode.groupSlugDuplicate.wire, 'group_slug_duplicate');
-      expect(MigrateFaultCode.groupSlugDuplicate.exitStatus, 65);
+    test('the codes hold none api:setup_migration #errors lacks', () {
+      const apiErrors = {
+        'working_tree_dirty',
+        'git_work_tree_required',
+        'override_dangling',
+        'upgrade_collision',
+        'config_exists',
+        'git_failed',
+        'plan_mismatch',
+        'agent_block_malformed',
+        'agent_files_newer',
+        'owner_terminal_required',
+        'migrate_pending',
+        'project_not_found',
+        'output_not_writable',
+        'pack_pin_below_floor',
+        'pack_pin_newer',
+        'pack_not_found',
+        'pack_version_invalid',
+        'unknown_key',
+        'unknown_value',
+        'missing_key',
+        'override_id_not_found',
+      };
+
+      final extra = {for (final code in MigrateFaultCode.values) code.wire}
+          .difference(apiErrors);
+
+      expect(extra, isEmpty);
     });
 
     test('upgrade_collision exits 65', () {
@@ -57,11 +83,6 @@ void main() {
     test('agent_files_newer exits 78', () {
       expect(MigrateFaultCode.agentFilesNewer.wire, 'agent_files_newer');
       expect(MigrateFaultCode.agentFilesNewer.exitStatus, 78);
-    });
-
-    test('legacy_collision exits 65', () {
-      expect(MigrateFaultCode.legacyCollision.wire, 'legacy_collision');
-      expect(MigrateFaultCode.legacyCollision.exitStatus, 65);
     });
   });
 
@@ -125,7 +146,7 @@ void main() {
 
     test('related files follow the located form', () {
       final fault = MigrateFault(
-        MigrateFaultCode.groupSlugDuplicate,
+        MigrateFaultCode.upgradeCollision,
         'twice',
         file: 'a.md',
         relatedFiles: ['b.md', 'c.md'],

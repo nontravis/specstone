@@ -75,20 +75,11 @@ final class _Refusal {
 
 /// One block resolved to the doc and the part it writes.
 final class _Planned {
-  const new(
-    this.block,
-    this.doc,
-    this.docType,
-    this.target, {
-    required this.statusesOutside,
-  });
+  const new(this.block, this.doc, this.docType, this.target);
 
   final BatchBlock block;
   final IndexedDoc doc;
   final MergedDocType docType;
-
-  /// The project's rule for a record's statuses and the approval hash.
-  final bool statusesOutside;
 
   /// What the block writes: a section, the lead, a field, the title, or null
   /// for a whole doc. A field or the title is refused, but still resolved, so
@@ -215,13 +206,7 @@ _Planned? _resolveBlock(
       (_, _, leadKey) => const LeadTarget(),
       (_, _, final section?) => SectionTarget(section),
     };
-    return _Planned(
-      block,
-      doc,
-      docType,
-      target,
-      statusesOutside: session.project.statusesOutsideApproval,
-    );
+    return _Planned(block, doc, docType, target);
   } on SpecstoneFault catch (fault) {
     _refuse(
       refusals,
@@ -441,7 +426,6 @@ SplicedDoc _splice(_Planned block, LockedDoc disk) => switch (block.target) {
     target: target,
     base: block.base,
     text: block.block.text,
-    statusesOutside: block.statusesOutside,
   ),
 };
 
@@ -563,7 +547,6 @@ void _checkRemovedSections(_Planned block, LockedDoc disk, String lfText) {
       target: SectionTarget(section.key),
       base: sectionBaseOf(section.body, block.docType),
       text: '',
-      statusesOutside: block.statusesOutside,
     );
   }
 }
@@ -573,7 +556,6 @@ List<IndexedSection> _sectionsOf(_Planned block, String lfText) =>
       docPath: block.doc.docPath,
       bytes: utf8.encode(lfText),
       match: MatchedDocType(block.docType),
-      statusesOutside: block.statusesOutside,
     ).content.sections;
 
 /// Whether the write of [block] marks the doc a draft: false only when every
@@ -586,12 +568,10 @@ bool _marksDraft(
   String proposedText,
   List<String> changedFields,
 ) {
-  final statusesOutside = block.statusesOutside;
-  String hashOf(String text) =>
-      approvalHashOf(text, block.docType, statusesOutside: statusesOutside);
+  String hashOf(String text) => approvalHashOf(text, block.docType);
   final outsideFields = {
     for (final field in block.docType.fields)
-      if (isOutsideApproval(field, statusesOutside: statusesOutside)) field.id,
+      if (isOutsideApproval(field)) field.id,
   };
   final onlyOutsideFields =
       changedFields.isNotEmpty && changedFields.every(outsideFields.contains);
@@ -651,7 +631,6 @@ _Write _writeOf(WriteSession session, _DocCheck check) {
       target: next.target!,
       base: next.base,
       text: next.block.text,
-      statusesOutside: next.statusesOutside,
     );
     lfText = part.lfText;
     marksDraft = marksDraft || part.marksDraft;
@@ -695,7 +674,6 @@ ReadAnswer _answerOf(
         docPath: docPath,
         bytes: utf8.encode(write.lfText),
         match: MatchedDocType(block.docType),
-        statusesOutside: block.statusesOutside,
       ),
       null => check.disk.parsed,
     };

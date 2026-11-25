@@ -57,8 +57,8 @@ word, each cited by doc and section.
    - **0**: stdout is the index; each `==> bundle: … · <path> <==` header names a saved file, the read-first
      one followed by its read plan line. Read those files as step 1 does. A subfolder works: the CLI looks upward
      for the project.
-   - **78 with `project_not_found`**: reply that the project is still on the old format, and that
-     `specstone migrate` moves it or the old skills still serve it. Then stop: run nothing else, read no doc.
+   - **78 with `project_not_found`**: reply that no Specstone project is found here, and that
+     `specstone init` starts one. Then stop: run nothing else, read no doc.
    - **Any other non-zero**: reply with the CLI's error and its target, then stop.
 4. **More calls**: run step 2's call once more for each remaining `--summary` target, and in `query` mode for each
    remaining target ID, skipping a `query` one that an earlier bundle's closing doc list already names without

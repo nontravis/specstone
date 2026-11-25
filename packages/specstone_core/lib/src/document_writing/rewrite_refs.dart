@@ -847,20 +847,11 @@ WriteStep _stampedStep(
   String text,
 ) {
   final writtenPath = movedPath(doc.docPath, moves);
-  final statusesOutside = session.project.statusesOutsideApproval;
-  final wasApproved = _wasApproved(
-    doc.lfText,
-    session.docTypeAt(doc.docPath),
-    statusesOutside: statusesOutside,
-  );
+  final wasApproved = _wasApproved(doc.lfText, session.docTypeAt(doc.docPath));
   // An edit that marked the doc draft, as an item move does, takes no stamp.
   final isRestamped = wasApproved && !Doc.parse(text).isDraft;
   final stamped = isRestamped
-      ? withApprovalHash(
-          text,
-          session.docTypeAt(writtenPath),
-          statusesOutside: statusesOutside,
-        )
+      ? withApprovalHash(text, session.docTypeAt(writtenPath))
       : text;
   final step = session.docWriteStep(writtenPath, stamped, doc.bytes);
   return isRestamped ? step.keepingApprovedCopy() : step;
@@ -872,16 +863,11 @@ WriteStep _stampedStep(
 ///
 /// Read from the bytes the step rewrites, not the index: an edit made after
 /// the session opened stays stale.
-bool _wasApproved(
-  String lfText,
-  MergedDocType? docType, {
-  required bool statusesOutside,
-}) {
+bool _wasApproved(String lfText, MergedDocType? docType) {
   final fields = ApprovalFields.of(Doc.parse(lfText));
   return !fields.isDraft &&
       fields.approvedValue is String &&
-      fields.approvedValue ==
-          approvalHashOf(lfText, docType, statusesOutside: statusesOutside);
+      fields.approvedValue == approvalHashOf(lfText, docType);
 }
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null

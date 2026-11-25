@@ -31,6 +31,7 @@ void main() {
   group('fix loop', _fixLoopTests);
   group('author mode', _authorModeTests);
   group('small edit', _smallEditTests);
+  group('grounding', _groundingTests);
   group('plan flow', _planFlowTests);
   group('sync routes', _syncRouteTests);
   group('sync procedure', _syncProcedureTests);
@@ -288,7 +289,7 @@ ContentFile _file(
   String body, {
   String? frontmatter,
   bool isSkillFile = false,
-}) => (
+}) => ContentFile(
   path: path,
   body: body,
   frontmatter: frontmatter,
@@ -1150,6 +1151,19 @@ void _packDocTypeTests() {
     );
   });
 
+  test('retired doc types hold with no pack migration read', () {
+    expect(PackDocTypes.fromPackFiles(const {}).fileNameById, {
+      'error': 'ERROR.md',
+      'project_error': 'ERROR.md',
+      'domain': 'DOMAIN.md',
+      'project_domain': 'DOMAIN.md',
+      'project_integration': 'INTEGRATION.md',
+      'auth': 'AUTH.md',
+      'project_auth': 'AUTH.md',
+      'topic': null,
+    });
+  });
+
   test('a bare id, a stem, or prose such as the architecture doc passes', () {
     expect(
       namesIn(
@@ -1992,16 +2006,16 @@ void _approveStepTests() {
     );
   });
 
-  test('gated-plan names the three plan commands and Owner confirmation points '
-      'to it twice', () {
+  test('gated-plan names the delete and migrate plan commands and Owner '
+      'confirmation points to it twice', () {
     final plan = _pluginText('specstone-expert-sdd/references/gated-plan.md');
     for (final command in [
       '`specstone delete <path> … --yes --plan <hash>`',
       '`specstone migrate --yes --plan <hash>`',
-      '`specstone init --yes --plan <hash>`',
     ]) {
       expect(plan, contains(command), reason: command);
     }
+    expect(plan, isNot(contains('specstone init')));
     final lines = _pluginText(_expertSdd).split('\n');
     final section = lines.skipWhile((l) => l != '## Owner confirmation');
     expect(
@@ -2820,6 +2834,50 @@ void _smallEditTests() {
   test('update-sdd merges a base_mismatch into the current text', () {
     final write = _sectionOf(_pluginText(_updateSkill), '## 3. Write the edit');
     expect(_hasSentenceWith(write, ['`base_mismatch`']), isTrue);
+  });
+}
+
+// MARK: - grounding
+
+void _groundingTests() {
+  test('each skill and agent that gates on a project names specstone init on '
+      'project_not_found and no old format', () {
+    for (final file in [
+      'specstone-read-sdd/SKILL.md',
+      'specstone-sdd-reader.md',
+      _auditor,
+      'specstone-expert-sdd/SKILL.md',
+      'specstone-update-sdd/SKILL.md',
+      _syncSkill,
+      'specstone-bootstrap-prd/SKILL.md',
+      'specstone-bootstrap-spec/SKILL.md',
+      'specstone-brainstorming-sdd/SKILL.md',
+      'specstone-plan-sdd/SKILL.md',
+      _planAgent,
+    ]) {
+      final text = _pluginText(file);
+      final lines = text.split('\n');
+      final hits = [
+        for (var i = 0; i < lines.length - 1; i++)
+          if (lines[i].contains('project_not_found')) i,
+      ];
+      expect(hits, isNotEmpty, reason: file);
+      for (final at in hits) {
+        final reply = '${lines[at]} ${lines[at + 1]}'.replaceAll(
+          RegExp(r'\*\*.*?\*\*'),
+          '',
+        );
+        expect(reply, contains('`specstone init`'), reason: '$file:${at + 1}');
+      }
+      expect(
+        RegExp(
+          r'old[\s-]+format|old\s+skills',
+          caseSensitive: false,
+        ).hasMatch(text),
+        isFalse,
+        reason: file,
+      );
+    }
   });
 }
 

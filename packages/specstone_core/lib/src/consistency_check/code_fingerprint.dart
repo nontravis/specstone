@@ -93,15 +93,6 @@ bool _opensWith(List<int> bytes, int first, int end, String mark) {
   return true;
 }
 
-/// Returns the fingerprint [fileCodeFingerprint] gave before comment and
-/// blank lines were dropped: the whole text, CRLF turned into LF.
-String legacyFileCodeFingerprint(List<int> bytes) {
-  final text = _strictUtf8(bytes);
-  return text == null
-      ? _rawHash(bytes)
-      : baseHashOf('${_bomPrefix(bytes)}${toLf(text)}');
-}
-
 /// Returns [bytes] as text without its BOM, null when they are no strict
 /// UTF-8.
 String? _strictUtf8(List<int> bytes) {

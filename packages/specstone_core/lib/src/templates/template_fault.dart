@@ -33,6 +33,7 @@ enum FaultCode {
   personalPackConflict('personal_pack_conflict', 78),
   personalPackVersionDiffers('personal_pack_version_differs', 78),
   packPinOlder('pack_pin_older', 78),
+  packPinBelowFloor('pack_pin_below_floor', 78),
   packPinNewer('pack_pin_newer', 78),
   prdCoreMissing('prd_core_missing', 78),
   docTypeUnknown('doc_type_unknown', 64),

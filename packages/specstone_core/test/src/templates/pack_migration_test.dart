@@ -64,6 +64,21 @@ void main() {
     );
   });
 
+  for (final kind in const [
+    'move_to_record',
+    'stamp_code_fingerprints',
+    'restamp_code_fingerprints',
+    'strip_shared_copies',
+    'drop_default_lines',
+  ]) {
+    test('a $kind step is unknown_value at its step key', () {
+      expect(
+        () => parseMigrationsOf('- from: 1.0.0\n  steps:\n    - $kind: {}\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'migrations[0].steps[0]')),
+      );
+    });
+  }
+
   test('a step missing a key is missing_key', () {
     expect(
       () => parseMigrationsOf(
@@ -217,126 +232,6 @@ void main() {
     );
   });
 
-  test('a move_to_record step parses into its doc types, '
-      'fields, and record doc type', () {
-    final step = parseMigrationsOf('''
-- from: 1.4.0
-  steps:
-    - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
-''').single.steps.single;
-
-    expect(step, isA<MoveToRecord>());
-    final move = step as MoveToRecord;
-    expect(move.kind, 'move_to_record');
-    expect(move.docTypes, ['user_story', 'fr']);
-    expect(move.fields, ['status', 'implements']);
-    expect(move.to, 'implementation');
-    expect(move.touches('fr'), isTrue);
-    expect(move.touches('architecture'), isFalse);
-  });
-
-  test('a move_to_record step missing a key is '
-      'missing_key', () {
-    for (final key in ['doc_types', 'fields', 'to']) {
-      final keys = {
-        'doc_types': '[fr]',
-        'fields': '[status]',
-        'to': 'implementation',
-      }..remove(key);
-      final body = keys.entries.map((e) => '${e.key}: ${e.value}').join(', ');
-      expect(
-        () => parseMigrationsOf(
-          '- from: 1.4.0\n  steps:\n    - move_to_record: {$body}\n',
-        ),
-        throwsA(
-          _fault(
-            FaultCode.missingKey,
-            key: 'migrations[0].steps[0].move_to_record.$key',
-          ),
-        ),
-        reason: 'key $key',
-      );
-    }
-  });
-
-  test('a move_to_record step with an unknown key is '
-      'unknown_key', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.4.0\n'
-        '  steps:\n'
-        '    - move_to_record: {doc_types: [fr], fields: [status],'
-        ' to: implementation, note: x}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownKey,
-          key: 'migrations[0].steps[0].move_to_record.note',
-        ),
-      ),
-    );
-  });
-
-  test('a stamp_code_fingerprints step with no keys parses and '
-      'touches no doc type', () {
-    final step = parseMigrationsOf('''
-- from: 1.6.0
-  steps:
-    - stamp_code_fingerprints: {}
-''').single.steps.single;
-
-    expect(step, isA<StampCodeFingerprints>());
-    expect(step.kind, 'stamp_code_fingerprints');
-    expect(step.touches('fr'), isFalse);
-  });
-
-  test('a stamp_code_fingerprints step with a key is '
-      'unknown_key', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.6.0\n'
-        '  steps:\n'
-        '    - stamp_code_fingerprints: {note: x}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownKey,
-          key: 'migrations[0].steps[0].stamp_code_fingerprints.note',
-        ),
-      ),
-    );
-  });
-
-  test('a restamp_code_fingerprints step with no keys parses and '
-      'touches no doc type', () {
-    final step = parseMigrationsOf('''
-- from: 1.7.0
-  steps:
-    - restamp_code_fingerprints: {}
-''').single.steps.single;
-
-    expect(step, isA<RestampCodeFingerprints>());
-    expect(step.kind, 'restamp_code_fingerprints');
-    expect(step.touches('fr'), isFalse);
-  });
-
-  test('a restamp_code_fingerprints step with a key is '
-      'unknown_key', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.7.0\n'
-        '  steps:\n'
-        '    - restamp_code_fingerprints: {note: x}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownKey,
-          key: 'migrations[0].steps[0].restamp_code_fingerprints.note',
-        ),
-      ),
-    );
-  });
-
   test('a relink_merged_docs step with no keys parses', () {
     final step = parseMigrationsOf('''
 - from: 1.0.0
@@ -359,35 +254,6 @@ void main() {
         _fault(
           FaultCode.unknownKey,
           key: 'migrations[0].steps[0].relink_merged_docs.from',
-        ),
-      ),
-    );
-  });
-
-  test('a strip_shared_copies step with no keys parses and touches no '
-      'doc type', () {
-    final step = parseMigrationsOf('''
-- from: 1.12.0
-  steps:
-    - strip_shared_copies: {}
-''').single.steps.single;
-
-    expect(step, isA<StripSharedCopies>());
-    expect(step.kind, 'strip_shared_copies');
-    expect(step.touches('api'), isFalse);
-  });
-
-  test('a strip_shared_copies step with a key is unknown_key', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.12.0\n'
-        '  steps:\n'
-        '    - strip_shared_copies: {note: x}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownKey,
-          key: 'migrations[0].steps[0].strip_shared_copies.note',
         ),
       ),
     );
@@ -539,36 +405,6 @@ void main() {
         reason: prefixes,
       );
     }
-  });
-
-  test('a drop_default_lines step reads its doc type list', () {
-    final step = parseMigrationsOf('''
-- from: 1.13.0
-  steps:
-    - drop_default_lines: {doc_types: [domain, project_domain]}
-''').single.steps.single;
-
-    expect(step, isA<DropDefaultLines>());
-    step as DropDefaultLines;
-    expect(step.kind, 'drop_default_lines');
-    expect(step.docTypes, ['domain', 'project_domain']);
-    expect(step.touches('domain'), isTrue);
-    expect(step.touches('project_domain'), isTrue);
-    expect(step.touches('feature'), isFalse);
-  });
-
-  test('a drop_default_lines step with no doc types is missing_key', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.13.0\n  steps:\n    - drop_default_lines: {}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.missingKey,
-          key: 'migrations[0].steps[0].drop_default_lines.doc_types',
-        ),
-      ),
-    );
   });
 
   test('a mark_retrim step reads its doc types and sections', () {
@@ -882,23 +718,5 @@ void main() {
         ),
       );
     });
-  });
-
-  test('a move_to_record list that holds a non-string is '
-      'unknown_value', () {
-    expect(
-      () => parseMigrationsOf(
-        '- from: 1.4.0\n'
-        '  steps:\n'
-        '    - move_to_record: {doc_types: [fr], fields: [1],'
-        ' to: implementation}\n',
-      ),
-      throwsA(
-        _fault(
-          FaultCode.unknownValue,
-          key: 'migrations[0].steps[0].move_to_record.fields',
-        ),
-      ),
-    );
   });
 }

@@ -21,11 +21,10 @@ String _canonical(Directory dir) => dir.resolveSymbolicLinksSync();
 
 void main() {
   group('locateMigrateRoot', () {
-    test('the walk stops at the first folder holding config, '
-        'legacy context doc, or journal', () async {
+    test('the walk stops at the first folder holding config '
+        'or journal', () async {
       for (final marker in {
         '.specstone/config.yaml': 'packs:\n',
-        legacyContextPath: '# D-01\n',
         MoveJournal.journalPath: _journal,
       }.entries) {
         final tree = await writeTree({
@@ -56,10 +55,28 @@ void main() {
       );
     });
 
+    test('a folder whose only marker is the legacy context doc is '
+        'project_not_found', () async {
+      final tree = await writeTree({
+        'repo/docs/prds/d01_context.md': '# D-01\n',
+        'repo/a/b/keep.txt': '',
+      });
+
+      expect(
+        () => locateMigrateRoot(Directory('${tree.path}/repo/a/b')),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.projectNotFound)
+              .having((f) => f.exitStatus, 'exitStatus', 78),
+        ),
+      );
+    });
+
     test('a docs link stands for the '
         'parent of its target', () async {
       final tree = await writeTree({
-        'docsrepo/docs/prds/d01_context.md': '# D-01\n',
+        'docsrepo/.specstone/config.yaml': 'packs:\n',
+        'docsrepo/docs/prds/PROJECT.md': '# Project\n',
         'repo/code/lib/keep.txt': '',
       });
       try {
@@ -76,24 +93,6 @@ void main() {
           .root;
 
       expect(_canonical(root), _canonical(Directory('${tree.path}/docsrepo')));
-    });
-
-    test('a nested project with its own legacy context '
-        'doc is its own root', () async {
-      final tree = await writeTree({
-        'outer/docs/prds/d01_context.md': '# D-01\n',
-        'outer/example-app/docs/prds/d01_context.md': '# D-01\n',
-        'outer/example-app/lib/keep.txt': '',
-      });
-
-      final root = locateMigrateRoot(
-        Directory('${tree.path}/outer/example-app/lib'),
-      ).root;
-
-      expect(
-        _canonical(root),
-        _canonical(Directory('${tree.path}/outer/example-app')),
-      );
     });
 
     test('a pending journal marks the root when the '
@@ -159,23 +158,6 @@ void main() {
       expect(_canonical(findProjectRoot(start)!), nested);
     });
 
-    test('a nested project with only a legacy context doc is the migrate '
-        'root, not the outer one', () async {
-      final tree = await nestedTree({
-        'ws/.specstone/config.yaml': 'packs:\n',
-        'ws/example/$legacyContextPath': '# D-01\n',
-      });
-      if (tree == null) return;
-
-      final root = locateMigrateRoot(Directory('${tree.path}/ws/code/example'))
-          .root;
-
-      expect(
-        _canonical(root),
-        _canonical(Directory('${tree.path}/ws/example')),
-      );
-    });
-
     test('a folder with its own config whose docs link leaves every project '
         'is its own migrate root', () async {
       final tree = await writeTree({
@@ -219,7 +201,8 @@ void main() {
   group('locateMigrateRoot returns the link folder', () {
     Future<Directory?> linkedTree() async {
       final tree = await writeTree({
-        'ws/$legacyContextPath': '# D-01\n',
+        'ws/.specstone/config.yaml': 'packs:\n',
+        'ws/docs/keep.txt': '',
         'ws/code/lib/keep.txt': '',
       });
       try {
@@ -250,7 +233,7 @@ void main() {
 
     test('a root with a real docs folder has no link folder', () async {
       final tree = await writeTree({
-        'ws/$legacyContextPath': '# D-01\n',
+        'ws/.specstone/config.yaml': 'packs:\n',
         'ws/lib/keep.txt': '',
       });
       final ws = _canonical(Directory('${tree.path}/ws'));

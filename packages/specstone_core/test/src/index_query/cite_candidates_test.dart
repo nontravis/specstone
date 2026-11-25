@@ -70,7 +70,6 @@ ParsedDoc _record(String lf, {MergedDocType? type}) => parseIndexedDoc(
     MergedSet(docTypes: [type ?? _matrixRecordType]),
     targetNames: const [],
   ).match(_recordPath),
-  statusesOutside: true,
   idPrefixes: _idPrefixes,
 );
 

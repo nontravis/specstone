@@ -7,15 +7,12 @@ import 'package:specstone_core/src/fault.dart';
 enum MigrateFaultCode {
   workingTreeDirty('working_tree_dirty', 75),
   gitWorkTreeRequired('git_work_tree_required', 78),
-  groupSlugDuplicate('group_slug_duplicate', 65),
   upgradeCollision('upgrade_collision', 65),
-  valueUnplaced('value_unplaced', 65),
   overrideDangling('override_dangling', 78),
   configExists('config_exists', 64),
   gitFailed('git_failed', 75),
   planMismatch('plan_mismatch', 75),
   agentBlockMalformed('agent_block_malformed', 65),
-  legacyCollision('legacy_collision', 65),
   agentFilesNewer('agent_files_newer', 78);
 
   new(this.wire, this.exitStatus);

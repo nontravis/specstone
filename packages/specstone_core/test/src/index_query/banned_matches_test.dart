@@ -56,7 +56,6 @@ DocContent _parsed(String text, DocTypeMatch match) => parseIndexedDoc(
   docPath: 'n.md',
   bytes: utf8.encode(text),
   match: match,
-  statusesOutside: true,
 ).content;
 
 void main() {

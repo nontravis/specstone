@@ -216,7 +216,7 @@ void main() {
       );
     });
 
-    test('an older marketing pin points at the shipped version', () async {
+    test('a marketing pin below its floor is pack_pin_below_floor', () async {
       final project = await writeTree({
         '.specstone/config.yaml':
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
@@ -230,7 +230,7 @@ void main() {
         ),
         throwsA(
           isA<TemplateFault>()
-              .having((f) => f.code, 'code', FaultCode.packPinOlder)
+              .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
               .having((f) => f.message, 'message', contains('1.5.0')),
         ),
       );

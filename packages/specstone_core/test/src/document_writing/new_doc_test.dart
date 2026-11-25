@@ -27,8 +27,7 @@ import '../../helpers/forwarding_entities.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
-import '../../helpers/shipped_pins.dart'
-    show pinStatusesBelow, shippedPinsConfig, statusesBelowResolver;
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/write_fixture.dart';
@@ -1447,30 +1446,27 @@ sections:
       skip: unreadablePathSkipReason() ?? false,
     );
 
-    test(
-      'a planned line leaves an approved record approved at the statuses pin',
-      () async {
-        final root = await withRecord(
-          recordText(statuses: ['email_login:implemented']),
-        );
-        stampApproved(root, record);
-        expect(holdsApproval(root, record), isTrue);
-        writeIn(
-          root,
-          (s) => answerNew(
-            s,
-            docTypeId: 'user_story',
-            parent: 'login',
-            slug: 'forgot_email',
-          ),
-        );
-        expect(statusesIn(root, record), [
-          'email_login:implemented',
-          'forgot_email:planned',
-        ]);
-        expect(holdsApproval(root, record), isTrue);
-      },
-    );
+    test('a planned line leaves an approved record approved', () async {
+      final root = await withRecord(
+        recordText(statuses: ['email_login:implemented']),
+      );
+      stampApproved(root, record);
+      expect(holdsApproval(root, record), isTrue);
+      writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'forgot_email',
+        ),
+      );
+      expect(statusesIn(root, record), [
+        'email_login:implemented',
+        'forgot_email:planned',
+      ]);
+      expect(holdsApproval(root, record), isTrue);
+    });
 
     test('a record step that fails after the journal is saved leaves the doc and finishes every record on the next write', () async {
       final root = await writeTwinProject(
@@ -1561,30 +1557,6 @@ sections:
             .existsSync(),
         isFalse,
       );
-    });
-
-    test('a planned line turns a record draft when its statuses count in the approval hash', () async {
-      final root = await withRecord(
-        recordText(statuses: ['email_login:implemented']),
-      );
-      pinStatusesBelow(root);
-      stampApproved(root, record, templates: statusesBelowResolver);
-      expect(
-        holdsApproval(root, record, templates: statusesBelowResolver),
-        isTrue,
-      );
-      writeIn(
-        root,
-        templates: statusesBelowResolver,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'forgot_email',
-        ),
-      );
-      expect(readDoc(root, record), contains('draft: true'));
-      expect(statusesIn(root, record), contains('forgot_email:planned'));
     });
   });
 }

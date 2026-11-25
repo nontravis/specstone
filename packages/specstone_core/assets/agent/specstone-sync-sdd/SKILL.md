@@ -9,7 +9,7 @@ description: Use when code in a Specstone project changed and its spec docs must
 
 Run `specstone context --for sync --out` first, before git, a file read, or any other command but the deferred write below. When the Owner names a feature, it is the target: `specstone context feature:<name> --for sync --out`.
 
-- **78, `project_not_found`:** tell the Owner the project is on the old format: `specstone migrate` moves it, or they keep the old skills. Stop; read or write no doc.
+- **78, `project_not_found`:** tell the Owner no Specstone project is found here; `specstone init` starts one. Stop; run nothing more, read or write no doc.
 - **75, `index_busy`:** rerun it. **Any other exit but 0:** report the CLI's error and stop.
 - **Stdout says no code changed since its docs were compared:** tell the Owner so; stop, with no dispatch and no further call.
 - Else stdout prints one line per group: its scope, its route word, and its group file's path.

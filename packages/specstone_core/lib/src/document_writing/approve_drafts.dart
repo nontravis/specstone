@@ -377,11 +377,8 @@ final class _DraftSource {
   final List<int>? Function(String docPath) readDocBytes;
 
   /// Whether the typed [doc] awaits approval, as [waitsForApproval] says.
-  bool waitsFor(IndexedDoc doc) => awaitsApproval(
-    ApprovalFields.ofIndexed(doc),
-    doc.approvalHash,
-    stampsHaveRun: project.stampsHaveRun,
-  );
+  bool waitsFor(IndexedDoc doc) =>
+      awaitsApproval(ApprovalFields.ofIndexed(doc), doc.approvalHash);
 }
 
 /// Returns the bytes of [docPath] as it is on disk, or null when the file is

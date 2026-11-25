@@ -9,7 +9,7 @@ import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/write_fixture.dart' show testHome;
+import '../../helpers/write_fixture.dart' show testHome, trustOf;
 
 /// The inputs of a plan built by hand, which read no file.
 PlanInputs _noInputs() => PlanInputs(Directory.systemTemp);
@@ -272,6 +272,7 @@ void main() {
         projectRoot: project,
         docsRoot: project,
         homeDirectory: testHome(),
+        trust: trustOf(project),
       );
 
       final steps = _planWithAgents().journalSteps(
@@ -349,6 +350,7 @@ void main() {
         projectRoot: temp,
         docsRoot: temp,
         homeDirectory: testHome(),
+        trust: trustOf(temp),
       );
       final plan = RunPlan(
         header: 'migrate',
@@ -618,6 +620,7 @@ void main() {
           projectRoot: project,
           docsRoot: project,
           homeDirectory: testHome(),
+          trust: trustOf(project),
         );
 
         for (final step
@@ -653,6 +656,7 @@ void main() {
           projectRoot: project,
           docsRoot: project,
           homeDirectory: testHome(),
+          trust: trustOf(project),
         );
         final move =
             plan
@@ -701,43 +705,6 @@ void main() {
       'from 1.16.0: drop_section architecture, project_architecture '
       'design_references: 3 docs',
     );
-  });
-
-  group('shared copies', () {
-    test('the lists print sharedCopies with both lists whole, and no key '
-        'when the step is not planned', () {
-      expect(const PlanLists().toJson(), isNot(contains('sharedCopies')));
-      expect(
-        const PlanLists(
-          sharedCopies: SharedCopiesLists(
-            stripped: [],
-            left: ['.specstone/templates/api.yaml:3 no_status'],
-          ),
-        ).toJson()['sharedCopies'],
-        {
-          'stripped': <String>[],
-          'left': ['.specstone/templates/api.yaml:3 no_status'],
-        },
-      );
-    });
-
-    test('a step line keeps its own text and JSON object when it holds a '
-        'following line', () {
-      const line = UpgradeStepLine(
-        from: '1.12.0',
-        step: 'strip_shared_copies',
-        paths: ['.specstone/templates/api.yaml'],
-        nextLine: 'shared copies left: 2',
-      );
-
-      expect(line.text, 'from 1.12.0: strip_shared_copies: 1 docs');
-      expect(line.nextLine, 'shared copies left: 2');
-      expect(line.toJson(), {
-        'from': '1.12.0',
-        'step': 'strip_shared_copies',
-        'paths': ['.specstone/templates/api.yaml'],
-      });
-    });
   });
 
   group('the from docs of a merge_doc step', () {
@@ -789,6 +756,7 @@ void main() {
       projectRoot: root,
       docsRoot: Directory('${root.path}/docs'),
       homeDirectory: testHome(),
+      trust: trustOf(root),
     );
 
     test('the from file moves to the trash before commit 2, whose paths hold '

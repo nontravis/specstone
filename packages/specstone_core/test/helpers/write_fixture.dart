@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart'
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -134,11 +135,7 @@ Map<String, String> _withApprovalHashes(Map<String, String> files) {
     return {
       for (final MapEntry(:key, :value) in files.entries)
         key: _approvedDocs.contains(_docPathOf(key))
-            ? withApprovalHash(
-                value,
-                _docTypeAt(matcher, _docPathOf(key)),
-                statusesOutside: shippedStatusesOutside,
-              )
+            ? withApprovalHash(value, _docTypeAt(matcher, _docPathOf(key)))
             : value,
     };
   } finally {
@@ -200,6 +197,17 @@ Directory testHome() {
     home.deleteSync(recursive: true);
   });
   return home;
+}
+
+/// Returns the trust of the project at [root], whose folder is [root] itself,
+/// both canonical, and whose records live under [testHome].
+RootTrust trustOf(Directory root) {
+  final canonical = Directory(root.resolveSymbolicLinksSync());
+  return RootTrust.at(
+    folder: canonical,
+    root: canonical,
+    homeDirectory: testHome(),
+  );
 }
 
 /// Writes [steps] as the unfinished move journal of [root], recorded under

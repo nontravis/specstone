@@ -574,6 +574,5 @@ Map<String, ParsedDoc> _parsedOf(
       docPath: docPath,
       bytes: utf8.encode(lfText),
       match: session.project.matcher.match(docPath),
-      statusesOutside: session.project.statusesOutsideApproval,
     ),
 };

@@ -4,7 +4,6 @@ import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
-import 'package:specstone_core/src/document_writing/approval.dart' as approval;
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/root_trust.dart';
@@ -47,8 +46,6 @@ final class DocsProject {
     required this.targets,
     required Map<CodeTarget, Directory> codeRoots,
     required Map<CodeTarget, List<String>> nestedRoots,
-    required this.stampsHaveRun,
-    required this.statusesOutsideApproval,
     required this.matrixMode,
     required this.cleanup,
     required this.matcher,
@@ -88,27 +85,12 @@ final class DocsProject {
       nestedRoots: Map<CodeTarget, List<String>>.unmodifiable(
         nestedRootsByTarget(codeRoots),
       ),
-      stampsHaveRun: approval.stampsHaveRun(config.pins),
-      statusesOutsideApproval: approval.statusesOutsideApproval(config.pins),
       matrixMode: config.matrixMode,
       cleanup: config.cleanup,
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
     );
   }
-
-  /// Whether the config pins a pack at or above the version whose upgrade
-  /// stamps every doc; read once at open.
-  final bool stampsHaveRun;
-
-  /// Whether the config pins `software-tech` where a record's statuses stay
-  /// outside the approval hash and the draft mark; read once at open.
-  ///
-  /// Every hash the project's index stores, a writer compares, and `approve`
-  /// writes follows it. An index never needs it in its stamp: the packs
-  /// refuse any pin but the version this binary carries, so the binary
-  /// version the stamp holds fixes it.
-  final bool statusesOutsideApproval;
 
   /// The Verification matrix mode the config names; read once at open.
   final MatrixMode matrixMode;

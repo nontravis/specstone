@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/templates/shipped_pack_files.dart';
+import 'package:specstone_core/src/templates/pack_floors.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
@@ -18,7 +20,7 @@ void main() {
 
   setUp(() async {
     project = await writeCheckProject(
-      extra: {'.specstone/config.yaml': shippedPinsOneMinorBelow('prd-core')},
+      extra: {'.specstone/config.yaml': shippedPinsBelowFloor()},
     );
   });
 
@@ -31,25 +33,27 @@ void main() {
     'check <target>': ['check', story, '--json'],
     'check --repeats': ['check', '--repeats', '--json'],
     'context': ['context', story, '--for', 'implement', '--json'],
+    'guide': ['guide', 'feature', '--json'],
   };
 
   for (final MapEntry(:key, :value) in forms.entries) {
-    test('$key refuses a pin one minor below the shipped pack', () async {
+    test('$key refuses a pin one minor below its floor', () async {
       final result = await run(value);
-      final shipped = shippedPackVersions()['prd-core']!;
+      final floor = _floor.toString();
 
       expect(result.exitCode, 78, reason: '${result.stdout}\n${result.stderr}');
       final envelope =
           jsonDecode(result.stderr as String) as Map<String, Object?>;
       final error = envelope['error']! as Map<String, Object?>;
-      expect(error['code'], 'pack_pin_older');
+      expect(error['code'], 'pack_pin_below_floor');
       expect(
         error['message'],
         allOf(
           contains('prd-core'),
-          contains(shipped),
-          contains(_oneMinorBelow(shipped)),
-          contains('specstone migrate --dry-run'),
+          contains(floor),
+          contains(_oneMinorBelow(floor)),
+          contains(specstoneVersion),
+          contains('migrate the project with Specstone 2.0.x first'),
         ),
       );
       expect(error['file'], '.specstone/config.yaml');
@@ -63,15 +67,15 @@ void main() {
   };
 
   for (final MapEntry(:key, :value) in textForms.entries) {
-    test('$key without --json refuses the older pin', () async {
+    test('$key without --json refuses the below-floor pin', () async {
       final result = await run(value);
 
       expect(result.exitCode, 78, reason: '${result.stdout}\n${result.stderr}');
       expect(
         result.stderr,
         allOf(
-          startsWith('.specstone/config.yaml: packs.prd-core: Pack prd-core'),
-          contains('specstone migrate --dry-run'),
+          startsWith('.specstone/config.yaml: packs.prd-core: prd-core '),
+          contains('migrate the project with Specstone 2.0.x first'),
         ),
       );
     });
@@ -123,8 +127,8 @@ void main() {
     'build': ['build', '--json'],
   };
 
-  test('the document writing and rendering commands each refuse an older pin '
-      'with pack_pin_older and exit 78', () async {
+  test('the document writing and rendering commands each refuse a pin below '
+      'its floor with pack_pin_below_floor and exit 78', () async {
     for (final MapEntry(:key, :value) in writeAndRenderForms.entries) {
       final result = await run(value);
 
@@ -136,8 +140,30 @@ void main() {
       final envelope =
           jsonDecode(result.stderr as String) as Map<String, Object?>;
       final error = envelope['error']! as Map<String, Object?>;
-      expect(error['code'], 'pack_pin_older', reason: key);
+      expect(error['code'], 'pack_pin_below_floor', reason: key);
+      expect(error['file'], '.specstone/config.yaml', reason: key);
+      expect(error['key'], 'packs.prd-core', reason: key);
+      expect(
+        error['message'],
+        contains('migrate the project with Specstone 2.0.x first'),
+        reason: key,
+      );
     }
+  });
+
+  test('a below-floor pin leaves every path and byte of the project as it '
+      'was', () async {
+    final before = _snapshot(project);
+
+    for (final args in [
+      writeAndRenderForms['format']!,
+      writeAndRenderForms['set']!,
+    ]) {
+      final result = await run(args);
+      expect(result.exitCode, 78, reason: '${result.stdout}\n${result.stderr}');
+    }
+
+    expect(_snapshot(project), before);
   });
 }
 
@@ -145,3 +171,11 @@ String _oneMinorBelow(String version) {
   final [major, minor, _] = version.split('.');
   return '$major.${int.parse(minor) - 1}.0';
 }
+
+/// Maps each path under [root] to its bytes, a folder to null.
+Map<String, List<int>?> _snapshot(Directory root) => {
+  for (final entity in root.listSync(recursive: true, followLinks: false))
+    entity.path: entity is File ? entity.readAsBytesSync() : null,
+};
+
+final PackVersion _floor = PackFloors.shipped.byPack['prd-core']!;

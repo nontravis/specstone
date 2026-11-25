@@ -239,7 +239,6 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   final match = MatchedDocType(docType);
   checkPartText(doc: doc, docType: docType, target: request.target, text: text);
 
-  final statusesOutside = session.project.statusesOutsideApproval;
   return session.locked(() {
     final locked = readLocked(session, doc, match);
     final part = splicePart(
@@ -250,7 +249,6 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       target: request.target,
       base: request.base,
       text: text,
-      statusesOutside: statusesOutside,
     );
     final retired = retireRemovedIds(
       docPath: doc.docPath,
@@ -268,7 +266,6 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       docPath: doc.docPath,
       bytes: utf8.encode(written),
       match: match,
-      statusesOutside: statusesOutside,
     );
     final base = partBaseOf(after.content, request.target, docType);
     return ReadAnswer(
@@ -294,8 +291,8 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// [lfText] is the doc's text with LF line ends as read under the write lock,
 /// [sections] its sections, and [base] the hash of the part the caller read.
 /// The result's `marksDraft` is false only for a field outside the approval
-/// hash by the rule [statusesOutside] names ([isOutsideApproval]), or for the
-/// record's matrix section ([isMatrixSection]).
+/// hash ([isOutsideApproval]), or for the record's matrix section
+/// ([isMatrixSection]).
 /// Touches no disk and takes no lock. Runs [checkPartText] first, except for
 /// a [ReplaceTarget], which reads its stdin itself, then throws
 /// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
@@ -308,7 +305,6 @@ SplicedDoc splicePart({
   required SetTarget target,
   required String base,
   required String text,
-  required bool statusesOutside,
 }) {
   // A replace parses its stdin once, in `_spliceReplace`, so it skips the
   // check that would parse it again; `answerSet` already ran that check.
@@ -343,7 +339,6 @@ SplicedDoc splicePart({
       fieldId: fieldId,
       base: base,
       stdin: stdin,
-      statusesOutside: statusesOutside,
     ),
     TitleTarget() => _spliceTitle(doc, lfText, base, stdin),
     LeadTarget() => _spliceLead(doc, docType, lfText, base, stdin),
@@ -501,7 +496,6 @@ SplicedDoc _spliceField({
   required String fieldId,
   required String base,
   required String stdin,
-  required bool statusesOutside,
 }) {
   final value = _fieldValueOf(stdin);
   final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
@@ -532,9 +526,7 @@ SplicedDoc _spliceField({
   );
   return SplicedDoc(
     lfText: spliced,
-    marksDraft:
-        field == null ||
-        !isOutsideApproval(field, statusesOutside: statusesOutside),
+    marksDraft: field == null || !isOutsideApproval(field),
   );
 }
 
@@ -967,7 +959,6 @@ LockedDoc readLocked(WriteSession session, IndexedDoc doc, DocTypeMatch match) {
     docPath: doc.docPath,
     bytes: bytes,
     match: match,
-    statusesOutside: session.project.statusesOutsideApproval,
   );
   return LockedDoc(bytes: bytes, parsed: parsed);
 }

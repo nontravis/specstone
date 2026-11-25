@@ -4,10 +4,9 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
-import 'package:specstone_core/src/setup_migration/project_root.dart'
-    show legacyContextPath;
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -76,8 +75,6 @@ InitRequest _init(Directory root) => InitRequest(
   workingDirectory: root,
   homeDirectory: testHome(),
   templates: TemplateResolver(),
-  confirmation: OwnerConfirmation.prompt,
-  readLine: () => throw StateError('must not ask'),
   out: StringBuffer(),
 );
 
@@ -178,32 +175,35 @@ void main() {
     });
   });
 
-  group('project migrate: .specstone must be a real folder', () {
-    Future<void> refusesFile({required bool dryRun}) async {
-      final base = await writeTree({
-        'proj/$legacyContextPath': '# D-01\n',
-        'proj/.specstone': 'not a folder\n',
-      });
+  group('project migrate: a .specstone file marks no project', () {
+    Future<void> findsNoProject({required bool dryRun}) async {
+      final base = await writeTree({'proj/.specstone': 'not a folder\n'});
       final before = _snapshot(base);
 
       await expectLater(
         () => runMigrate(
           _migrate(Directory('${base.path}/proj'), dryRun: dryRun),
         ),
-        _refusesSpecstone(),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.projectNotFound)
+              .having((f) => f.exitStatus, 'exit', 78),
+        ),
       );
 
       expect(_snapshot(base), before);
     }
 
     test(
-      'a bare migrate refuses a .specstone file before it touches it',
-      () => refusesFile(dryRun: false),
+      'a bare migrate finds no project beside a .specstone file and touches '
+      'nothing',
+      () => findsNoProject(dryRun: false),
     );
 
     test(
-      'a migrate dry run refuses a .specstone file before it touches it',
-      () => refusesFile(dryRun: true),
+      'a migrate dry run finds no project beside a .specstone file and '
+      'touches nothing',
+      () => findsNoProject(dryRun: true),
     );
   });
 

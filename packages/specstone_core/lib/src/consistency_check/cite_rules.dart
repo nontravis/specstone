@@ -140,8 +140,8 @@ String _partOf(CiteCandidate candidate) {
 /// [type], by file line; none unless [type] is or builds on the architecture
 /// type.
 ///
-/// The Concerns section is the held section [type] maps to it, so `check` and
-/// the migrate cite pass skip the same targets.
+/// The Concerns section is the held section [type] maps to it, so `check`
+/// skips those targets.
 Map<int, String> seeTargetsIn(DocContent content, MergedDocType? type) {
   if (type == null || !type.buildsOn(architectureTypeId)) return const {};
   final index = heldSectionIndex(content, type, concernsSectionId);

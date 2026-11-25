@@ -1,54 +1,17 @@
-import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
-import 'package:specstone_core/src/setup_migration/project_files.dart';
-import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/rulebook_fixture.dart';
-
 // Each form of a link reaches every consumer one way (R73, R74): the index
-// reads it, a doc move rewrites what the index reads, and the renumber pass
-// cites and moves what the index reads.
+// reads it, and a doc move rewrites what the index reads.
 
 const _domainPath = 'specs/f01_a/DOMAIN.md';
 const _topicPath = 'specs/topics/doc_model.md';
 const _movedTopicPath = 'specs/topics/m/doc_model.md';
 const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
 const _oldSlug = 'scenario-6a--edge-lettered';
-const _newSlug = 'scenario-3--edge-lettered';
 const _unparsed = '\n[a]:<b\\';
-
-const _topic = '''
-# Doc model
-
-## Rules
-
-- **RULE-1** — One.
-- **RULE-7a** — Lettered.
-- **RULE-30** — Thirty.
-''';
-
-const _story = '''
-# B
-
-## Acceptance Criteria
-
-### Scenario 1 — [happy] one
-
-- **Given** g
-
-### Scenario 2 — [error] two
-
-- **Given** g
-
-### Scenario 6a — [edge] lettered
-- **Given** g
-''';
 
 const _topicLink = '../topics/doc_model.md';
 const _storyLink = '../../prds/features/f01_a/us01_b/USER_STORY.md';
@@ -184,23 +147,6 @@ const _readForms = <_Form>[
   ),
 ];
 
-late MergedSet _set;
-
-MergedDocType _typeAt(String docPath) =>
-    switch (DocTypeMatcher(_set, targetNames: const []).match(docPath)) {
-      MatchedDocType(:final docType) => docType,
-      _ => throw StateError('no doc type at $docPath'),
-    };
-
-RenumberPass _passOver(String domain) => RenumberPass.plan([
-  for (final (docPath, lf) in [
-    (_topicPath, _topic),
-    (_storyPath, _story),
-    (_domainPath, domain),
-  ])
-    (docPath: docPath, lf: lf, type: _typeAt(docPath)),
-]);
-
 String _domainOf(String links) => '# A\n\n## Invariants\n\n$links';
 
 /// The doc links the index reads in [lf], the domain doc's text, as target
@@ -212,14 +158,6 @@ List<(String, String?)>? _indexed(String lf) => linkPlacesOf(
 )?.docLinks.map((link) => (link.target, link.anchor)).toList();
 
 void main() {
-  setUpAll(() {
-    _set = TemplateResolver().resolveCarried(
-      packNames: const ['prd-core', 'software-tech'],
-      homeDirectory: null,
-      projectLayers: parseOverrides(rulebookLayers),
-    );
-  });
-
   for (final (:name, :links, :topicAnchor) in _readForms) {
     group('$name:', () {
       final domain = _domainOf(links);
@@ -244,21 +182,6 @@ void main() {
           (_movedTopicPath, topicAnchor),
           (_storyPath, _oldSlug),
         ]);
-      });
-
-      test('the renumber pass cites the topic and moves the story anchor the '
-          'index reads', () {
-        final pass = _passOver(domain);
-
-        final renumbered = pass.apply(_domainPath, domain);
-
-        expect(renumbered, contains(' RULE-31\n'));
-        expect(renumbered, isNot(contains('RULE-7a')));
-        expect(_indexed(renumbered), [
-          (_topicPath, topicAnchor),
-          (_storyPath, _newSlug),
-        ]);
-        expect(pass.planLine, isNot(contains('not fully rewritten')));
       });
     });
   }
@@ -287,17 +210,6 @@ void main() {
         ),
       );
     });
-
-    test('the renumber pass cites nothing and moves only the definition '
-        'anchor', () {
-      expect(
-        _passOver(domain).apply(_domainPath, domain),
-        domain.replaceFirst(
-          '[s]: $_storyLink#$_oldSlug',
-          '[s]: $_storyLink#$_newSlug',
-        ),
-      );
-    });
   });
 
   group('a doc markdown fails on:', () {
@@ -318,15 +230,6 @@ void main() {
         ),
         isNull,
       );
-    });
-
-    test('the renumber pass keeps it as written and counts it on its plan '
-        'line', () {
-      final pass = _passOver(domain);
-
-      expect(pass.apply(_domainPath, domain), domain);
-      expect(pass.planLine, endsWith('; not fully rewritten: 1'));
-      expect(pass.paths, contains(_domainPath));
     });
   });
 }

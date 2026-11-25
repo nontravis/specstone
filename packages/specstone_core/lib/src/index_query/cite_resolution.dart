@@ -84,7 +84,7 @@ final class CiteNoDoc extends CiteResolution {
 /// path names the doc [docNamedBy] picks. Of several docs, the `#key` or the
 /// item IDs must pick exactly one.
 CiteResolution resolveCite(
-  CiteTree tree,
+  IndexCiteTree tree,
   String citingDocPath,
   CiteCandidate candidate,
 ) {
@@ -142,7 +142,7 @@ List<String> citeLinkMarkdown(String citingDocPath, CiteLink link) {
   ];
 }
 
-CiteDoc? _docAtPath(CiteTree tree, String citingDocPath, String written) {
+CiteDoc? _docAtPath(IndexCiteTree tree, String citingDocPath, String written) {
   final fileName = written.substring(written.lastIndexOf('/') + 1);
   final docPath = docNamedBy(written, citingDocPath, tree.namesakes(fileName));
   return docPath == null ? null : tree.at(docPath);
@@ -161,7 +161,7 @@ String _typedNameOf(CiteDoc doc) => switch (doc.docTypeId) {
 /// Each item takes the section that holds it, inside the `#key`'s section
 /// when the cite writes one.
 CiteLink? _linkTo(
-  CiteTree tree,
+  IndexCiteTree tree,
   CiteDoc doc,
   CiteCandidate candidate, {
   required String linkText,
@@ -207,32 +207,11 @@ String _itemKeyOf(String written, CiteSection section) {
   };
 }
 
-// MARK: - CiteTree
+// MARK: - IndexCiteTree
 
-/// The docs a cite resolves against: an index for `check`, or the tree a
-/// migrate run plans.
-abstract interface class CiteTree {
-  /// Returns the docs [name] names, of the doc type [typeId] when not null,
-  /// that the doc at [fromDocPath] reaches, in tree order.
-  List<CiteDoc> named(
-    String name, {
-    required String? typeId,
-    required String fromDocPath,
-  });
-
-  /// Returns the doc at [docPath], or null when the tree holds none there.
-  CiteDoc? at(String docPath);
-
-  /// Returns the DocPaths whose file name is [fileName], each with its
-  /// segments, as `namesakesByFileName` groups them.
-  Map<String, List<String>> namesakes(String fileName);
-
-  /// Returns the sections of the doc at [docPath], in file order.
-  List<CiteSection> sectionsOf(String docPath);
-}
-
-/// A [CiteTree] over the stored facts of an index; it reads no doc file.
-final class IndexCiteTree implements CiteTree {
+/// The docs a cite resolves against, over the stored facts of an index; it
+/// reads no doc file.
+final class IndexCiteTree {
   /// Reads each doc's content through [contentOf], [DocIndex.contentOf] when
   /// null.
   new(this._index, {DocContent Function(IndexedDoc doc)? contentOf})
@@ -250,7 +229,8 @@ final class IndexCiteTree implements CiteTree {
     return byName;
   }();
 
-  @override
+  /// Returns the docs [name] names, of the doc type [typeId] when not null,
+  /// that the doc at [fromDocPath] reaches, in tree order.
   List<CiteDoc> named(
     String name, {
     required String? typeId,
@@ -266,17 +246,18 @@ final class IndexCiteTree implements CiteTree {
     ];
   }
 
-  @override
+  /// Returns the doc at [docPath], or null when the index holds none there.
   CiteDoc? at(String docPath) => switch (_index.at(docPath)) {
     final doc? => _citeDocOf(doc),
     null => null,
   };
 
-  @override
+  /// Returns the DocPaths whose file name is [fileName], each with its
+  /// segments, as `namesakesByFileName` groups them.
   Map<String, List<String>> namesakes(String fileName) =>
       namesakesIn(_index)[fileName] ?? const {};
 
-  @override
+  /// Returns the sections of the doc at [docPath], in file order.
   List<CiteSection> sectionsOf(String docPath) =>
       _sections[docPath] ??= switch (_index.at(docPath)) {
         final doc? => citeSectionsOf(_contentOf(doc)),

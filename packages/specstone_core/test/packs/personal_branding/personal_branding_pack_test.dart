@@ -155,7 +155,7 @@ void main() {
     });
 
     test(
-      'an older personal-branding pin points at its shipped version',
+      'a personal-branding pin below its floor is pack_pin_below_floor',
       () async {
         final project = await writeTree({
           '.specstone/config.yaml':
@@ -171,7 +171,7 @@ void main() {
           ),
           throwsA(
             isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.packPinOlder)
+                .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
                 .having((f) => f.message, 'message', contains('1.2.0')),
           ),
         );

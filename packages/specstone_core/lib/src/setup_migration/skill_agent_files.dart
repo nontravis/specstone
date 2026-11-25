@@ -9,11 +9,8 @@ import 'package:specstone_core/src/document_writing/move_journal.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
-import 'package:specstone_core/src/setup_migration/cite_pass.dart'
-    show citeRuleSince;
 import 'package:specstone_core/src/setup_migration/claude_settings.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
-import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/setup_migration/models/malformed_settings_file.dart';
 import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
@@ -23,32 +20,21 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _ownedPrefix = 'specstone-';
 
-/// Whether [upgrades] first ship the skill and agent files: the pack upgrade
-/// that writes every one of them once.
-///
-/// It rides the pack versions of the cite rule, so one pack bump serves both
-/// one-time passes.
-bool shipsSkillFiles(List<PackUpgrade> upgrades) =>
-    crossesSince(upgrades, citeRuleSince);
-
 /// Plans the `specstone-*` skill and agent file changes of [inputs], by folder
 /// group at the project root and at each repository top.
 ///
-/// [full] is the `init`, legacy, and one-time upgrade upsert at the project
-/// root; otherwise a folder group takes writes only while one of its folders
-/// holds a `specstone-*` entry. An unlisted top always takes the full upsert
-/// once; [includesListedTops] gives each listed top the same as the root, for
-/// the run that first ships these files. Entries not named `specstone-*` are
-/// never read.
+/// [full] is the `init` upsert at the project root; otherwise a folder group
+/// takes writes only while one of its folders holds a `specstone-*` entry. An
+/// unlisted top always takes the full upsert once.
+/// Entries not named `specstone-*` are never read.
 SkillFilePlan planSkillAndAgentFiles(
   AgentFileInputs inputs, {
   required bool full,
-  bool includesListedTops = false,
 }) {
   final bases = agentFileBasesOf(inputs);
   final planner = _Planner(bases.first.directory);
   for (final base in bases) {
-    planner.plan(base, full: full, includesListedTops: includesListedTops);
+    planner.plan(base, full: full);
   }
   planner.trashUnclaimed();
   return SkillFilePlan(
@@ -148,14 +134,8 @@ final class _Planner {
 
   /// Plans the writes of [base]; the entries to trash wait for
   /// [trashUnclaimed], so every group has claimed its files by then.
-  void plan(
-    AgentFileBase base, {
-    required bool full,
-    required bool includesListedTops,
-  }) {
-    final isUpsert = base.isTop
-        ? base.isUnlisted || (full && includesListedTops)
-        : full;
+  void plan(AgentFileBase base, {required bool full}) {
+    final isUpsert = base.isTop ? base.isUnlisted : full;
     if (base.isTop) {
       final refusal = writeRefusalOf(base.directory.path, projectRoot: _root);
       if (refusal != null) {

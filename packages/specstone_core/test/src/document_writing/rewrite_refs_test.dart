@@ -162,7 +162,7 @@ void main() {
       );
     });
 
-    test('a typed text of a user_story link, as the migrate cite pass writes it, takes the new Name', () {
+    test('a typed text of a user_story link takes the new Name', () {
       expect(
         rewrite(
           '[user_story:login/email_login](../f01_login/us01_email_login/USER_STORY.md#use_case)\n',

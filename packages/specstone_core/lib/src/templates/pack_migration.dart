@@ -117,24 +117,6 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       j,
       file: file,
     ),
-    'move_to_record' => _parseMoveToRecord(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'stamp_code_fingerprints' => _parseStampCodeFingerprints(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'restamp_code_fingerprints' => _parseRestampCodeFingerprints(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
     'relink_merged_docs' => _parseRelinkMergedDocs(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
@@ -142,18 +124,6 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'bullet_lines' => _parseBulletLines(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'drop_default_lines' => _parseDropDefaultLines(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'strip_shared_copies' => _parseStripSharedCopies(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -297,65 +267,6 @@ MoveFile _parseMoveFile(YamlMap map, int i, int j, {required String file}) {
   );
 }
 
-MoveToRecord _parseMoveToRecord(
-  YamlMap map,
-  int i,
-  int j, {
-  required String file,
-}) {
-  final prefix = 'migrations[$i].steps[$j].move_to_record.';
-  checkKeys(
-    map,
-    const {'doc_types', 'fields', 'to'},
-    file: file,
-    format: 'move_to_record step',
-    prefix: prefix,
-  );
-  List<String> listOf(String key) => stringsOf(
-    requireValue<YamlList>(map, key, file: file, prefix: prefix),
-    key,
-    file: file,
-    prefix: prefix,
-  );
-  return MoveToRecord(
-    docTypes: listOf('doc_types'),
-    fields: listOf('fields'),
-    to: requireValue<String>(map, 'to', file: file, prefix: prefix),
-  );
-}
-
-StampCodeFingerprints _parseStampCodeFingerprints(
-  YamlMap map,
-  int i,
-  int j, {
-  required String file,
-}) {
-  checkKeys(
-    map,
-    const <String>{},
-    file: file,
-    format: 'stamp_code_fingerprints step',
-    prefix: 'migrations[$i].steps[$j].stamp_code_fingerprints.',
-  );
-  return const StampCodeFingerprints();
-}
-
-RestampCodeFingerprints _parseRestampCodeFingerprints(
-  YamlMap map,
-  int i,
-  int j, {
-  required String file,
-}) {
-  checkKeys(
-    map,
-    const <String>{},
-    file: file,
-    format: 'restamp_code_fingerprints step',
-    prefix: 'migrations[$i].steps[$j].restamp_code_fingerprints.',
-  );
-  return const RestampCodeFingerprints();
-}
-
 RelinkMergedDocs _parseRelinkMergedDocs(
   YamlMap map,
   int i,
@@ -370,22 +281,6 @@ RelinkMergedDocs _parseRelinkMergedDocs(
     prefix: 'migrations[$i].steps[$j].relink_merged_docs.',
   );
   return const RelinkMergedDocs();
-}
-
-StripSharedCopies _parseStripSharedCopies(
-  YamlMap map,
-  int i,
-  int j, {
-  required String file,
-}) {
-  checkKeys(
-    map,
-    const <String>{},
-    file: file,
-    format: 'strip_shared_copies step',
-    prefix: 'migrations[$i].steps[$j].strip_shared_copies.',
-  );
-  return const StripSharedCopies();
 }
 
 BulletLines _parseBulletLines(
@@ -420,30 +315,6 @@ BulletLines _parseBulletLines(
     docType: requireValue<String>(map, 'doc_type', file: file, prefix: prefix),
     section: requireValue<String>(map, 'section', file: file, prefix: prefix),
     prefixes: prefixes,
-  );
-}
-
-DropDefaultLines _parseDropDefaultLines(
-  YamlMap map,
-  int i,
-  int j, {
-  required String file,
-}) {
-  final prefix = 'migrations[$i].steps[$j].drop_default_lines.';
-  checkKeys(
-    map,
-    const {'doc_types'},
-    file: file,
-    format: 'drop_default_lines step',
-    prefix: prefix,
-  );
-  return DropDefaultLines(
-    docTypes: stringsOf(
-      requireValue<YamlList>(map, 'doc_types', file: file, prefix: prefix),
-      'doc_types',
-      file: file,
-      prefix: prefix,
-    ),
   );
 }
 

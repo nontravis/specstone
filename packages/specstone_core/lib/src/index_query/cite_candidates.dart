@@ -133,14 +133,13 @@ bool _fills(CodeSpan holder, int column, int end) =>
     holder.start + holder.ticks == column && holder.end <= end;
 
 CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
-  final _Kept(:mention, :line, :spans, extent: _Extent(:key, :end)) = kept;
+  final _Kept(:mention, :line, extent: _Extent(:key, :end)) = kept;
   final run = itemIdRunAt(line, end, prefixes: idPrefixes);
   final items = [
     for (final item in run)
       if (item.id is ItemId)
         CiteItemAt(column: item.at, itemId: item.id.written),
   ];
-  final holder = _spanHolding(spans, mention.column);
   return CiteForm(
     candidate: CiteCandidate(
       line: mention.line,
@@ -150,9 +149,6 @@ CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
         ...{for (final item in items) item.itemId},
       ],
     ),
-    start: holder?.start ?? mention.column,
-    end: end,
-    runAt: run.firstOrNull?.at ?? end,
     items: items,
   );
 }
@@ -190,11 +186,6 @@ int? _closedBy(List<CodeSpan> spans, int column, int end) {
   }
   return null;
 }
-
-/// Returns the offset after the section header span right after the path that
-/// ends at [end] of [line], or null when none follows.
-int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
-    _headerSpanAfter(line, spans, end)?.end;
 
 /// Returns the section key of the header the code span right after [end]
 /// holds, such as `## Error envelope`, and the offset after that span.

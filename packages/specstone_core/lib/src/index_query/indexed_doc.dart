@@ -150,8 +150,7 @@ final class ParsedDoc {
 /// stores no name. Invalid UTF-8 decodes with replacement characters, and
 /// invalid frontmatter YAML leaves no values; each adds a warning instead of
 /// failing. A doc that is not UTF-8, which format skips, is not laid out and
-/// has no `formatted` value. [statusesOutside] is the rule its approval hash
-/// follows (`comparedApprovalHash`). [idPrefixes] are the item ID prefixes of
+/// has no `formatted` value. [idPrefixes] are the item ID prefixes of
 /// the merged doc type set (see `itemIdPrefixesOf`); a typed doc's rule item
 /// words drop the tokens of those prefixes alone, and its cite candidates read
 /// those tokens alone as item IDs. [contentHash] is the hash of [bytes] when
@@ -160,7 +159,6 @@ ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
-  required bool statusesOutside,
   String? contentHash,
   String? codeTarget,
   Set<String> idPrefixes = const {},
@@ -277,11 +275,7 @@ ParsedDoc parseIndexedDoc({
     formatted: laid is Formatted ? laid.text == lfText : null,
     approvalHash: docType == null
         ? null
-        : comparedApprovalHash(
-            lfText,
-            docType,
-            statusesOutside: statusesOutside,
-          ),
+        : comparedApprovalHash(lfText, docType),
     warnings: warnings,
     matrixLines: matrixLines,
   );

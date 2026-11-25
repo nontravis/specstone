@@ -13,7 +13,6 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/claude_settings.dart'
     show SpecstoneHookFile;
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
-import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/models/git_commit.dart';
 import 'package:specstone_core/src/setup_migration/models/migrate_root.dart';
@@ -108,10 +107,13 @@ final class MigrateRequest {
 
 /// Runs `specstone migrate` and returns its exit status.
 ///
-/// A legacy or upgrade run, with or without `--dry-run`, checks trust and git
+/// An upgrade run, with or without `--dry-run`, checks trust and git
 /// first, then prints the plan; bare `migrate` applies it on the Owner's `y`,
 /// or under `--yes` with no prompt, after checking git again. Only a run that
 /// writes refuses a dirty tree; a dry run on one says so on its last line.
+///
+/// A shipped pin below its floor throws `pack_pin_below_floor` before the
+/// journal replay and the run choice, a pending journal included.
 ///
 /// A pending journal is finished first: a document-writing journal is
 /// replayed before the git checks, and a migrate journal is resumed with no
@@ -121,7 +123,7 @@ final class MigrateRequest {
 ///
 /// With [MigrateRequest.addedPacks], the run is an upgrade, and the names are
 /// checked after the run kind and before the trust and git checks: a pending
-/// journal or a legacy tree throws [MigrateUsageError], then, per name in
+/// journal throws [MigrateUsageError], then, per name in
 /// code point order, an already pinned pack throws it and a pack no shipped
 /// pack or home folder carries throws `pack_not_found`.
 ///
@@ -166,6 +168,7 @@ Future<int> _migrate(MigrateRequest request) async {
   _warnOldPlugin(request, root);
   final trust = _trustOf(root, linkFolder, request);
   requireSpecstoneFolder(root);
+  _requirePinsAtFloor(request, root);
   final added = _sortedUnique(request.addedPacks);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
     // The name checks come before the replay and the git checks.
@@ -196,12 +199,10 @@ Future<int> _migrate(MigrateRequest request) async {
       _printPlan(request, _nothingToMigrate);
       _printPlanObject(request, _nothingToMigrate, const PlanLists());
       return 0;
-    case RunKind.legacy:
     case RunKind.upgrade:
       return await _plannedRun(
         request,
         root,
-        kind,
         linkFolder: linkFolder,
         added: added,
       );
@@ -211,6 +212,17 @@ Future<int> _migrate(MigrateRequest request) async {
 }
 
 const _nothingToMigrate = 'nothing to migrate\n';
+
+/// Throws `pack_pin_below_floor` for a pin of [root] under a floor of the
+/// request's resolver.
+///
+/// It runs before the journal replay, which writes before [chooseRun] runs. A
+/// root with no `.specstone/config.yaml`, such as one a journal alone marks,
+/// has no pins to judge.
+void _requirePinsAtFloor(MigrateRequest request, Directory root) {
+  if (!File.fromUri(root.uri.resolve(projectConfigPath)).existsSync()) return;
+  request.templates.requireAtFloor(ProjectConfig.read(root).pins);
+}
 
 RunKind _chooseRun(
   MigrateRequest request,
@@ -228,9 +240,9 @@ List<String> _sortedUnique(List<String> names) =>
 
 /// Refuses the [added] names a run cannot take, before any trust or git check.
 ///
-/// A [RunKind.resume] or [RunKind.legacy] [kind] throws [MigrateUsageError];
-/// then, per name, a pinned pack throws it and a pack that nothing carries
-/// throws `pack_not_found`.
+/// A [RunKind.resume] [kind] throws [MigrateUsageError]; then, per name, a
+/// pinned pack throws it and a pack that nothing carries throws
+/// `pack_not_found`.
 void _checkAddedPacks(
   MigrateRequest request,
   Directory root,
@@ -241,11 +253,6 @@ void _checkAddedPacks(
   if (kind == RunKind.resume) {
     throw MigrateUsageError(
       'finish the pending migrate run first: run specstone migrate',
-    );
-  }
-  if (kind == RunKind.legacy) {
-    throw MigrateUsageError(
-      '--add needs a project on the new format; run specstone migrate first',
     );
   }
   final pins = ProjectConfig.read(root).pins;
@@ -297,20 +304,6 @@ const _oldPluginLine =
     'now comes from .claude/settings.json. Run: claude plugin uninstall '
     'specstone@specstone';
 
-/// Runs the bare legacy migration of [root] from its git checks on.
-///
-/// Prints the plan, then applies it on the Owner's `y`; `init` enters here
-/// when its root holds the legacy context doc. [linkFolder] is the
-/// canonical folder whose `docs` link led to [root], or null. Maps git
-/// failures as [runMigrate] does.
-Future<int> runLegacyAt(
-  Directory root,
-  MigrateRequest request, {
-  Directory? linkFolder,
-}) => _mappingGitFailures(
-  () => _plannedRun(request, root, RunKind.legacy, linkFolder: linkFolder),
-);
-
 /// Returns the trust of [root], reached through the `docs` link of
 /// [linkFolder], or found itself when that is null.
 RootTrust _trustOf(
@@ -323,26 +316,26 @@ RootTrust _trustOf(
   homeDirectory: request.homeDirectory,
 );
 
-/// Prints the plan of a legacy or upgrade run after the preflight, and applies
-/// it on the Owner's `y`, or under `--yes` with no prompt.
+/// Prints the plan of an upgrade run after the preflight, and applies it on the
+/// Owner's `y`, or under `--yes` with no prompt.
 ///
 /// After the `y` or the `--plan` check the run checks the clean tree again and
 /// plans again, since the Owner may read the plan for minutes: a dirty tree, or
 /// a new plan that hashes differently from the one shown (an input edited,
 /// deleted, or added), refuses `working_tree_dirty` with nothing written. A
 /// commit that leaves every input as it was does not refuse; the run then
-/// reads HEAD as each commit step's `base`. A legacy plan reads [linkFolder].
+/// reads HEAD as each commit step's `base`. [linkFolder] is the folder whose
+/// `docs` link led to [root], or null.
 Future<int> _plannedRun(
   MigrateRequest request,
-  Directory root,
-  RunKind kind, {
+  Directory root, {
   required Directory? linkFolder,
   List<String> added = const [],
 }) async {
   final trust = _trustOf(root, linkFolder, request);
   _preflight(request, root, trust, checksCleanTree: !request.dryRun);
   final isTreeDirty = request.dryRun && isWorkTreeDirty(root, request.runGit);
-  final plan = _planOf(request, root, kind, linkFolder, added);
+  final plan = _planOf(request, root, added);
   _nameSkipped(request, plan);
   final planText = plan.toText();
   if (request.dryRun) {
@@ -372,7 +365,7 @@ Future<int> _plannedRun(
     _requireSeenPlan(request, planText, plan.inputs);
   }
   requireCleanWorkTree(root, request.runGit);
-  final applied = _replanMatching(request, root, kind, linkFolder, plan, added);
+  final applied = _replanMatching(request, root, plan, added);
   final base = headSha(root, request.runGit);
   final steps = applied.journalSteps(base: base, projectRoot: root);
   MoveJournal(steps).run(
@@ -397,17 +390,13 @@ Future<int> _plannedRun(
 RunPlan _replanMatching(
   MigrateRequest request,
   Directory root,
-  RunKind kind,
-  Directory? linkFolder,
   RunPlan shown,
   List<String> added,
 ) {
   final recorder = PlanInputs(root);
   final RunPlan fresh;
   try {
-    fresh = recorder.collect(
-      () => _planOf(request, root, kind, linkFolder, added),
-    );
+    fresh = recorder.collect(() => _planOf(request, root, added));
   } on FileSystemException catch (error) {
     throw _inputChanged(_fromRoot(root, error.path));
   } on TemplateFault catch (fault) {
@@ -442,9 +431,9 @@ String? _fromRoot(Directory root, String? absolute) =>
 /// trust record, a [root] outside a git work tree, and, when [checksCleanTree],
 /// a dirty work tree.
 ///
-/// The dry run and the apply of a legacy run, an upgrade, and a resume share
-/// it; a resume leaves the clean-tree check off, since its stopped run left
-/// the tree dirty, and a dry run does too, since it writes nothing.
+/// The dry run and the apply of an upgrade and a resume share it; a resume
+/// leaves the clean-tree check off, since its stopped run left the tree dirty,
+/// and a dry run does too, since it writes nothing.
 void _preflight(
   MigrateRequest request,
   Directory root,
@@ -464,25 +453,13 @@ void _nameSkipped(MigrateRequest request, RunPlan plan) {
   }
 }
 
-RunPlan _planOf(
-  MigrateRequest request,
-  Directory root,
-  RunKind kind,
-  Directory? linkFolder,
-  List<String> added,
-) => kind == RunKind.upgrade
-    ? planUpgradeRun(
-        root,
-        templates: request.templates,
-        homeDirectory: request.homeDirectory,
-        addedPacks: added,
-      )
-    : planLegacyRun(
-        root,
-        templates: request.templates,
-        homeDirectory: request.homeDirectory,
-        linkFolder: linkFolder,
-      );
+RunPlan _planOf(MigrateRequest request, Directory root, List<String> added) =>
+    planUpgradeRun(
+      root,
+      templates: request.templates,
+      homeDirectory: request.homeDirectory,
+      addedPacks: added,
+    );
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the
 /// Owner's first `y` approved its steps.

@@ -5,7 +5,6 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -17,6 +16,7 @@ import '../../helpers/record_fixture.dart' show oneTargetConfig, twinConfig;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/upgrade_fixture.dart';
 
 final String _journal = jsonEncode(
   const MoveJournal([
@@ -70,20 +70,25 @@ void main() {
     final root = await writeTree({
       MoveJournal.journalPath: _journal,
       '.specstone/config.yaml': shippedPinsConfig(),
-      legacyContextPath: '# D-01\n',
     });
 
     expect(_choose(root), RunKind.resume);
   });
 
-  test('config and legacy context doc together are '
-      'legacy', () async {
-    final root = await writeTree({
+  test('a config beside a legacy context doc chooses by the pins '
+      'alone', () async {
+    final equal = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
-      legacyContextPath: '# D-01\n',
+      'docs/prds/d01_context.md': '# D-01\n',
+    });
+    final home = await acmeHome();
+    final older = await writeTree({
+      '.specstone/config.yaml': '${shippedPinsConfig()}$acmeOldPinLine',
+      'docs/prds/d01_context.md': '# D-01\n',
     });
 
-    expect(_choose(root), RunKind.legacy);
+    expect(_choose(equal), RunKind.none);
+    expect(_choose(older, home: home), RunKind.upgrade);
   });
 
   test('pins equal to the carried versions '
@@ -103,19 +108,13 @@ void main() {
     expect(_choose(root, hasAdds: true), RunKind.upgrade);
   });
 
-  test('an add leaves a pending journal and a legacy tree as they '
-      'are', () async {
+  test('an add leaves a pending journal as it is', () async {
     final journal = await writeTree({
       MoveJournal.journalPath: _journal,
       '.specstone/config.yaml': shippedPinsConfig(),
     });
-    final legacy = await writeTree({
-      '.specstone/config.yaml': shippedPinsConfig(),
-      legacyContextPath: '# D-01\n',
-    });
 
     expect(_choose(journal, hasAdds: true), RunKind.resume);
-    expect(_choose(legacy, hasAdds: true), RunKind.legacy);
   });
 
   test('pins equal and every typed doc laid out is none', () async {
@@ -152,13 +151,13 @@ void main() {
       final alone = await writeTree({
         '.specstone/config.yaml': 'packs:\n  prd-core: 9.0.0\n',
       });
+      final home = await acmeHome();
       final beside = await writeTree({
-        '.specstone/config.yaml':
-            'packs:\n  prd-core: 9.0.0\n  software-tech: 1.0.0\n',
+        '.specstone/config.yaml': 'packs:\n  prd-core: 9.0.0\n$acmeOldPinLine',
       });
 
       expect(() => _choose(alone), _pinNewer());
-      expect(() => _choose(beside), _pinNewer());
+      expect(() => _choose(beside, home: home), _pinNewer());
     },
   );
 
@@ -247,13 +246,14 @@ void main() {
 
     test('refuses agent_files_newer beside an older pin, where the run '
         'would be upgrade', () async {
+      final home = await acmeHome();
       final root = await writeTree({
         '.specstone/config.yaml': config(
-          pins: '${shippedPinsConfig(['prd-core'])}  software-tech: 1.0.0\n',
+          pins: '${shippedPinsConfig(['prd-core'])}$acmeOldPinLine',
         ),
       });
 
-      expect(() => _choose(root), _agentFilesNewer());
+      expect(() => _choose(root, home: home), _agentFilesNewer());
     });
 
     test('refuses agent_files_newer over agent files that differ', () async {
@@ -272,21 +272,6 @@ void main() {
       });
 
       expect(() => _choose(root), _pinNewer());
-    });
-
-    test('a pending journal and a legacy context doc still choose their '
-        'run', () async {
-      final journal = await writeTree({
-        MoveJournal.journalPath: _journal,
-        '.specstone/config.yaml': config(),
-      });
-      final legacy = await writeTree({
-        '.specstone/config.yaml': config(),
-        legacyContextPath: '# D-01\n',
-      });
-
-      expect(_choose(journal), RunKind.resume);
-      expect(_choose(legacy), RunKind.legacy);
     });
 
     test('a stamp equal to the running Version is none', () async {
@@ -310,24 +295,12 @@ void main() {
     });
   });
 
-  test('an older pin is upgrade', () async {
-    final root = await writeTree({
-      '.specstone/config.yaml':
-          '${shippedPinsConfig(['prd-core'])}  software-tech: 1.0.0\n',
-    });
-
-    expect(_choose(root), RunKind.upgrade);
-  });
-
   test('a personal pack pinned below its home-folder version '
       'is upgrade', () async {
-    final home = await writeTree({
-      '.specstone/packs/acme/pack.yaml':
-          'name: acme\nversion: 1.2.0\nextends: software-tech\n',
-    });
+    final home = await acmeHome();
     final root = await writeTree({
       '.specstone/config.yaml':
-          '${shippedPinsConfig(['prd-core'])}  acme: 1.0.0\n',
+          '${shippedPinsConfig(['prd-core'])}$acmeOldPinLine',
     });
 
     expect(_choose(root, home: home), RunKind.upgrade);

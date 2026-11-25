@@ -10,47 +10,20 @@ import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 
 const _approvedKey = 'approved';
 const _hashLength = 12;
 
-/// Whether the approval stamps have run: any pin at or above its
-/// [agentFilesSince] entry, `prd-core` 1.7.0 or `software-tech` 1.4.0.
-bool stampsHaveRun(Map<String, PackVersion> pins) =>
-    agentFilesSince.entries.any(
-      (since) => switch (pins[since.key]) {
-        final PackVersion pin => pin.compareTo(since.value) >= 0,
-        null => false,
-      },
-    );
-
-/// The pack whose pin decides whether a record's statuses count in the
-/// ApprovalHash.
-const _statusesPack = 'software-tech';
-
-/// The [_statusesPack] version from which the ApprovalHash and the draft mark
-/// leave out a record's statuses.
-final PackVersion statusesOutsideApprovalSince = PackVersion.parse(
-  '1.7.0',
-  file: 'approval.dart',
-  key: _statusesPack,
-);
-
-/// Whether [pins] put `software-tech` at [statusesOutsideApprovalSince] or
-/// above, so a record's statuses stay outside the ApprovalHash.
-bool statusesOutsideApproval(Map<String, PackVersion> pins) =>
-    switch (pins[_statusesPack]) {
-      final PackVersion pin => pin.compareTo(statusesOutsideApprovalSince) >= 0,
-      null => false,
-    };
-
 /// Whether [field] stays outside the ApprovalHash, so its write leaves the
-/// draft flag: the `retired_ids` field, an `output_ref` or a `task_ref` field,
-/// or a `record_status` one when [statusesOutside].
-bool isOutsideApproval(MergedField field, {required bool statusesOutside}) =>
+/// draft flag: the `retired_ids` field, an `output_ref`, a `task_ref`, or a
+/// `record_status` field.
+bool isOutsideApproval(MergedField field) =>
+    _isOutsideByRule(field, statusesOutside: true);
+
+// [statusesOutside] false is the rule of a project that crossed
+// `software-tech` 1.7.0: [countsAsApprovedCopy] still reads a copy hashed so.
+bool _isOutsideByRule(MergedField field, {required bool statusesOutside}) =>
     field.id == retiredIdsField ||
     switch (field.type) {
       FieldType.outputRef => true,
@@ -73,9 +46,10 @@ bool isMatrixSection(MergedDocType docType, String sectionKey) =>
 ///
 /// A frontmatter left empty hashes as an absent one, so the doc hashes the
 /// same before and after [withApprovalHash] adds a fence.
-///
-/// - [statusesOutside]: the [statusesOutsideApproval] of the project's pins.
-String approvalHashOf(
+String approvalHashOf(String lfText, MergedDocType? docType) =>
+    _approvalHashByRule(lfText, docType, statusesOutside: true);
+
+String _approvalHashByRule(
   String lfText,
   MergedDocType? docType, {
   required bool statusesOutside,
@@ -91,7 +65,7 @@ String approvalHashOf(
     'draft',
     retiredIdsField,
     for (final field in docType?.fields ?? const <MergedField>[])
-      if (isOutsideApproval(field, statusesOutside: statusesOutside)) field.id,
+      if (_isOutsideByRule(field, statusesOutside: statusesOutside)) field.id,
   });
   final laidOut = docType == null
       ? text
@@ -168,16 +142,8 @@ final class _Stripped {
 /// `approved:` value, at its slot in the field order of [docType].
 ///
 /// The one writer of the mark.
-String withApprovalHash(
-  String lfText,
-  MergedDocType? docType, {
-  required bool statusesOutside,
-}) {
-  final hash = approvalHashOf(
-    lfText,
-    docType,
-    statusesOutside: statusesOutside,
-  );
+String withApprovalHash(String lfText, MergedDocType? docType) {
+  final hash = approvalHashOf(lfText, docType);
   return withKeyBlock(
     lfText,
     _approvedKey,
@@ -224,33 +190,22 @@ final class ApprovalFields {
 /// A doc with no such hash never awaits approval and is never stamped: the
 /// approve walk, `check`, and the stamp pass leave it to `check`'s
 /// `frontmatter_invalid`, while the delete gate still guards it.
-String? comparedApprovalHash(
-  String lfText,
-  MergedDocType? docType, {
-  required bool statusesOutside,
-}) {
+String? comparedApprovalHash(String lfText, MergedDocType? docType) {
   final blocks = Doc.parse(lfText).frontmatter;
   final isValid =
       blocks == null ||
       FrontmatterYaml.parse(blocks.map((b) => b.text).join()).errorLine == null;
-  return isValid
-      ? approvalHashOf(lfText, docType, statusesOutside: statusesOutside)
-      : null;
+  return isValid ? approvalHashOf(lfText, docType) : null;
 }
 
 /// Whether the doc of [fields] awaits the Owner's approval, given
 /// [hash], its [comparedApprovalHash]; never when [hash] is null.
-bool awaitsApproval(
-  ApprovalFields fields,
-  String? hash, {
-  required bool stampsHaveRun,
-}) {
+bool awaitsApproval(ApprovalFields fields, String? hash) {
   if (hash == null) return false;
   if (fields.isDraft) return true;
   return switch (fields.approvedValue) {
-    null => stampsHaveRun,
-    true => stampsHaveRun,
     final String value => value != hash,
+    // An absent value and `true` await approval (E07), like any other value.
     _ => true,
   };
 }
@@ -305,8 +260,8 @@ final class UnknownHistory extends ApprovalLookup {
 /// and an `approved:` value that is the ApprovalHash of the copy's own
 /// content, or `approved: true`.
 ///
-/// The hash may follow either statuses rule: a copy approved before the
-/// upgrade to the statuses pin still counts after it.
+/// The hash may follow either statuses rule: a copy hashed with statuses
+/// counted (approved before `software-tech` 1.7.0) still counts.
 bool countsAsApprovedCopy(String lfCopy, MergedDocType? docType) {
   final fields = ApprovalFields.of(Doc.parse(lfCopy));
   if (fields.isDraft) return false;
@@ -314,7 +269,8 @@ bool countsAsApprovedCopy(String lfCopy, MergedDocType? docType) {
     true => true,
     final String value => [true, false].any(
       (outside) =>
-          value == approvalHashOf(lfCopy, docType, statusesOutside: outside),
+          value ==
+          _approvalHashByRule(lfCopy, docType, statusesOutside: outside),
     ),
     _ => false,
   };

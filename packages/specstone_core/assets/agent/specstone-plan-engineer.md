@@ -97,7 +97,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **0, two or more work groups** (one `==> group <k> of <n>: …` line per group): run a grouping pass. In it, read
      no group file, run step 3's one `check`, then write the report with `Plan:` reading `none (groups)` and the
      `Groups:` block (Output Format), and write no plan. The group planners and the merge planner plan the groups.
-   - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
+   - **78 with `project_not_found`**: stop with Output Format's `specstone init` reply; run nothing else.
    - **Any other non-zero**, such as `doc_not_found`: each target the refusal names gets a `NOT PLANNED` row and its
      CLI error under `Findings:`. Run the one call once again without those targets, then ground and plan the rest.
      When that second call refuses too, or a refusal names no target, stop the round: each target it names gets the
@@ -314,8 +314,8 @@ Check: <the check file of Workflow step 3>
 - **Findings**: each name no Ground bundle printed, each file or symbol not found, a CLI error with its target, and
   the old plan file a new `plan path` left where it was.
 - **Every stop**, an early one included, writes the file and replies `Report: <path>` first.
-- **Old format**: under `Findings:`, that the project is still on the old format, and that `specstone migrate` moves
-  it or the old skills still serve it.
+- **`specstone init` reply**: on `project_not_found`, under `Findings:`, that no Specstone project is found here,
+  and that `specstone init` starts one.
 
 ## Scope Boundaries
 

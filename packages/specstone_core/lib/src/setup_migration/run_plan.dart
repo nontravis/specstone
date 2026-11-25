@@ -67,8 +67,6 @@ final class UpgradeStepLine {
     required this.from,
     required this.step,
     required this.paths,
-    this.tail = '',
-    this.unreadable,
     this.nextLine,
   });
 
@@ -82,26 +80,14 @@ final class UpgradeStepLine {
   /// each project-layer override after them, each group in code point order.
   final List<String> paths;
 
-  /// The counts the line prints after its doc count, such as `; 48 entries`.
-  final String tail;
-
-  /// Each file a step that reads code could not read; null for any other
-  /// step.
-  final List<String>? unreadable;
-
   /// The line the plan prints right after this one, or null.
   final String? nextLine;
 
   /// The plan line.
-  String get text => 'from $from: $step: ${paths.length} docs$tail';
+  String get text => 'from $from: $step: ${paths.length} docs';
 
   /// The line as one object of the JSON plan's `steps`.
-  Map<String, Object> toJson() => {
-    'from': from,
-    'step': step,
-    'paths': paths,
-    'unreadable': ?unreadable,
-  };
+  Map<String, Object> toJson() => {'from': from, 'step': step, 'paths': paths};
 }
 
 /// A pack pin the run appends to `.specstone/config.yaml`.
@@ -118,62 +104,23 @@ final class AddedPin {
   Map<String, Object> toJson() => {'pack': pack, 'version': '$version'};
 }
 
-/// The copies the `strip_shared_copies` step strips and keeps, each as
-/// `<path>:<line> <id>`.
-final class SharedCopiesLists {
-  const new({required this.stripped, required this.left});
-
-  /// Each copy the step removes.
-  final List<String> stripped;
-
-  /// Each copy the step keeps.
-  final List<String> left;
-
-  /// The lists as the `sharedCopies` object of the JSON plan.
-  Map<String, Object> toJson() => {'stripped': stripped, 'left': left};
-}
-
 /// The path lists the plan's count lines print as numbers, each kept whole
 /// for the JSON plan.
 final class PlanLists {
   const new({
     this.formatLayout = const [],
-    this.numberLabelsRewritten = const [],
-    this.numberLabelsLeft = const [],
-    this.citesRewritten = const [],
-    this.citesLeft = const [],
-    this.renumberIds = const [],
     this.agentFiles = const [],
     this.stampsSkipped = const [],
     this.steps = const [],
     this.mentions = const [],
     this.addedPins = const [],
     this.typedByAdd = const [],
-    this.tests,
-    this.sharedCopies,
     this.matrixRows,
     this.keptLayers = const [],
   });
 
   /// The DocPath of each doc the layout pass rewrites, in code point order.
   final List<String> formatLayout;
-
-  /// Each doc the label pass rewrites, and each operation heading it cuts as
-  /// `<DocPath>:<line> <operation>`.
-  final List<String> numberLabelsRewritten;
-
-  /// Each label the label pass keeps, `<DocPath>:<line> <label>`.
-  final List<String> numberLabelsLeft;
-
-  /// The DocPath of each doc the cite pass rewrites.
-  final List<String> citesRewritten;
-
-  /// Each old cite form the cite pass keeps, `<DocPath>:<line> <cite>`.
-  final List<String> citesLeft;
-
-  /// Each renumbering as `<DocPath> <old> -> <new>`, then each doc the pass
-  /// rewrites or cannot fully rewrite.
-  final List<String> renumberIds;
 
   /// The path from the project root of each skill or agent file the run writes
   /// and each it moves to the trash.
@@ -194,14 +141,6 @@ final class PlanLists {
   /// The DocPath of each doc only an added pack types, in code point order.
   final List<String> typedByAdd;
 
-  /// The test-name pass's `tests` object (`written`, `rewritten`, `left`), or
-  /// null when the run holds no such pass.
-  final Map<String, Object?>? tests;
-
-  /// The copies the `strip_shared_copies` step strips and keeps, or null when
-  /// the run holds no such step.
-  final SharedCopiesLists? sharedCopies;
-
   /// The matrix fold pass's `matrixRows` object (`folded`), or null when the
   /// pass folds no record.
   final Map<String, Object?>? matrixRows;
@@ -213,12 +152,6 @@ final class PlanLists {
   /// The lists as the keys of the JSON plan.
   Map<String, Object> toJson() => {
     'formatLayout': formatLayout,
-    'numberLabels': {
-      'rewritten': numberLabelsRewritten,
-      'left': numberLabelsLeft,
-    },
-    'cites': {'rewritten': citesRewritten, 'left': citesLeft},
-    'renumberIds': renumberIds,
     'agentFiles': agentFiles,
     'stamps': {'skipped': stampsSkipped},
     'steps': [for (final step in steps) step.toJson()],
@@ -226,8 +159,6 @@ final class PlanLists {
     if (addedPins.isNotEmpty)
       'addedPins': [for (final pin in addedPins) pin.toJson()],
     if (typedByAdd.isNotEmpty) 'typedByAdd': typedByAdd,
-    'tests': ?tests,
-    'sharedCopies': ?sharedCopies?.toJson(),
     'matrixRows': ?matrixRows,
     if (keptLayers.isNotEmpty) 'keptLayers': keptLayers,
   };
@@ -370,7 +301,7 @@ final class RunPlan {
     return buffer.toString();
   }
 
-  /// Throws [MigrateFault] `value_unplaced` for each create whose path under
+  /// Throws [MigrateFault] `upgrade_collision` for each create whose path under
   /// [root] is [takenAfterMoves], the first as the fault and the rest in
   /// `more`, so the plan refuses before it prints and nothing is written.
   ///
@@ -381,7 +312,7 @@ final class RunPlan {
       for (final create in creates)
         if (isTaken(create.path))
           MigrateFault(
-            MigrateFaultCode.valueUnplaced,
+            MigrateFaultCode.upgradeCollision,
             'the run creates ${_shown(create.path)}, but a file or folder '
             'already holds that path, or a name the volume reads as the same; '
             'move or rename it, then run specstone migrate again',

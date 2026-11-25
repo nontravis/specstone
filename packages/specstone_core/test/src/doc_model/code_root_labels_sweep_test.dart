@@ -49,17 +49,13 @@ List<String> _labelsOf(String path, String lf) {
   final extension = _extensionOf(path);
   if (extension == markdownExtension) {
     final body = Doc.parse(lf).afterFrontmatter;
-    return [
-      for (final label in numberLabelsInMarkdown(body, itemPrefixes: const {}))
-        label.written,
-    ];
+    return [for (final label in numberLabelsInMarkdown(body)) label.written];
   }
   if (!readsNameMentions(extension)) return const [];
   return [
     for (final line in lf.split('\n'))
       if (isCommentLine(line, extension))
-        for (final label in numberLabelsIn(line, itemPrefixes: const {}))
-          label.written,
+        for (final label in numberLabelsIn(line)) label.written,
   ];
 }
 

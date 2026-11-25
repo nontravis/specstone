@@ -4,8 +4,6 @@ import 'package:specstone_core/src/document_writing/approval.dart'
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/setup_migration/drop_section_step.dart'
     show keepsDroppedSection;
-import 'package:specstone_core/src/setup_migration/record_placement.dart'
-    show typeBeforeMoves;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
 
@@ -13,19 +11,16 @@ import 'package:specstone_core/src/templates/models/migration_step.dart';
 /// the doc [lf], so a doc approved under the older type hashes as it did then.
 ///
 /// Only the carried pack versions ship, so the older type is rebuilt by
-/// undoing each step that changes the type: [typeBeforeMoves], then each
-/// `rename_field` and `rename_section` from the last, then each section a
-/// `drop_section` step removed, put back in the slot whose hash matches the
-/// doc's `approved:` value, else after the section [lf] holds before it.
-///
-/// - [statusesOutside]: the rule [approvalHashOf] hashes the doc by.
+/// undoing each step that changes the type: each `rename_field` and
+/// `rename_section` from the last, then each section a `drop_section` step
+/// removed, put back in the slot whose hash matches the doc's `approved:`
+/// value, else after the section [lf] holds before it.
 MergedDocType typeBeforeSteps(
   MergedDocType type,
   List<MigrationStep> steps, {
   required String lf,
-  required bool statusesOutside,
 }) {
-  var fields = typeBeforeMoves(type, steps).fields;
+  var fields = type.fields;
   var sections = type.sections;
   final dropped = <String>{};
   for (final step in steps.reversed) {
@@ -61,10 +56,7 @@ MergedDocType typeBeforeSteps(
   if (dropped.isEmpty || approved is! String) return byDocOrder;
   for (final candidate in _slotsOf(placed, dropped: dropped)) {
     final before = type.copyWith(fields: fields, sections: candidate);
-    if (approvalHashOf(lf, before, statusesOutside: statusesOutside) ==
-        approved) {
-      return before;
-    }
+    if (approvalHashOf(lf, before) == approved) return before;
   }
   return byDocOrder;
 }

@@ -204,32 +204,6 @@ void main() {
     });
   });
 
-  group('legacyFileCodeFingerprint', () {
-    test('hashes the whole text, comment and blank lines kept', () {
-      expect(
-        legacyFileCodeFingerprint(_utf8('a\n// c\n\nb\n')),
-        baseHashOf('a\n// c\n\nb\n'),
-      );
-      expect(
-        legacyFileCodeFingerprint(_utf8('a\r\nb\r\n')),
-        baseHashOf('a\nb\n'),
-      );
-      expect(
-        legacyFileCodeFingerprint([..._bom, ..._utf8('a')]),
-        baseHashOf('\uFEFFa'),
-      );
-    });
-
-    test('hashes bytes that are not UTF-8 raw', () {
-      const bytes = [0x89, 0xFF];
-      expect(legacyFileCodeFingerprint(bytes), _rawHash(bytes));
-    });
-
-    test('hashes an empty file as empty text', () {
-      expect(legacyFileCodeFingerprint(const []), emptyBaseHash);
-    });
-  });
-
   group('folderCodeFingerprint', () {
     const one = FileFingerprint(
       path: 'lib/a.dart',

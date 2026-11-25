@@ -1,8 +1,7 @@
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Converts a legacy SDD tree, resumes an unfinished migration, or upgrades
-/// the pack pins of a project.
+/// Resumes an unfinished migration, or upgrades the pack pins of a project.
 class MigrateCommand extends SpecstoneCommand {
   new() {
     argParser
@@ -44,7 +43,7 @@ class MigrateCommand extends SpecstoneCommand {
 
   @override
   String get description =>
-      'Migrate a legacy SDD tree, or upgrade the pack pins of a project.';
+      'Resume an unfinished migration, or upgrade the pack pins of a project.';
 
   @override
   String get invocation =>

@@ -66,7 +66,6 @@ IndexedDoc _record(String path, String text, {MergedDocType? type}) =>
         MergedSet(docTypes: [type ?? _recordType]),
         targetNames: const ['flutter', 'jaspr'],
       ).match(path),
-      statusesOutside: true,
       codeTarget: 'jaspr',
     ).doc;
 

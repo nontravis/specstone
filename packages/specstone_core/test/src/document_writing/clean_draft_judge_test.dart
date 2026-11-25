@@ -1540,7 +1540,6 @@ void main() {
         docPath: '',
         bytes: utf8.encode(lf),
         match: MatchedDocType(type),
-        statusesOutside: false,
       );
       return [
         for (final excess in sizeExcessesOf(doc, content, type))

@@ -767,22 +767,6 @@ void main() {
       );
     });
 
-    test('refuses in a legacy tree whose config is not written yet', () async {
-      final root = await writeTree({'docs/prds/PROJECT.md': '# Legacy\n'});
-      writeJournal(root, [move, commit]);
-      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
-      expect(
-        () => writeIn(root, (session) => null),
-        throwsA(
-          isA<WriteFault>().having(
-            (f) => f.code,
-            'code',
-            WriteFaultCode.migratePending,
-          ),
-        ),
-      );
-    });
-
     test('refuses from a folder below the project root', () async {
       final root = await writeWriteProject();
       writeJournal(root, [move, commit]);

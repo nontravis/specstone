@@ -2,11 +2,8 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show blockScan, fenceScan, mermaidInfoWord;
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
-import 'package:specstone_core/src/doc_model/models/id_read.dart';
 import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show itemIdRunAt;
 
 /// How a number label names its doc.
 enum LabelShape {
@@ -20,7 +17,7 @@ enum LabelShape {
   folderPath,
 }
 
-/// One number label run as written, with the item ID that follows it, if any.
+/// One number label run as written.
 ///
 /// [start] and [end] are offsets into the text that was read: the line for
 /// [numberLabelsIn], the whole text for [numberLabelsInMarkdown]. [slug] is the
@@ -35,8 +32,6 @@ final class NumberLabel {
     this.story,
     this.fr,
     this.slug,
-    this.itemId,
-    this.prefix,
     this.isPartOfPath = false,
   });
 
@@ -48,30 +43,11 @@ final class NumberLabel {
   final int? story;
   final int? fr;
   final String? slug;
-  final String? itemId;
-
-  /// The lowercase prefix of a legacy ID's feature folder, such as `ai` in
-  /// `ai02`; null for any other label.
-  final String? prefix;
 
   /// Whether a numbered folder that does not follow the label's last part
   /// comes right after it, as `nf01` does after a story folder: the label is
   /// read and reported, but names no doc by its folders.
   final bool isPartOfPath;
-
-  NumberLabel _withItemId(String? id) => NumberLabel(
-    start: start,
-    end: end,
-    written: written,
-    shape: shape,
-    feature: feature,
-    story: story,
-    fr: fr,
-    slug: slug,
-    itemId: id,
-    prefix: prefix,
-    isPartOfPath: isPartOfPath,
-  );
 
   NumberLabel _shiftedBy(int offset) => NumberLabel(
     start: start + offset,
@@ -82,8 +58,6 @@ final class NumberLabel {
     story: story,
     fr: fr,
     slug: slug,
-    itemId: itemId,
-    prefix: prefix,
     isPartOfPath: isPartOfPath,
   );
 }
@@ -94,34 +68,15 @@ final class NumberLabel {
 /// This is the one reader of the label boundary. Every other reader of a
 /// label goes through it, [numberLabelsInMarkdown] for a whole text.
 ///
-/// With [legacyIds] a folder path may open with any lowercase prefix before
-/// its digits, as a legacy feature folder does. A label's item ID is the first
-/// item ID of the run right after it (`itemIdRunAt`), a token of one of
-/// [itemPrefixes]; an empty set reads no item ID.
-List<NumberLabel> numberLabelsIn(
-  String line, {
-  bool legacyIds = false,
-  required Set<String> itemPrefixes,
-}) => _labelsIn(line, line, legacyIds, itemPrefixes);
-
-/// The labels of [line], each with the item ID read on [rawLine], the line as
-/// written, so a code span that [line] blanks still ends a run.
-List<NumberLabel> _labelsIn(
-  String line,
-  String rawLine,
-  bool legacyIds,
-  Set<String> itemPrefixes,
-) {
+List<NumberLabel> numberLabelsIn(String line) {
   final labels = <NumberLabel>[];
   var at = 0;
   while (at < line.length) {
-    final label = _beginsLabel(line, at) ? _labelAt(line, at, legacyIds) : null;
+    final label = _beginsLabel(line, at) ? _labelAt(line, at) : null;
     if (label == null) {
       at++;
     } else {
-      labels.add(
-        label._withItemId(_itemIdAfter(rawLine, label.end, itemPrefixes)),
-      );
+      labels.add(label);
       at = label.end;
     }
   }
@@ -134,7 +89,7 @@ List<NumberLabelLine> numberLabelLinesInMarkdown(String lfText) {
   final labels = <NumberLabelLine>[];
   var line = 0;
   var from = 0;
-  for (final label in numberLabelsInMarkdown(lfText, itemPrefixes: const {})) {
+  for (final label in numberLabelsInMarkdown(lfText)) {
     for (var i = from; i < label.start; i++) {
       if (lfText.codeUnitAt(i) == _lineFeed) line++;
     }
@@ -151,13 +106,8 @@ const _spaceUnit = 0x20;
 /// into the whole text.
 ///
 /// Prose and `mermaid` blocks are read; fenced code other than `mermaid`,
-/// code spans, and link destinations are skipped. [legacyIds] reads as
-/// [numberLabelsIn] reads it.
-List<NumberLabel> numberLabelsInMarkdown(
-  String lfText, {
-  bool legacyIds = false,
-  required Set<String> itemPrefixes,
-}) {
+/// code spans, and link destinations are skipped.
+List<NumberLabel> numberLabelsInMarkdown(String lfText) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
   final blocks = blockScan(lines);
@@ -173,10 +123,7 @@ List<NumberLabel> numberLabelsInMarkdown(
           blocks.fenced[i]
               ? lines[i]
               : _outsideCodeSpans(lines, continues, spansOfGroup, i),
-          lines[i],
           lineStart,
-          legacyIds,
-          itemPrefixes,
         ),
       );
     }
@@ -245,14 +192,12 @@ final class _Part {
     required this.number,
     required this.slug,
     required this.end,
-    required this.prefix,
   });
 
   final int rank;
   final int number;
   final String? slug;
   final int end;
-  final String? prefix;
 }
 
 /// The rank of a folder prefix, -1 for none, and its length.
@@ -263,8 +208,8 @@ final class _FolderPrefix {
   final int length;
 }
 
-NumberLabel? _labelAt(String line, int at, bool legacyIds) =>
-    _dashRunAt(line, at) ?? _folderRunAt(line, at, legacyIds);
+NumberLabel? _labelAt(String line, int at) =>
+    _dashRunAt(line, at) ?? _folderRunAt(line, at);
 
 /// Whether a label may begin at [at] (> 0): no letter, digit, or `-` before.
 bool _beginsLabel(String line, int at) {
@@ -310,22 +255,16 @@ _Part? _dashPartAt(String line, int at) {
     final end = _digitsEnd(line, digits);
     if (end == digits) return null;
     final number = _numberOf(line.substring(digits, end));
-    return _Part(
-      rank: rank,
-      number: number,
-      slug: null,
-      end: end,
-      prefix: null,
-    );
+    return _Part(rank: rank, number: number, slug: null, end: end);
   }
   return null;
 }
 
-NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
+NumberLabel? _folderRunAt(String line, int at) {
   final parts = <_Part>[];
   var cursor = at;
   while (true) {
-    final part = _folderAt(line, cursor, legacyIds: legacyIds);
+    final part = _folderAt(line, cursor);
     if (part == null) break;
     if (parts.isNotEmpty && part.rank <= parts.last.rank) break;
     parts.add(part);
@@ -347,7 +286,6 @@ NumberLabel? _folderRunAt(String line, int at, bool legacyIds) {
     shape: LabelShape.folderPath,
     numbers: numbers,
     slug: parts.last.slug,
-    prefix: parts.first.prefix,
     isPartOfPath: _numberedFolderFollows(line, parts.last.end),
   );
 }
@@ -364,14 +302,9 @@ bool _numberedFolderFollows(String line, int end) =>
     _numberedFolder.matchAsPrefix(line, end + 1) != null;
 
 /// Reads a folder name `f<digits>`, `us<digits>`, or `fr<digits>`, with an
-/// optional `_<slug>`, at [at]; with [legacyIds] a feature folder may open
-/// with any lowercase prefix.
-_Part? _folderAt(String line, int at, {required bool legacyIds}) {
-  final _FolderPrefix(:rank, length: prefixLength) = _folderPrefixAt(
-    line,
-    at,
-    legacyIds: legacyIds,
-  );
+/// optional `_<slug>`, at [at].
+_Part? _folderAt(String line, int at) {
+  final _FolderPrefix(:rank, length: prefixLength) = _folderPrefixAt(line, at);
   if (rank < 0) return null;
   final digits = at + prefixLength;
   final digitsEnd = _digitsEnd(line, digits);
@@ -385,27 +318,11 @@ _Part? _folderAt(String line, int at, {required bool legacyIds}) {
     number: _numberOf(line.substring(digits, digitsEnd)),
     slug: slugEnd == null ? null : line.substring(digitsEnd + 1, slugEnd),
     end: slugEnd ?? digitsEnd,
-    prefix: legacyIds && rank == _featureRank
-        ? line.substring(at, at + prefixLength)
-        : null,
   );
 }
 
 /// Returns the rank and length of the folder prefix at [at], or rank -1.
-_FolderPrefix _folderPrefixAt(String line, int at, {required bool legacyIds}) {
-  if (legacyIds) {
-    var end = at;
-    while (end < line.length && _isLower(line.codeUnitAt(end))) {
-      end++;
-    }
-    final prefix = line.substring(at, end);
-    if (prefix.isEmpty) return const _FolderPrefix(rank: -1, length: 0);
-    return switch (prefix) {
-      'fr' => const _FolderPrefix(rank: _frRank, length: 2),
-      'us' => const _FolderPrefix(rank: _storyRank, length: 2),
-      _ => _FolderPrefix(rank: _featureRank, length: prefix.length),
-    };
-  }
+_FolderPrefix _folderPrefixAt(String line, int at) {
   if (line.startsWith('fr', at)) {
     return const _FolderPrefix(rank: _frRank, length: 2);
   }
@@ -434,7 +351,6 @@ NumberLabel _labelOf(
   required LabelShape shape,
   required List<int?> numbers,
   String? slug,
-  String? prefix,
   bool isPartOfPath = false,
 }) => NumberLabel(
   start: start,
@@ -445,19 +361,8 @@ NumberLabel _labelOf(
   story: numbers[_storyRank],
   fr: numbers[_frRank],
   slug: slug,
-  prefix: prefix,
   isPartOfPath: isPartOfPath,
 );
-
-/// Returns the first item ID of the run right after a label ending at [end],
-/// such as `INV-6`, `E05`, or `NFR-P03`; a label is no item ID.
-String? _itemIdAfter(String line, int end, Set<String> prefixes) {
-  if (prefixes.isEmpty) return null;
-  final run = itemIdRunAt(line, end, prefixes: prefixes);
-  if (run.isEmpty) return null;
-  final id = run.first.id;
-  return id is ItemId ? id.written : null;
-}
 
 int _numberOf(String digits) => int.tryParse(digits) ?? _beyondAnyDoc;
 
@@ -499,14 +404,8 @@ List<bool> _readableLines(List<String> lines) {
 
 /// Returns the labels of [line] that lie outside a link destination, their
 /// offsets shifted by [lineStart].
-List<NumberLabel> _labelsOutsideLinks(
-  String line,
-  String rawLine,
-  int lineStart,
-  bool legacyIds,
-  Set<String> itemPrefixes,
-) {
-  final labels = _labelsIn(line, rawLine, legacyIds, itemPrefixes);
+List<NumberLabel> _labelsOutsideLinks(String line, int lineStart) {
+  final labels = numberLabelsIn(line);
   if (labels.isEmpty) return labels;
   final destinations = _destinationsIn(line);
   return [

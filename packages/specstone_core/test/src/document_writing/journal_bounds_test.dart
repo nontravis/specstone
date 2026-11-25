@@ -395,6 +395,7 @@ void main() {
       projectRoot: project,
       docsRoot: Directory('${project.path}/docs'),
       homeDirectory: testHome(),
+      trust: trustOf(project)..record(),
     );
 
     test('a docs link to a folder outside the project bounds the replay of '
@@ -496,6 +497,7 @@ void main() {
         projectRoot: root,
         docsRoot: Directory('${root.path}/docs'),
         homeDirectory: testHome(),
+        trust: trustOf(root),
         runGit: (arguments, {required workingDirectory, environment}) =>
             ProcessResult(0, arguments.first == 'log' ? 1 : 0, '', ''),
       );
@@ -586,6 +588,7 @@ void main() {
             projectRoot: root,
             docsRoot: Directory('${root.path}/docs'),
             homeDirectory: testHome(),
+            trust: trustOf(root),
             runGit: linkTheCursor,
           ),
         ),
@@ -661,6 +664,7 @@ void main() {
             projectRoot: project,
             docsRoot: Directory('${project.path}/docs'),
             homeDirectory: testHome(),
+            trust: trustOf(project),
           ),
         ),
         _leadsOutside(MoveJournal.journalPath),
@@ -770,6 +774,7 @@ void main() {
             projectRoot: project.projectRoot,
             docsRoot: project.docsRoot,
             homeDirectory: testHome(),
+            trust: project.trust,
             agentFiles: {'${outside.resolveSymbolicLinksSync()}/CLAUDE.md'},
           ),
         ),
@@ -796,6 +801,7 @@ void main() {
             projectRoot: project,
             docsRoot: Directory('${project.path}/docs'),
             homeDirectory: testHome(),
+            trust: trustOf(project),
           ),
         ),
         _leadsOutside('.specstone/.gitignore'),

@@ -4,14 +4,10 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/setup_migration/migration_chain.dart';
-import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
-import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -201,80 +197,43 @@ void main() {
       expect(manifest.extendsPack, 'prd-core');
     });
 
-    test('the 1.23.0 entry holds one relink_merged_docs step', () {
-      final entry = _softwareTechManifest().migrations.singleWhere(
-        (m) => m.from.toString() == '1.23.0',
-      );
-
-      expect(entry.steps.single, isA<RelinkMergedDocs>());
+    test('software-tech ships no migration entry and no migrations key', () {
+      expect(_softwareTechManifest().migrations, isEmpty);
+      final text = utf8.decode(shippedPackFiles['software-tech/pack.yaml']!);
+      expect(text, isNot(contains('migrations:')));
     });
 
-    test('the 1.20.0 entry moves architecture covers into the record, folds '
-        'five doc types, drops concerns, then drops topic, in order', () {
-      final entry = _softwareTechManifest().migrations.singleWhere(
-        (m) => m.from.toString() == '1.20.0',
-      );
+    test(
+      'a software-tech pin one minor below its floor is pack_pin_below_floor',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml': shippedPinsBelowFloor(
+            pack: 'software-tech',
+          ),
+        });
+        final home = await writeTree({});
 
-      expect(entry.steps.map((s) => s.kind), [
-        'move_to_record',
-        'merge_doc',
-        'merge_doc',
-        'merge_doc',
-        'merge_doc',
-        'merge_doc',
-        'drop_section',
-        'drop_doc_type',
-      ]);
-      final move = entry.steps[0] as MoveToRecord;
-      expect(move.docTypes, ['architecture']);
-      expect(move.fields, ['covers']);
-      expect(move.to, 'implementation');
-      const data = 'entities Entities -> data, data_touch Data touch -> data';
-      const authSections =
-          'enforcement Enforcement -> enforcement, audit Audit -> audit';
-      const integrationFrom =
-          'project_integration specs/INTEGRATION.md -> project_architecture:';
-      const integration =
-          'external_systems External systems -> external_systems, '
-          'contract_per_system Contract per system -> contract_per_system';
-      String moves(MergeDoc step) => [
-        for (final m in step.sections)
-          '${m.fromId} ${m.fromHeader} -> ${m.toId}',
-      ].join(', ');
+        expect(
+          () => TemplateResolver().resolve(
+            workingDirectory: project,
+            homeDirectory: home,
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.packPinBelowFloor)
+                .having((f) => f.message, 'message', contains('software-tech')),
+          ),
+        );
+      },
+    );
+
+    test('software-tech ships no frozen doc type file', () {
       expect(
-        [
-          for (final step in entry.steps.whereType<MergeDoc>())
-            '${step.fromId} ${step.fromPath} -> ${step.toId}: ${moves(step)}',
-        ],
-        [
-          'domain specs/f{nn}_{slug}/DOMAIN.md -> architecture: $data',
-          'project_domain specs/DOMAIN.md -> project_architecture: $data',
-          '$integrationFrom $integration',
-          'auth specs/f{nn}_{slug}/AUTH.md -> security: $authSections',
-          'project_auth specs/AUTH.md -> project_security: $authSections',
-        ],
+        shippedPackFiles.keys.where(
+          (k) => k.startsWith('software-tech/frozen/'),
+        ),
+        isEmpty,
       );
-      final drop = entry.steps[6] as DropSection;
-      expect(drop.docTypes, ['architecture', 'project_architecture']);
-      expect((drop.sectionId, drop.sectionHeader), ('concerns', 'Concerns'));
-      final topic = entry.steps[7] as DropDocType;
-      expect((topic.id, topic.path), ('topic', 'specs/topics/{slug}.md'));
-    });
-
-    test('the 1.13.0 entry holds one drop_default_lines step for the '
-        'domain doc types', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
-        file: 'packs/software-tech/pack.yaml',
-      );
-
-      final entry = manifest.migrations.singleWhere(
-        (m) => m.from.toString() == '1.13.0',
-      );
-
-      expect(entry.steps, hasLength(1));
-      final step = entry.steps.single as DropDefaultLines;
-      expect(step.docTypes, ['domain', 'project_domain']);
     });
 
     test('software-tech ships its shared lines in table order with their '
@@ -322,322 +281,6 @@ void main() {
         ],
         [(FieldType.string, true, false), (FieldType.taskRef, true, false)],
       );
-    });
-
-    test('the 1.16.0 entry holds one drop_section step for architecture and '
-        'project_architecture', () {
-      final entry = _softwareTechManifest().migrations.singleWhere(
-        (m) => m.from.toString() == '1.16.0',
-      );
-
-      expect(entry.steps, hasLength(1));
-      final step = entry.steps.single as DropSection;
-      expect(step.docTypes, ['architecture', 'project_architecture']);
-      expect(step.sectionId, 'design_references');
-      expect(step.sectionHeader, 'Design references');
-    });
-
-    test('the 1.17.0 entry holds two rename_section steps for the architecture types', () {
-      final entry = _softwareTechManifest().migrations.singleWhere(
-        (m) => m.from.toString() == '1.17.0',
-      );
-
-      expect(entry.steps.map((s) => s.kind), [
-        'rename_section',
-        'rename_section',
-      ]);
-      final steps = entry.steps.cast<RenameSection>();
-      expect(steps.map((s) => s.docType), [
-        'architecture',
-        'project_architecture',
-      ]);
-      for (final step in steps) {
-        expect(step.fromId, 'component_diagram');
-        expect(step.fromHeader, 'Component diagram');
-        expect(step.toId, 'technical_diagram');
-        expect(step.toHeader, 'Technical diagram');
-      }
-    });
-
-    test('the 1.19.0 entry holds two merge_doc steps, then two mark_retrim '
-        'steps, in order', () {
-      final entry = _softwareTechManifest().migrations.singleWhere(
-        (m) => m.from.toString() == '1.19.0',
-      );
-
-      expect(entry.steps.map((s) => s.kind), [
-        'merge_doc',
-        'merge_doc',
-        'mark_retrim',
-        'mark_retrim',
-      ]);
-      final error = entry.steps[0] as MergeDoc;
-      expect(error.fromId, 'error');
-      expect(error.fromPath, 'specs/f{nn}_{slug}/ERROR.md');
-      expect(error.toId, 'api');
-      expect(
-        [for (final m in error.sections) (m.fromId, m.fromHeader, m.toId)],
-        [('error_catalog', 'Error catalog', 'errors')],
-      );
-      final projectError = entry.steps[1] as MergeDoc;
-      expect(projectError.fromId, 'project_error');
-      expect(projectError.fromPath, 'specs/ERROR.md');
-      expect(projectError.toId, 'project_api');
-      expect(
-        [
-          for (final m in projectError.sections)
-            (m.fromId, m.fromHeader, m.toId),
-        ],
-        [
-          ('error_envelope', 'Error envelope', 'error_model'),
-          ('error_catalog', 'Error catalog', 'error_model'),
-          ('retry_policy', 'Retry policy', 'error_model'),
-        ],
-      );
-      final apiRetrim = entry.steps[2] as MarkRetrim;
-      expect(apiRetrim.docTypes, ['api', 'project_api']);
-      expect(apiRetrim.sections, ['errors', 'error_model']);
-      final frRetrim = entry.steps[3] as MarkRetrim;
-      expect(frRetrim.docTypes, ['fr']);
-      expect(frRetrim.sections, ['input_output']);
-    });
-
-    test('software-tech keeps its ten migration entries and adds none for '
-        'the shared entries', () {
-      final migrations = _softwareTechManifest().migrations;
-      const merges = 'merge_doc, merge_doc, merge_doc, merge_doc, merge_doc';
-      expect(
-        [
-          for (final m in migrations)
-            '${m.from}: ${[for (final s in m.steps) s.kind].join(', ')}',
-        ],
-        [
-          '1.4.0: move_to_record',
-          '1.6.0: stamp_code_fingerprints',
-          '1.7.0: move_file, restamp_code_fingerprints',
-          '1.13.0: drop_default_lines',
-          '1.14.0: mark_retrim',
-          '1.16.0: drop_section',
-          '1.17.0: rename_section, rename_section',
-          '1.19.0: merge_doc, merge_doc, mark_retrim, mark_retrim',
-          '1.20.0: move_to_record, $merges, drop_section, drop_doc_type',
-          '1.23.0: relink_merged_docs',
-        ],
-      );
-    });
-
-    test('the 1.14.0 entry holds one mark_retrim step for domain invariants '
-        'and value objects', () async {
-      final migrations = _softwareTechManifest().migrations;
-      expect(migrations.map((m) => m.from.toString()), [
-        '1.4.0',
-        '1.6.0',
-        '1.7.0',
-        '1.13.0',
-        '1.14.0',
-        '1.16.0',
-        '1.17.0',
-        '1.19.0',
-        '1.20.0',
-        '1.23.0',
-      ]);
-      final entry = migrations.singleWhere(
-        (m) => m.from.toString() == '1.14.0',
-      );
-      final mark = entry.steps.single as MarkRetrim;
-      expect(mark.docTypes, ['domain', 'project_domain']);
-      expect(mark.sections, ['invariants', 'value_objects']);
-
-      final project = await writeTree({
-        '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
-          'software-tech: ${shippedPackVersions()['software-tech']}',
-          'software-tech: ${entry.from}',
-        ),
-        'docs/specs/DOMAIN.md':
-            '# Project domain\n\n## Invariants\n\n'
-            '- **INV-1** An email is unique.\n\n## Value objects\n\n'
-            '| VO | Backed by | Validation |\n|---|---|---|\n'
-            '| Email | String | an inbox and a host |\n',
-      });
-      final home = await writeTree({});
-      final plan = planUpgradeRun(
-        project,
-        templates: TemplateResolver(),
-        homeDirectory: home,
-      );
-
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.14.0',
-          'step': 'mark_retrim',
-          'paths': ['specs/DOMAIN.md'],
-        },
-        {
-          'from': '1.16.0',
-          'step':
-              'drop_section architecture, project_architecture '
-              'design_references',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.17.0',
-          'step':
-              'rename_section architecture component_diagram -> '
-              'technical_diagram',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.17.0',
-          'step':
-              'rename_section project_architecture component_diagram -> '
-              'technical_diagram',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.19.0',
-          'step': 'merge_doc error -> api',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.19.0',
-          'step': 'merge_doc project_error -> project_api',
-          'paths': <String>[],
-        },
-        {'from': '1.19.0', 'step': 'mark_retrim', 'paths': <String>[]},
-        {'from': '1.19.0', 'step': 'mark_retrim', 'paths': <String>[]},
-        {
-          'from': '1.20.0',
-          'step': 'move_to_record architecture covers -> implementation',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc domain -> architecture',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc project_domain -> project_architecture',
-          'paths': ['specs/ARCHITECTURE.md'],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc project_integration -> project_architecture',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc auth -> security',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'merge_doc project_auth -> project_security',
-          'paths': <String>[],
-        },
-        {
-          'from': '1.20.0',
-          'step': 'drop_section architecture, project_architecture concerns',
-          'paths': <String>[],
-        },
-        {'from': '1.20.0', 'step': 'drop_doc_type topic', 'paths': <String>[]},
-        {'from': '1.23.0', 'step': 'relink_merged_docs', 'paths': <String>[]},
-      ]);
-      expect(
-        plan.creates
-            .singleWhere(
-              (create) => create.path == 'docs/specs/ARCHITECTURE.md',
-            )
-            .text,
-        contains('retrim:\n  - invariants\n  - value_objects\n'),
-      );
-    });
-
-    test('a frozen doc type loads only for the migration steps, never into '
-        'the merged set', () {
-      final names = shippedPackVersions().keys;
-      final templates = TemplateResolver();
-
-      final frozen = templates.frozenDocTypes(
-        packNames: names,
-        homeDirectory: null,
-      );
-
-      expect(frozen.keys, unorderedEquals(['domain', 'project_domain']));
-      expect(frozen['project_domain']!.sections.map((s) => s.id), [
-        'entities',
-        'value_objects',
-        'invariants',
-        'known_limits',
-        'lifecycle',
-        'data_touch',
-        'commands_and_events',
-        'terms',
-      ]);
-      final set = templates.resolveCarried(
-        packNames: names,
-        homeDirectory: null,
-      );
-      expect(set.lookup('domain'), isNull);
-      expect(set.lookup('project_domain'), isNull);
-    });
-
-    test('an upgrade to the shipped version carries the ten feature patterns '
-        'and runs no migration step that touches them', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
-        file: 'packs/software-tech/pack.yaml',
-      );
-      final shipped = manifest.version;
-      final below = PackVersion.parse(
-        '1.14.0',
-        file: 'test',
-        key: 'software-tech',
-      );
-
-      final upgrades = selectUpgrades(
-        {'software-tech': below},
-        {'software-tech': manifest},
-      );
-
-      expect(upgrades.single.target, shipped);
-      expect(
-        [for (final s in upgrades.single.steps) s.step.kind],
-        [
-          'mark_retrim',
-          'drop_section',
-          'rename_section',
-          'rename_section',
-          'merge_doc',
-          'merge_doc',
-          'mark_retrim',
-          'mark_retrim',
-          'move_to_record',
-          'merge_doc',
-          'merge_doc',
-          'merge_doc',
-          'merge_doc',
-          'merge_doc',
-          'drop_section',
-          'drop_doc_type',
-          'relink_merged_docs',
-        ],
-      );
-      expect(
-        shippedPackFiles.keys.where(
-          (k) => k.startsWith('software-tech/patterns/'),
-        ),
-        hasLength(10),
-      );
-      final patternMoves = [
-        for (final migration in manifest.migrations)
-          for (final step in migration.steps)
-            if (step is MoveFile &&
-                (step.from.contains('patterns/') ||
-                    step.to.contains('patterns/')))
-              step,
-      ];
-      expect(patternMoves, isEmpty);
     });
 
     test('a project pinning both packs resolves with no fault', () {

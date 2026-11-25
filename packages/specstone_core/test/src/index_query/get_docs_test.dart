@@ -129,7 +129,6 @@ void main() {
           '# Roots\n\n## Root schema\nfirst\n\n## Root-schema\nsecond\n',
         ),
         match: const NoDocType(),
-        statusesOutside: true,
       ).content;
       expect(content.sections.map((s) => s.key), [
         'root_schema',

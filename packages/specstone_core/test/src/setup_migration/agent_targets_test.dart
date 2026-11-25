@@ -14,7 +14,6 @@ import 'package:specstone_core/src/setup_migration/models/code_file.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show planSkillAndAgentFiles, skillAndAgentFileDrifts;
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
@@ -91,23 +90,6 @@ void _apply(Directory base, AgentWritePlan plan) {
 }
 
 void main() {
-  group('agentFilesSince', () {
-    test('prd-core 1.7.0 and software-tech 1.4.0', () {
-      expect(
-        agentFilesSince.keys,
-        unorderedEquals(['prd-core', 'software-tech']),
-      );
-      expect(
-        agentFilesSince['prd-core'],
-        PackVersion.parse('1.7.0', file: 'x', key: 'x'),
-      );
-      expect(
-        agentFilesSince['software-tech'],
-        PackVersion.parse('1.4.0', file: 'x', key: 'x'),
-      );
-    });
-  });
-
   group('repositoryTopOf', () {
     test('the nearest folder above holding a .git folder', () async {
       final base = await _base({

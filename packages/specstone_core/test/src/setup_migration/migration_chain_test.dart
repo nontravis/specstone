@@ -140,58 +140,6 @@ migrations:
     expect(step.relinkRules!.isEmpty, isTrue);
   });
 
-  test('a pin at or below the from of a move_to_record '
-      'entry selects its step; a pin above it selects none', () {
-    PackManifest pack() => PackManifest.parse('''
-name: acme
-version: 1.5.0
-migrations:
-  - from: 1.4.0
-    steps:
-      - move_to_record: {doc_types: [user_story, fr], fields: [status, implements], to: implementation}
-''', file: _file);
-
-    for (final pin in ['1.3.0', '1.4.0']) {
-      final selected = selectUpgrades(
-        {'acme': _v(pin)},
-        {'acme': pack()},
-      ).single.steps;
-      expect(selected, hasLength(1), reason: 'pin $pin');
-      expect(selected.single.from.toString(), '1.4.0');
-      expect(selected.single.step, isA<MoveToRecord>());
-    }
-    expect(
-      selectUpgrades({'acme': _v('1.4.1')}, {'acme': pack()}).single.steps,
-      isEmpty,
-    );
-  });
-
-  test('a pin below the version that ships a stamp_code_fingerprints entry '
-      'selects its step after every older entry; a pin at the available '
-      'version selects none', () {
-    PackManifest pack() => PackManifest.parse('''
-name: acme
-version: 1.7.0
-migrations:
-  - from: 1.6.0
-    steps:
-      - stamp_code_fingerprints: {}
-  - from: 1.4.0
-    steps:
-      - rename_field: {doc_type: spec, from: owner, to: oncall}
-''', file: _file);
-
-    for (final pin in ['1.3.0', '1.5.0', '1.6.0']) {
-      final selected = selectUpgrades(
-        {'acme': _v(pin)},
-        {'acme': pack()},
-      ).single.steps;
-      expect(selected.last.step, isA<StampCodeFingerprints>(), reason: pin);
-      expect(selected.last.from.toString(), '1.6.0', reason: pin);
-    }
-    expect(selectUpgrades({'acme': _v('1.7.0')}, {'acme': pack()}), isEmpty);
-  });
-
   test('no entry in range changes the pin '
       'only', () {
     final upgrades = selectUpgrades(

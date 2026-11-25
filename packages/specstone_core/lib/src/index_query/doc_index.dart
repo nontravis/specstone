@@ -84,8 +84,7 @@ final class DocIndex {
   /// Name ends with it; an untyped doc and a Name's whole text stay out.
   late final Map<String, List<IndexedDoc>> _bySuffix = _suffixMap(docs);
 
-  /// The store-free statuses and tree of [docs], which the check and the
-  /// migrate stamp read too.
+  /// The store-free statuses and tree of [docs], which `check` reads too.
   final StatusTree statusTree;
 
   /// Returns the doc at [docPath], or null when none is indexed there.

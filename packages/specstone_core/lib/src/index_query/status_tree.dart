@@ -18,8 +18,7 @@ final class _RecordDoc {
 /// The docs of one snapshot as a parent tree, with each story's, FR's, and
 /// feature's status in each code target, read from no store.
 ///
-/// The index serves it, and the migrate stamp builds one over the texts of a
-/// run, so both read one status rule.
+/// The index serves it, and `check` reads it for every status rule.
 final class StatusTree {
   /// Reads [docs], each nested under its `parentPath`, or under the one
   /// [parents] gives it when [parents] is not null.

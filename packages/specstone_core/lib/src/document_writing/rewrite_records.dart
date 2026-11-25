@@ -504,7 +504,7 @@ NewRecord _newRecordFor(
   final featureType = session.index.typeOf(arrival.feature);
   final record = featureType == null
       ? null
-      : newRecordOf(
+      : _newRecordOf(
           set,
           recordType,
           featureType: featureType,
@@ -527,9 +527,9 @@ NewRecord _newRecordFor(
 /// [featureDocPath] holding [lines]; null when [recordType] has no path of its
 /// own for the feature.
 ///
-/// The one builder of a new record, for a move or rename and for a migration.
+/// The one builder of a new record, for a move or rename.
 /// [target] reads the path in that code target's folder.
-NewRecord? newRecordOf(
+NewRecord? _newRecordOf(
   MergedSet set,
   MergedDocType recordType, {
   required MergedDocType featureType,

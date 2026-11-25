@@ -88,9 +88,6 @@ final class CheckContext {
   List<String> nestedRootsOf(CodeTarget target) =>
       _session.project.nestedRootsOf(target);
 
-  /// Whether the config pins a pack at or above the approval stamps.
-  bool get stampsHaveRun => _session.project.stampsHaveRun;
-
   /// The Verification matrix mode the config names.
   MatrixMode get matrixMode => _session.project.matrixMode;
 

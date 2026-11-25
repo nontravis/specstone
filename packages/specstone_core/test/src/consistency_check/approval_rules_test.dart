@@ -1,22 +1,13 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:specstone_core/src/consistency_check/check_report.dart';
-import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
-import 'package:specstone_core/src/index_query/read_session.dart';
-import 'package:specstone_core/src/templates/shipped_pack_files.dart';
-import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/cold_node.dart';
-import '../../helpers/shipped_pins.dart'
-    show pinStatusesBelow, shippedStatusesOutside, statusesBelowResolver;
 import '../../helpers/temp_tree.dart';
 
 const _stale =
@@ -29,48 +20,6 @@ List<Finding> _stales(CheckReport report) => [
     if (f.kind == FindingKind.approvalStale) f,
 ];
 
-/// Checks the fixture project pinned at [prdCore] and [softwareTech], below
-/// both approval pins unless one is given.
-Future<CheckReport> _checkBelowPins(
-  Map<String, String> extra, {
-  String prdCore = '1.6.0',
-  String softwareTech = '1.3.0',
-}) async {
-  final root = await writeTree(
-    withCodeFingerprints({
-      ...checkProjectFiles(),
-      '.specstone/config.yaml':
-          'packs:\n  prd-core: $prdCore\n  software-tech: $softwareTech\n',
-      ...extra,
-    }),
-  );
-  final files = {...shippedPackFiles};
-  for (final MapEntry(:key, :value) in {
-    'prd-core': prdCore,
-    'software-tech': softwareTech,
-  }.entries) {
-    final manifest = utf8.decode(files['$key/pack.yaml']!);
-    files['$key/pack.yaml'] = Uint8List.fromList(
-      utf8.encode(
-        manifest.replaceFirst(
-          RegExp(r'^version: .*$', multiLine: true),
-          'version: $value',
-        ),
-      ),
-    );
-  }
-  final session = ReadSession.open(
-    templates: TemplateResolver(shippedFiles: files),
-    workingDirectory: root,
-    homeDirectory: null,
-  );
-  try {
-    return await runCheck(session);
-  } finally {
-    session.close();
-  }
-}
-
 /// Returns an LF fixture FR whose approval hash matches [shape], found by
 /// trying a counter in its Rationale, and that hash.
 (String, String) _frHashing(RegExp shape) {
@@ -82,11 +31,7 @@ Future<CheckReport> _checkBelowPins(
       'must not sign in.',
       'must not sign in $i.',
     );
-    final hash = approvalHashOf(
-      text,
-      docType,
-      statusesOutside: shippedStatusesOutside,
-    );
+    final hash = approvalHashOf(text, docType);
     if (shape.hasMatch(hash)) return (text, hash);
   }
   throw StateError('no text hashes to $shape');
@@ -181,40 +126,13 @@ void main() {
     const from = 'email_login/check_password:implemented';
     const to = 'email_login/check_password:planned';
 
-    test('raises no approval_stale at the statuses pin', () async {
+    test('raises no approval_stale', () async {
       final report = await checkOf(
         await writeCheckProject(
           extra: editedAfterApproval(loginRecord, [(from, to)]),
         ),
       );
       expect(_stales(report), isEmpty);
-    });
-
-    test('is one approval_stale below the statuses pin', () async {
-      const key = loginRecord;
-      final stamped = withApprovalHash(
-        checkProjectFiles()[key]!,
-        fixtureDocTypeOf(loginRecord),
-        statusesOutside: false,
-      );
-      final root = await writeCheckProject(
-        extra: {key: stamped.replaceFirst(from, to)},
-      );
-      pinStatusesBelow(root);
-      final session = ReadSession.open(
-        templates: statusesBelowResolver,
-        workingDirectory: root,
-        homeDirectory: null,
-      );
-      final CheckReport report;
-      try {
-        report = await runCheck(session);
-      } finally {
-        session.close();
-      }
-      final stale = _stales(report).single;
-      expect(stale.path, loginRecord);
-      expect(stale.message, _stale);
     });
   });
 
@@ -230,7 +148,7 @@ void main() {
     expect(_stales(report), isEmpty);
   });
 
-  test('a doc with no approved: key is one approval_stale on line 1 once the pins reach the stamps, and none below them or as a draft', () async {
+  test('a doc with no approved: key is one approval_stale on line 1, and none as a draft', () async {
     final plain = checkProjectFiles()['docs/$loginFr']!;
     final report = await checkOf(
       await writeCheckProject(
@@ -246,8 +164,6 @@ void main() {
     expect(finding.keys, isEmpty);
     expect(finding.name, 'login/email_login/check_password');
 
-    expect(_stales(await _checkBelowPins({'docs/$loginFr': plain})), isEmpty);
-
     final draft = await checkOf(
       await writeCheckProject(
         extra: {
@@ -261,14 +177,12 @@ void main() {
     expect(_stales(draft), isEmpty);
   });
 
-  test('approved: true is one approval_stale on its line with value true once the pins reach the stamps, and no other finding; below them it counts as approved', () async {
+  test('approved: true is one approval_stale on its line with value true, and no other finding', () async {
     final marked = fr('traced_from:\n', 'approved: true\ntraced_from:\n');
     final report = await checkOf(await writeCheckProject(extra: marked));
     expect(spots(report), ['$loginFr:2: approval_stale']);
     expect(report.findings.single.keys, {'recorded': 'true'});
     expect(report.findings.single.message, _stale);
-
-    expect(spots(await _checkBelowPins(marked)), isEmpty);
   });
 
   test('an untyped doc raises no approval_stale', () async {
@@ -362,49 +276,6 @@ void main() {
       expect(_stales(report), isEmpty);
     },
   );
-
-  test(
-    'a doc with no approved: key is stale when only prd-core reaches its pin',
-    () async {
-      for (final (prdCore, softwareTech) in [
-        ('1.7.0', '1.3.0'),
-        ('1.6.0', '1.4.0'),
-      ]) {
-        final report = await _checkBelowPins(
-          const {},
-          prdCore: prdCore,
-          softwareTech: softwareTech,
-        );
-        expect(
-          spots(report, FindingKind.approvalStale),
-          contains('$loginFr:1: approval_stale'),
-          reason: '$prdCore $softwareTech',
-        );
-      }
-    },
-  );
-
-  test('approved: true is stale with value true when only prd-core reaches its pin', () async {
-    for (final (prdCore, softwareTech) in [
-      ('1.7.0', '1.3.0'),
-      ('1.6.0', '1.4.0'),
-    ]) {
-      final report = await _checkBelowPins(
-        fr('traced_from:\n', 'approved: true\ntraced_from:\n'),
-        prdCore: prdCore,
-        softwareTech: softwareTech,
-      );
-      final inFr = [
-        for (final f in report.findings)
-          if (f.path == loginFr) f,
-      ];
-      expect(inFr.map((f) => f.kind), [
-        FindingKind.approvalStale,
-      ], reason: '$prdCore $softwareTech');
-      expect(inFr.single.line, 2);
-      expect(inFr.single.keys, {'recorded': 'true'});
-    }
-  });
 
   test('a literal overflowing exponent reads as written', () async {
     final report = await checkOf(

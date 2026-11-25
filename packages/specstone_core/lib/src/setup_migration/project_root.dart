@@ -7,12 +7,9 @@ import 'package:specstone_core/src/setup_migration/models/migrate_root.dart';
 import 'package:specstone_core/src/templates/models/root_match.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
-/// The legacy SDD context doc, relative to the project root.
-const legacyContextPath = 'docs/prds/d01_context.md';
-
 /// Returns the migrate root from [workingDirectory] upward, the first project
-/// root holding `.specstone/config.yaml`, [legacyContextPath], or a journal
-/// file, and the folder whose `docs` link led to it.
+/// root holding `.specstone/config.yaml` or a journal file, and the folder
+/// whose `docs` link led to it.
 ///
 /// The walk is [matchRootUpward], the one [findProjectRoot] takes. A journal
 /// sits beside the linked docs in a linked layout, which is the first
@@ -25,8 +22,7 @@ MigrateRoot locateMigrateRoot(Directory workingDirectory) {
     throw RenderFault(
       RenderFaultCode.projectNotFound,
       'no Specstone project: no folder from the working directory upward '
-      'holds $projectConfigPath, $legacyContextPath, or a pending '
-      '${MoveJournal.journalPath}',
+      'holds $projectConfigPath or a pending ${MoveJournal.journalPath}',
     );
   }
   final RootMatch(:folder, :root) = match;
@@ -40,9 +36,9 @@ MigrateRoot locateMigrateRoot(Directory workingDirectory) {
 /// from [workingDirectory] would write into.
 ///
 /// A project with a config is the one every write command opens. Without one,
-/// a folder holding the legacy context doc or a journal is the root `migrate`
-/// finds; with none, the root is the one `init` takes: [rootThroughDocsLink]
-/// of [workingDirectory], no walk up. Never throws `project_not_found`.
+/// a folder holding a journal is the root `migrate` finds; with none, the root
+/// is the one `init` takes: [rootThroughDocsLink] of [workingDirectory], no
+/// walk up. Never throws `project_not_found`.
 RootTrust locateSetupTrust(
   Directory workingDirectory, {
   required Directory? homeDirectory,
@@ -103,7 +99,6 @@ List<String> _namesOf(Iterable<String> parts) => [
 
 bool _isMarked(Directory folder) => const [
   projectConfigPath,
-  legacyContextPath,
   MoveJournal.journalPath,
 ].any((marker) => File.fromUri(folder.uri.resolve(marker)).existsSync());
 

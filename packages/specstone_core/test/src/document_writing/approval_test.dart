@@ -13,10 +13,6 @@ import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/models/migration_step.dart';
-import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
-import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
@@ -27,20 +23,12 @@ import '../../helpers/write_fixture.dart';
 const _approvedBody = '# Signup\n\nApproved body.\n';
 
 /// A committed copy that counts as approved: it carries its own hash.
-final String _approvedText = withApprovalHash(
-  _approvedBody,
-  _docType,
-  statusesOutside: true,
-);
+final String _approvedText = withApprovalHash(_approvedBody, _docType);
 
 /// Long enough that git still pairs a drafted copy with it as a rename.
 final String _longBody =
     '# Recover\n\n${List.filled(8, 'A step of the flow.\n').join()}';
-final String _longApproved = withApprovalHash(
-  _longBody,
-  _docType,
-  statusesOutside: true,
-);
+final String _longApproved = withApprovalHash(_longBody, _docType);
 const _draftText = '---\ndraft: true\n---\n# Signup\n\nDraft body.\n';
 
 const _docType = MergedDocType(
@@ -69,7 +57,6 @@ IndexedDoc _indexed(String lines) => parseIndexedDoc(
   docPath: 'a.md',
   bytes: utf8.encode('---\n$lines\n---\n# A\n'),
   match: const NoDocType(),
-  statusesOutside: true,
 ).doc;
 
 /// Whether this machine's `git` can make a SHA-256 repository.
@@ -104,7 +91,14 @@ Future<Directory> _repo(
 /// The ApprovalHash recipe as it stood before the one-parse rewrite: every
 /// key block spliced by its own parse, the empty frontmatter dropped, then
 /// the layout; the persisted hash must never drift from it.
-String _referenceHashOf(String lfText, MergedDocType? docType) {
+///
+/// A [statusesOutside] false recipe counts a record's statuses, as a copy
+/// approved before `software-tech` 1.7.0 does.
+String _referenceHashOf(
+  String lfText,
+  MergedDocType? docType, {
+  bool statusesOutside = true,
+}) {
   final kinds = docType?.listedGenerators.toSet() ?? const <String>{};
   var covered = lfText;
   if (kinds.isNotEmpty) {
@@ -119,7 +113,9 @@ String _referenceHashOf(String lfText, MergedDocType? docType) {
     'approved',
     'draft',
     for (final field in docType?.fields ?? const <MergedField>[])
-      if (field.type == FieldType.outputRef) field.id,
+      if (field.type == FieldType.outputRef ||
+          (statusesOutside && field.type == FieldType.recordStatus))
+        field.id,
   ]) {
     covered = withKeyBlock(covered, key, null);
   }
@@ -142,33 +138,12 @@ void main() {
       ? null
       : 'git cannot make a SHA-256 repository';
 
-  group('stampsHaveRun', () {
-    PackVersion v(String text) => PackVersion.parse(text, file: 'x', key: 'x');
-    for (final (pins, expected) in [
-      ({'prd-core': '1.6.0', 'software-tech': '1.3.0'}, false),
-      ({'prd-core': '1.7.0', 'software-tech': '1.3.0'}, true),
-      ({'prd-core': '1.6.0', 'software-tech': '1.4.0'}, true),
-      ({'prd-core': '1.7.0', 'software-tech': '1.4.0'}, true),
-      ({'prd-core': '1.6.9'}, false),
-      ({'prd-core': '1.8.0'}, true),
-      (<String, String>{'acme': '9.0.0'}, false),
-    ]) {
-      test('Approval: pins $pins -> $expected', () {
-        expect(
-          stampsHaveRun({for (final e in pins.entries) e.key: v(e.value)}),
-          expected,
-        );
-      });
-    }
-  });
-
   group('approvalHashOf', () {
     const body =
         '---\nstatus: planned\nimplements:\n  - a.dart:one\n---\n\n'
         '# Doc\n\n## Statement\n\nThe system shall do it.\n\n'
         '| a | b |\n|---|---|\n| x | y |\n';
-    String hash(String text) =>
-        approvalHashOf(text, _docType, statusesOutside: true);
+    String hash(String text) => approvalHashOf(text, _docType);
 
     test('ApprovalHash: 12 lowercase hex characters', () {
       expect(hash(body), matches(RegExp(r'^[0-9a-f]{12}$')));
@@ -208,36 +183,23 @@ void main() {
       );
       expect(retired, isNot(body));
       for (final docType in [_docType, null]) {
-        expect(
-          approvalHashOf(retired, docType, statusesOutside: true),
-          approvalHashOf(body, docType, statusesOutside: true),
-        );
-        expect(
-          approvalHashOf(more, docType, statusesOutside: true),
-          approvalHashOf(retired, docType, statusesOutside: true),
-        );
+        expect(approvalHashOf(retired, docType), approvalHashOf(body, docType));
+        expect(approvalHashOf(more, docType), approvalHashOf(retired, docType));
       }
     });
 
     test('a source_ref field stays inside the approval hash', () {
       const field = MergedField(id: 'origin', type: FieldType.sourceRef);
-      for (final outside in [true, false]) {
-        expect(isOutsideApproval(field, statusesOutside: outside), isFalse);
-      }
+      expect(isOutsideApproval(field), isFalse);
     });
 
-    test('a task_ref key block is not hashed, at any pin', () {
+    test('a task_ref key block is not hashed', () {
       final tasked = body.replaceFirst(
         'status: planned\n',
         'status: planned\ntasks:\n  - T-1\n  - "a/b:T-2"\n',
       );
       expect(tasked, isNot(body));
-      for (final outside in [true, false]) {
-        expect(
-          approvalHashOf(tasked, _docType, statusesOutside: outside),
-          approvalHashOf(body, _docType, statusesOutside: outside),
-        );
-      }
+      expect(approvalHashOf(tasked, _docType), approvalHashOf(body, _docType));
     });
 
     test(
@@ -284,15 +246,11 @@ void main() {
     });
 
     test('an untyped doc hashes its text less approved and draft', () {
-      expect(
-        approvalHashOf('# A\n', null, statusesOutside: true),
-        baseHashOf('# A\n'),
-      );
+      expect(approvalHashOf('# A\n', null), baseHashOf('# A\n'));
       expect(
         approvalHashOf(
           '---\ndraft: true\napproved: "0123456789ab"\n---\n# A\n',
           null,
-          statusesOutside: true,
         ),
         baseHashOf('# A\n'),
       );
@@ -305,8 +263,8 @@ void main() {
         '## Statement\n\nText.\n';
 
     test('the double-quoted hash at the field slot', () {
-      final written = withApprovalHash(draft, _docType, statusesOutside: true);
-      final hash = approvalHashOf(draft, _docType, statusesOutside: true);
+      final written = withApprovalHash(draft, _docType);
+      final hash = approvalHashOf(draft, _docType);
       expect(
         written,
         '---\ndraft: true\nstatus: planned\napproved: "$hash"\n---\n\n'
@@ -318,8 +276,8 @@ void main() {
       const old =
           '---\napproved: true\nstatus: planned\n---\n\n# Doc\n\n'
           '## Statement\n\nText.\n';
-      final written = withApprovalHash(old, _docType, statusesOutside: true);
-      final hash = approvalHashOf(old, _docType, statusesOutside: true);
+      final written = withApprovalHash(old, _docType);
+      final hash = approvalHashOf(old, _docType);
       expect(
         written,
         startsWith(
@@ -335,18 +293,18 @@ void main() {
       ('without frontmatter', '# Doc\n\n## Statement\n\nText.\n'),
     ]) {
       test('a doc $label matches its stamp', () {
-        final written = withApprovalHash(text, _docType, statusesOutside: true);
+        final written = withApprovalHash(text, _docType);
         final stamp = RegExp('approved: "([0-9a-f]{12})"')
             .firstMatch(written)!
             .group(1);
-        expect(approvalHashOf(written, _docType, statusesOutside: true), stamp);
+        expect(approvalHashOf(written, _docType), stamp);
       });
     }
   });
 
   group('countsAsApprovedCopy', () {
     const base = '# Signup\n\nBody.\n';
-    final hashed = withApprovalHash(base, _docType, statusesOutside: true);
+    final hashed = withApprovalHash(base, _docType);
 
     test('its own hash counts; a stale hash, a draft, '
         'or no mark does not', () {
@@ -417,9 +375,8 @@ void main() {
           _ => null,
         };
         for (final text in [lf, ...edges]) {
-          // The reference recipe predates the statuses pin, so it counts them.
           expect(
-            approvalHashOf(text, type, statusesOutside: false),
+            approvalHashOf(text, type),
             _referenceHashOf(text, type),
             reason: '$docPath: $text',
           );
@@ -438,64 +395,40 @@ void main() {
         : lines.contains('123e45678901')
         ? '123e45678901'
         : hash;
-    // (label, frontmatter lines, awaits below pins, awaits at pins, guarded)
-    final rows = <(String, String, bool, bool, bool)>[
-      ('draft: true', 'draft: true', true, true, false),
-      ('a matching hash', 'approved: "$hash"', false, false, true),
-      ('a stale hash', 'approved: "0123456789ab"', true, true, true),
-      ('approved: true', 'approved: true', false, true, true),
-      ('neither key', 'status: planned', false, true, true),
-      (
-        'an unquoted 12-digit value',
-        'approved: 123456789012',
-        true,
-        true,
-        true,
-      ),
-      (
-        'a quoted 12-digit value',
-        'approved: "123456789012"',
-        false,
-        false,
-        true,
-      ),
+    // (label, frontmatter lines, awaits approval, guarded)
+    final rows = <(String, String, bool, bool)>[
+      ('draft: true', 'draft: true', true, false),
+      ('a matching hash', 'approved: "$hash"', false, true),
+      ('a stale hash', 'approved: "0123456789ab"', true, true),
+      ('approved: true', 'approved: true', true, true),
+      ('neither key', 'status: planned', true, true),
+      ('an unquoted 12-digit value', 'approved: 123456789012', true, true),
+      ('a quoted 12-digit value', 'approved: "123456789012"', false, true),
       (
         'a float-shaped 12-character value',
         'approved: 123e45678901',
         true,
         true,
-        true,
       ),
     ];
-    for (final (label, lines, belowAwaits, atAwaits, guarded) in rows) {
+    for (final (label, lines, awaits, guarded) in rows) {
       for (final fields in [
         ('Doc', ApprovalFields.of(Doc.parse('---\n$lines\n---\n# A\n'))),
         ('IndexedDoc', ApprovalFields.ofIndexed(_indexed(lines))),
       ]) {
         final (reader, f) = fields;
         test('the approval rule: $label via $reader', () {
-          expect(
-            awaitsApproval(f, hashOf(lines), stampsHaveRun: false),
-            belowAwaits,
-            reason: 'awaits below pins',
-          );
-          expect(
-            awaitsApproval(f, hashOf(lines), stampsHaveRun: true),
-            atAwaits,
-            reason: 'awaits at pins',
-          );
+          expect(awaitsApproval(f, hashOf(lines)), awaits);
           expect(isGuarded(f), guarded);
         });
       }
     }
 
-    test('a doc with no frontmatter awaits approval at the pins alone, and '
-        'is guarded', () {
+    test('a doc with no frontmatter awaits approval and is guarded', () {
       const text = '# A\n';
       final f = ApprovalFields.of(Doc.parse(text));
-      final hash = comparedApprovalHash(text, null, statusesOutside: true);
-      expect(awaitsApproval(f, hash, stampsHaveRun: true), isTrue);
-      expect(awaitsApproval(f, hash, stampsHaveRun: false), isFalse);
+      final hash = comparedApprovalHash(text, null);
+      expect(awaitsApproval(f, hash), isTrue);
       expect(isGuarded(f), isTrue);
     });
 
@@ -504,24 +437,14 @@ void main() {
       const text = '---\ndraft: true\napproved: [\n---\n# A\n';
       final f = ApprovalFields.of(Doc.parse(text));
       expect(f.isDraft, isFalse);
-      expect(comparedApprovalHash(text, null, statusesOutside: true), isNull);
-      for (final ran in [false, true]) {
-        expect(
-          awaitsApproval(
-            f,
-            comparedApprovalHash(text, null, statusesOutside: true),
-            stampsHaveRun: ran,
-          ),
-          isFalse,
-        );
-      }
+      expect(comparedApprovalHash(text, null), isNull);
+      expect(awaitsApproval(f, comparedApprovalHash(text, null)), isFalse);
       expect(isGuarded(f), isTrue);
       expect(
         parseIndexedDoc(
           docPath: 'a.md',
           bytes: utf8.encode(text),
           match: const NoDocType(),
-          statusesOutside: true,
         ).doc.approvalHash,
         isNull,
       );
@@ -536,7 +459,6 @@ void main() {
             docPath: 'a.md',
             bytes: utf8.encode(text),
             match: const NoDocType(),
-            statusesOutside: true,
           ).doc,
         ),
       ]) {
@@ -1230,79 +1152,67 @@ void main() {
         '  - login/check:$path\n---\n\n# Record\n';
 
     test('the code paths of a record stay outside its hash', () {
-      for (final outside in [true, false]) {
-        expect(
-          approvalHashOf(
-            text(path: 'b.dart'),
-            record,
-            statusesOutside: outside,
-          ),
-          approvalHashOf(text(), record, statusesOutside: outside),
-          reason: '$outside',
-        );
-      }
-    });
-
-    test('at the statuses pin, the statuses of a record stay outside its '
-        'hash', () {
       expect(
-        approvalHashOf(text(status: 'skipped'), record, statusesOutside: true),
-        approvalHashOf(text(), record, statusesOutside: true),
+        approvalHashOf(text(path: 'b.dart'), record),
+        approvalHashOf(text(), record),
       );
     });
 
-    test('below the statuses pin, the statuses of a record count in its '
-        'hash', () {
+    // A copy approved before `software-tech` 1.7.0 carries the hash that
+    // counts a record's statuses.
+    String approvedCountingStatuses(String text) => withKeyBlock(
+      text,
+      'approved',
+      'approved: "${_referenceHashOf(text, record, statusesOutside: false)}"\n',
+    );
+
+    test('the statuses of a record stay outside its hash', () {
       expect(
-        approvalHashOf(text(status: 'skipped'), record, statusesOutside: false),
-        isNot(approvalHashOf(text(), record, statusesOutside: false)),
+        approvalHashOf(text(status: 'skipped'), record),
+        approvalHashOf(text(), record),
       );
     });
 
-    test('the written and the compared hash follow the rule they are '
-        'given', () {
-      for (final outside in [true, false]) {
-        final stamped = withApprovalHash(
-          text(),
-          record,
-          statusesOutside: outside,
-        );
-        expect(
-          ApprovalFields.of(Doc.parse(stamped)).approvedValue,
-          comparedApprovalHash(stamped, record, statusesOutside: outside),
-          reason: '$outside',
-        );
-      }
+    test('the written and the compared hash agree', () {
+      final stamped = withApprovalHash(text(), record);
+      expect(
+        ApprovalFields.of(Doc.parse(stamped)).approvedValue,
+        comparedApprovalHash(stamped, record),
+      );
     });
 
     test('a copy approved by either rule counts, before and after the '
-        'upgrade to the statuses pin', () {
-      for (final outside in [true, false]) {
-        expect(
-          countsAsApprovedCopy(
-            withApprovalHash(text(), record, statusesOutside: outside),
-            record,
-          ),
-          isTrue,
-          reason: '$outside',
-        );
-      }
+        'upgrade to software-tech 1.7.0', () {
+      expect(
+        countsAsApprovedCopy(withApprovalHash(text(), record), record),
+        isTrue,
+      );
+      expect(
+        countsAsApprovedCopy(approvedCountingStatuses(text()), record),
+        isTrue,
+      );
     });
 
     test('a status changed after approval keeps a copy approved by the rule '
         'that leaves statuses out, and no other', () {
-      for (final outside in [true, false]) {
-        final restatused = withApprovalHash(
-          text(),
+      String restatused(String stamped) => stamped.replaceFirst(
+        'login/check:implemented',
+        'login/check:skipped',
+      );
+      expect(
+        countsAsApprovedCopy(
+          restatused(withApprovalHash(text(), record)),
           record,
-          statusesOutside: outside,
-        ).replaceFirst('login/check:implemented', 'login/check:skipped');
-        expect(
-          countsAsApprovedCopy(restatused, record),
-          outside,
-          reason: '$outside',
-        );
-      }
+        ),
+        isTrue,
+      );
+      expect(
+        countsAsApprovedCopy(
+          restatused(approvedCountingStatuses(text())),
+          record,
+        ),
+        isFalse,
+      );
     });
   });
 
@@ -1317,8 +1227,7 @@ void main() {
         '${hasMatrix ? '## Verification matrix\n\n$matrix\n' : ''}'
         '## Notes\n\nSee the rows.\n';
     final type = recordDocType(sections: [matrixSection, notes]);
-    String hash(String text) =>
-        approvalHashOf(text, type, statusesOutside: true);
+    String hash(String text) => approvalHashOf(text, type);
 
     test("a record's approval hash ignores its matrix section", () {
       final unchanged = hash(record());
@@ -1341,14 +1250,13 @@ void main() {
     });
 
     test('an approved record stays clean after a row write', () {
-      final stamped = withApprovalHash(record(), type, statusesOutside: true);
+      final stamped = withApprovalHash(record(), type);
       final edited = stamped.replaceFirst('a wrong', 'a bad');
       expect(edited, isNot(stamped));
       expect(
         awaitsApproval(
           ApprovalFields.of(Doc.parse(edited)),
-          comparedApprovalHash(edited, type, statusesOutside: true),
-          stampsHaveRun: true,
+          comparedApprovalHash(edited, type),
         ),
         isFalse,
       );
@@ -1372,50 +1280,11 @@ void main() {
         ('a record with no matrix header', type, record(hasMatrix: false)),
       ]) {
         expect(
-          approvalHashOf(text, docType, statusesOutside: false),
+          approvalHashOf(text, docType),
           _referenceHashOf(text, docType),
           reason: name,
         );
       }
     });
-  });
-
-  group('statusesOutsideApproval', () {
-    PackVersion v(String text) => PackVersion.parse(text, file: 'x', key: 'x');
-
-    test('its pin is one minor past the software-tech entry that stamps code '
-        'fingerprints', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
-        file: 'packs/software-tech/pack.yaml',
-      );
-      final from = manifest.migrations
-          .singleWhere(
-            (entry) => entry.steps.any((step) => step is StampCodeFingerprints),
-          )
-          .from;
-      expect(
-        statusesOutsideApprovalSince,
-        v('${from.major}.${from.minor + 1}.0'),
-      );
-    });
-
-    for (final (pins, expected) in [
-      ({'software-tech': '1.6.0'}, false),
-      ({'software-tech': '1.6.9'}, false),
-      ({'software-tech': '1.7.0'}, true),
-      ({'software-tech': '2.0.0'}, true),
-      ({'prd-core': '9.0.0'}, false),
-      (<String, String>{}, false),
-    ]) {
-      test('$pins gives $expected', () {
-        expect(
-          statusesOutsideApproval({
-            for (final e in pins.entries) e.key: v(e.value),
-          }),
-          expected,
-        );
-      });
-    }
   });
 }

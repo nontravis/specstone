@@ -31,6 +31,7 @@ void main() {
     'personal_pack_conflict',
     'personal_pack_version_differs',
     'pack_pin_older',
+    'pack_pin_below_floor',
     'pack_pin_newer',
     'prd_core_missing',
     'doc_type_unknown',
@@ -41,9 +42,9 @@ void main() {
   ];
 
   group('FaultCode', () {
-    test('wire codes equal the 35 catalog codes in order', () {
+    test('wire codes equal the 36 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
-      expect(FaultCode.values, hasLength(35));
+      expect(FaultCode.values, hasLength(36));
     });
 
     test('only the two unknown-id codes exit 64, the rest 78', () {

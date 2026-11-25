@@ -233,8 +233,7 @@ void main() {
     const body =
         '# Login project architecture\n\n## Technical diagram\n\nOne.\n';
     final type = prdCoreDocType(set, 'project_architecture');
-    String hashOf(String text) =>
-        approvalHashOf(text, type, statusesOutside: true);
+    String hashOf(String text) => approvalHashOf(text, type);
 
     expect(hashOf('---\ncovers:\n  - app/lib/\n---\n\n$body'), hashOf(body));
   });

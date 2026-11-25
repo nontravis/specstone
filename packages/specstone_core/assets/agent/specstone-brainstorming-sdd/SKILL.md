@@ -28,8 +28,8 @@ specstone context <target> [<target> …] --for design --out
 - **0:** the saved files are the ground. Before the first question, read them per the `specstone-read-sdd` skill,
   each read-first file by its read plan. Ground a doc they lack by its own
   `specstone context <doc> --for design --out`, never `get`; open no doc file.
-- **78, `project_not_found`:** tell the Owner the project is on the old format; `specstone migrate` moves it, or they
-  keep the old skills. Stop; read or write no doc.
+- **78, `project_not_found`:** tell the Owner no Specstone project is found here; `specstone init` starts one.
+  Stop; run nothing more, read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
 From a source (another tool's spec or design, a link, or an issue) the first call is

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -13,9 +12,11 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
-import '../../helpers/legacy_fixture.dart';
+import '../../helpers/legacy_fixture.dart' show commitRepo;
 import '../../helpers/relative_link.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
+import '../../helpers/upgrade_fixture.dart';
 import '../../helpers/write_fixture.dart' show testHome, writeJournal;
 
 final String? _linksUnavailable = Platform.isWindows
@@ -43,9 +44,10 @@ Future<({Directory base, Directory clone, Directory victim})> _clone([
   );
 }
 
-/// Records the trust `trust` would, run from [folder] before any config.
-void _trust(Directory folder) =>
-    locateSetupTrust(folder, homeDirectory: testHome()).record();
+/// Records the trust `trust` would, run from [folder] before any config, in
+/// [home] or the test home.
+void _trust(Directory folder, {Directory? home}) =>
+    locateSetupTrust(folder, homeDirectory: home ?? testHome()).record();
 
 /// Returns the bytes of every file under [root] outside `.git`, keyed by its
 /// relative path, and every folder as an empty list.
@@ -64,27 +66,24 @@ Map<String, List<int>> _bytesUnder(Directory root) {
   return tree;
 }
 
-Future<int> _init(Directory root, {RunGit runGit = runRealGit}) async =>
-    await runInit(
-      InitRequest(
-        workingDirectory: root,
-        homeDirectory: testHome(),
-        templates: TemplateResolver(),
-        confirmation: OwnerConfirmation.missing,
-        readLine: () => null,
-        out: StringBuffer(),
-        runGit: runGit,
-      ),
-    );
+Future<int> _init(Directory root) async => await runInit(
+  InitRequest(
+    workingDirectory: root,
+    homeDirectory: testHome(),
+    templates: TemplateResolver(),
+    out: StringBuffer(),
+  ),
+);
 
 Future<int> _migrate(
   Directory root, {
   bool dryRun = false,
   StringBuffer? out,
+  Directory? home,
 }) async => await runMigrate(
   MigrateRequest(
     workingDirectory: root,
-    homeDirectory: testHome(),
+    homeDirectory: home ?? testHome(),
     templates: TemplateResolver(),
     dryRun: dryRun,
     confirmation: OwnerConfirmation.prompt,
@@ -246,21 +245,14 @@ void main() {
     });
   });
 
-  group('a legacy migrate through a docs link', () {
-    Future<Directory> linkedTree() async {
-      final tree = await writeTree(linkedAcme({'.gitignore': 'code/docs\n'}));
-      if (!linkCodeDocs(tree)) return tree;
-      commitRepo(Directory('${tree.path}/ws'));
-      return Directory('${tree.resolveSymbolicLinksSync()}/ws');
-    }
-
+  group('a migrate through a docs link', () {
     test('refuses 73 before any write, and the tree keeps its bytes', () async {
-      final ws = await linkedTree();
-      final code = Directory('${ws.path}/code');
+      final LinkedUpgradeFixture(project: ws, :code, :home) =
+          (await linkedUpgradeFixture(commit: true))!;
       final before = _bytesUnder(ws);
 
       await expectLater(
-        () => _migrate(code),
+        () => _migrate(code, home: home),
         _refuses(
           '.specstone/trash/journal.json',
           'the project folder ${ws.path} was reached through the docs '
@@ -273,13 +265,13 @@ void main() {
 
     test('a dry run from there refuses 73 before the plan, prints nothing, and '
         'writes nothing', () async {
-      final ws = await linkedTree();
-      final code = Directory('${ws.path}/code');
+      final LinkedUpgradeFixture(project: ws, :code, :home) =
+          (await linkedUpgradeFixture(commit: true))!;
       final before = _bytesUnder(ws);
       final out = StringBuffer();
 
       await expectLater(
-        () => _migrate(code, dryRun: true, out: out),
+        () => _migrate(code, dryRun: true, out: out, home: home),
         _refuses(
           '.specstone/trash/journal.json',
           'the project folder ${ws.path} was reached through the docs '
@@ -295,13 +287,13 @@ void main() {
       'a dry run from there prints the plan and writes nothing once the Owner '
       'trusts the roots',
       () async {
-        final ws = await linkedTree();
-        final code = Directory('${ws.path}/code');
-        _trust(code);
+        final LinkedUpgradeFixture(project: ws, :code, :home) =
+            (await linkedUpgradeFixture(commit: true))!;
+        _trust(code, home: home);
         final before = _bytesUnder(ws);
         final out = StringBuffer();
 
-        expect(await _migrate(code, dryRun: true, out: out), 0);
+        expect(await _migrate(code, dryRun: true, out: out, home: home), 0);
 
         expect(out.toString(), contains('dry run: nothing written'));
         expect(_bytesUnder(ws), before);
@@ -311,13 +303,13 @@ void main() {
 
     test('a dry run on a pending journal refuses with the trust text, not the '
         'step path, and writes nothing', () async {
-      final ws = await linkedTree();
-      final code = Directory('${ws.path}/code');
+      final LinkedUpgradeFixture(project: ws, :code, :home) =
+          (await linkedUpgradeFixture(commit: true))!;
       writeJournal(ws, [const WriteStep.unguarded('docs/prds/x.md', 'text')]);
       final before = _bytesUnder(ws);
 
       await expectLater(
-        () => _migrate(code, dryRun: true),
+        () => _migrate(code, dryRun: true, home: home),
         _refuses(
           '.specstone/trash/journal.json',
           'the project folder ${ws.path} was reached through the docs '
@@ -329,20 +321,24 @@ void main() {
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('applies after the Owner trusts the roots', () async {
-      final ws = await linkedTree();
-      final code = Directory('${ws.path}/code');
-      _trust(code);
+      final LinkedUpgradeFixture(project: ws, :code, :home) =
+          (await linkedUpgradeFixture(commit: true))!;
+      _trust(code, home: home);
 
-      expect(await _migrate(code), 0);
+      expect(await _migrate(code, home: home), 0);
 
-      expect(File('${ws.path}/.specstone/config.yaml').existsSync(), isTrue);
+      expect(
+        File('${ws.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.1.0'),
+      );
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('with a link to a project below the folder holding it needs no '
         'record', () async {
+      final home = await acmeHome(movesRunbook: true);
       final tree = Directory(
         (await writeTree({
-          for (final MapEntry(:key, :value) in acmeLegacy.entries)
+          for (final MapEntry(:key, :value) in upgradeFiles().entries)
             'outer/below/$key': value,
           'outer/keep.txt': '',
         })).resolveSymbolicLinksSync(),
@@ -353,15 +349,19 @@ void main() {
       final outer = Directory('${tree.path}/outer');
 
       expect(locateSetupTrust(outer, homeDirectory: null).needsRecord, isFalse);
-      expect(await _migrate(outer), 0);
+      expect(await _migrate(outer, home: home), 0);
 
-      expect(File('${below.path}/.specstone/config.yaml').existsSync(), isTrue);
+      expect(
+        File('${below.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.1.0'),
+      );
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('a pack upgrade refuses 73 naming the journal, before any git check '
         'or plan, and the tree keeps its bytes', () async {
+      final home = await acmeHome();
       final tree = await writeTree({
-        'ws/.specstone/config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+        'ws/.specstone/config.yaml': '${shippedPinsConfig()}$acmeOldPinLine',
         'ws/docs/prds/PROJECT.md': '# Project\n',
         'ws/code/keep.txt': '',
       });
@@ -374,7 +374,7 @@ void main() {
       final out = StringBuffer();
 
       await expectLater(
-        () => _migrate(code, out: out),
+        () => _migrate(code, out: out, home: home),
         _refuses(
           '.specstone/trash/journal.json',
           'the project folder ${ws.path} was reached through the docs '
@@ -382,7 +382,7 @@ void main() {
         ),
       );
       await expectLater(
-        () => _migrate(code, dryRun: true, out: out),
+        () => _migrate(code, dryRun: true, out: out, home: home),
         _refuses(
           '.specstone/trash/journal.json',
           'the project folder ${ws.path} was reached through the docs '
@@ -395,12 +395,15 @@ void main() {
     }, skip: _linksUnavailable ?? (hasGit ? null : 'git is not available'));
 
     test('with no link needs no record', () async {
-      final root = await gitFixture(acmeLegacy);
+      final UpgradeFixture(project: root, :home) = await upgradeFixture();
 
       expect(locateSetupTrust(root, homeDirectory: null).needsRecord, isFalse);
-      expect(await _migrate(root), 0);
+      expect(await _migrate(root, home: home), 0);
 
-      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
+      expect(
+        File('${root.path}/.specstone/config.yaml').readAsStringSync(),
+        contains('acme: 1.1.0'),
+      );
     }, skip: hasGit ? null : 'git is not available');
   });
 }

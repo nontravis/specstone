@@ -13,7 +13,7 @@ import '../../helpers/cold_node.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart' show gitFixture;
 import '../../helpers/shipped_pins.dart';
-import '../../helpers/write_fixture.dart' show testHome;
+import '../../helpers/upgrade_fixture.dart';
 
 const _refused = 'sequenceDiagram\n  A->>B: ok\n  A->>B: x;y';
 
@@ -38,10 +38,11 @@ void main() {
     'the closing count of an applied upgrade holds the diagram_parse_failed '
     'finding of a refused block',
     () async {
+      final home = await acmeHome();
       final root = await gitFixture({
         for (final MapEntry(:key, :value) in checkProjectFiles().entries)
           key: value,
-        '.specstone/config.yaml': shippedPinsOneMinorBelow('prd-core'),
+        '.specstone/config.yaml': '${shippedPinsConfig()}$acmeOldPinLine',
         'docs/$loginArchitecture': _architectureWith(_refused),
       });
       final out = StringBuffer();
@@ -50,7 +51,7 @@ void main() {
       final status = await runMigrate(
         MigrateRequest(
           workingDirectory: root,
-          homeDirectory: testHome(),
+          homeDirectory: home,
           templates: TemplateResolver(),
           dryRun: false,
           confirmation: OwnerConfirmation.prompt,
@@ -65,7 +66,7 @@ void main() {
         (session) async => runCheck(session),
         templates: TemplateResolver(),
         workingDirectory: root,
-        homeDirectory: testHome(),
+        homeDirectory: home,
       );
       final parseFindings = report.findings.where(
         (f) => f.kind == FindingKind.diagramParseFailed,

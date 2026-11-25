@@ -16,7 +16,7 @@ Map<String, String> trackedBlocksOf(RenumberDoc doc) => {
 
 Map<String, String> _scenarioBlocksOf(RenumberDoc doc) => {
   ...doc.scenarioBlocks,
-  for (final (:item, to: _, from: _, docPath: _) in doc.lettered)
+  for (final LetteredItem(:item) in doc.lettered)
     if (item.prefix == scenarioIdPrefix)
       scenarioBlockKeyOf(item.id!): doc.lines
           .sublist(item.line - 1, item.endLine)

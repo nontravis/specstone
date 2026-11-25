@@ -9,9 +9,10 @@ description: Use when about to write, edit, or confirm a PRD or spec doc in a Sp
 
 1. Run `specstone folder`, then `specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"`: `<folder>` is
    what `folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
-2. Exit 78 `project_not_found`: tell the Owner the project is on the old format (`specstone migrate` moves it, or
-   they keep the old skills), then stop: run, read, and write nothing.
-3. `check` exit 0 or 1: new format, even from a subfolder; its file is the baseline: search it, never read it whole.
+2. Exit 78 `project_not_found`: tell the Owner no Specstone project is found here (`specstone init` starts
+   one), then stop: run, read, and write nothing.
+3. `check` exit 0 or 1: a project is found, even from a subfolder; its file is the baseline: search it,
+   never read it whole.
 4. Any other exit: report the CLI's error and stop.
 
 A dispatch's fresh `check:` file skips steps 1 to 4: search it; `<folder>` is its folder's parent.
@@ -46,20 +47,19 @@ by `references/fix-loop.md`, before approval. At approval, the main session foll
 
 Under both modes the Owner answers the approach pick, the one round of builder check questions only their answer
 settles, a question met mid-flow, an open question in a report, a split proposal with its plan file, a sync pick,
-`delete` of a guarded doc, `migrate`, `init` on a legacy tree, and each `--plan`.
+`delete` of a guarded doc, `migrate`, and each `--plan`.
 
 ## Owner confirmation
 
-`approve`, guarded `delete`, `migrate`, and legacy `init` need the Owner's word, at their terminal without `--yes` or
-in chat:
+`approve`, guarded `delete`, and `migrate` need the Owner's word, at their terminal without `--yes` or in chat:
 
 1. Show each item in full, one per message:
    - `approve`, per draft `--auto` asks: the literal `Why:`, one sentence in the chat's language on why it changed,
      then its `approve <type>:<name> … --dry-run` text verbatim, per draft if cut.
-   - `delete`, `migrate`, or `init`: its view, by `references/gated-plan.md`.
+   - `delete` or `migrate`: its view, by `references/gated-plan.md`.
 2. Fix what the Owner names by `set` and show it again, until `ok`.
 3. After `ok` on all, or the Owner's leave, run one command with the shown hashes:
-   `specstone approve <type>:<name>@<hash> … --yes`, or a `delete`, `migrate`, or `init` command by
+   `specstone approve <type>:<name>@<hash> … --yes`, or a `delete` or `migrate` command by
    `references/gated-plan.md`; exit 75: show it again.
 4. Write each `@<hash>`, path, and `--plan <hash>` literally, never from a file, variable, or command substitution.
 

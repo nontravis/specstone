@@ -86,14 +86,12 @@ Set<String> removedItemIds({
 }
 
 // An ordered set, so retired IDs keep the order the doc held them in. Only
-// item IDs are read, so the placeholder doc path and `statusesOutside: false`
-// change no result.
+// item IDs are read, so the placeholder doc path changes no result.
 Set<String> _itemIdsOf(String lfText, MergedDocType type) {
   final content = parseIndexedDoc(
     docPath: 'doc.md',
     bytes: utf8.encode(lfText),
     match: MatchedDocType(type),
-    statusesOutside: false,
   ).content;
   return {
     for (final item in idsInDoc(content, type))

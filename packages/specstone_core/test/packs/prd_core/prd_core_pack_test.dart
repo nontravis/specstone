@@ -1,19 +1,19 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 /// The shared line ids `prd-core` ships, in file order.
 const _sharedLineIds = [
@@ -172,30 +172,37 @@ void main() {
       expect(manifest.name, 'prd-core');
       expect(manifest.version.toString(), '1.31.0');
       expect(manifest.extendsPack, isNull);
-      final upgrade = _upgradeFrom('1.7.0', manifest);
-      expect(upgrade.target.toString(), '1.31.0');
     });
 
-    test('the pack lists a mark_retrim entry for fr edge cases and '
-        'verification after the strip entry', () {
-      final migrations = _prdCoreManifest().migrations;
-      expect(migrations.map((e) => e.from.toString()), ['1.7.0', '1.19.0']);
-      expect(migrations.first.steps.single, isA<StripSharedCopies>());
-      final mark = migrations[1].steps.single as MarkRetrim;
-      expect(mark.docTypes, ['fr']);
-      expect(mark.sections, ['edge_cases', 'verification']);
-      final upgrade = _upgradeFrom('1.7.0', _prdCoreManifest());
-      expect(
-        [for (final s in upgrade.steps) (s.from.toString(), s.step.kind)],
-        [('1.7.0', 'strip_shared_copies'), ('1.19.0', 'mark_retrim')],
-      );
+    test('prd-core ships no migration entry and no migrations key', () {
+      expect(_prdCoreManifest().migrations, isEmpty);
+      final text = utf8.decode(shippedPackFiles['prd-core/pack.yaml']!);
+      expect(text, isNot(contains('migrations:')));
     });
 
-    test('a pin past both entries gets the pin change only', () {
-      final upgrade = _upgradeFrom('1.19.1', _prdCoreManifest());
-      expect(upgrade.target.toString(), '1.31.0');
-      expect(upgrade.steps, isEmpty);
-    });
+    test(
+      'a prd-core pin one minor below its floor is pack_pin_below_floor',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml': shippedPinsBelowFloor(),
+        });
+        final home = await writeTree({});
+
+        expect(
+          () => TemplateResolver().resolve(
+            workingDirectory: project,
+            homeDirectory: home,
+          ),
+          throwsA(
+            isA<TemplateFault>().having(
+              (f) => f.code,
+              'code',
+              FaultCode.packPinBelowFloor,
+            ),
+          ),
+        );
+      },
+    );
 
     test('prd-core ships its shared lines in order with their reach and no '
         'shared field', () {
@@ -635,20 +642,6 @@ void main() {
         expect(sectionOf(added, section.id).prefixId, section.prefixId);
       }
     });
-
-    test('a pin at 1.7.0 or 1.9.0 takes steps that change no goal doc', () {
-      final manifest = _prdCoreManifest();
-      for (final pin in ['1.7.0', '1.9.0']) {
-        expect(
-          _upgradeFrom(
-            pin,
-            manifest,
-          ).steps.where((s) => s.step.touches('goal')),
-          isEmpty,
-          reason: pin,
-        );
-      }
-    });
   });
 
   group('prd-core writing guides', () {
@@ -712,9 +705,3 @@ PackManifest _prdCoreManifest() => PackManifest.parse(
   utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
   file: 'packs/prd-core/pack.yaml',
 );
-
-/// The one upgrade of a project that pins `prd-core` at [pin].
-PackUpgrade _upgradeFrom(String pin, PackManifest manifest) => selectUpgrades(
-  {'prd-core': PackVersion.parse(pin, file: 'config', key: 'prd-core')},
-  {'prd-core': manifest},
-).single;

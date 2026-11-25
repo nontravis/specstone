@@ -19,13 +19,7 @@ const _unapprovedMessage =
 Iterable<Finding> staleApproval(CheckContext context, IndexedDoc doc) sync* {
   if (doc.isDraft) return;
   final fields = ApprovalFields.ofIndexed(doc);
-  if (!awaitsApproval(
-    fields,
-    doc.approvalHash,
-    stampsHaveRun: context.stampsHaveRun,
-  )) {
-    return;
-  }
+  if (!awaitsApproval(fields, doc.approvalHash)) return;
   final lines = context.linesOf(doc);
   final keyLine = lines.keyLine(_approvedKey);
   if (fields.approvedValue == null) {

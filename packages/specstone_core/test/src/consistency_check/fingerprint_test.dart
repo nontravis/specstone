@@ -2,7 +2,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -65,16 +64,4 @@ void main() {
     // Hashes the text '### Scenario 3\n\n- **Given** a\n'.
     expect(fingerprintOf('### Scenario 3\n\n- **Given** a\n'), '71d315dbe8d8');
   });
-
-  test(
-    'the legacy fingerprint keeps the 1.1.0 recipe when the layout changes',
-    () {
-      const block = '### Scenario 3 — [happy] Table\n| a  | b |\n';
-      expect(
-        legacyFingerprintOf(block),
-        baseHashOf('### Scenario 3 — [happy] Table\n| a  | b |\n'),
-      );
-      expect(legacyFingerprintOf(block), isNot(fingerprintOf(block)));
-    },
-  );
 }

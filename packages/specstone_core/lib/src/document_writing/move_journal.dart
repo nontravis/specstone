@@ -19,17 +19,14 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
-/// What a [JournalStep] acts on: the roots, the home folder that keeps the
-/// journal records, and the `git` runner.
-///
-/// A legacy tree has no `.specstone/config.yaml`, so no [DocsProject]; every
-/// step needs only these.
+/// What a [JournalStep] acts on: the roots and their [trust], the home folder
+/// that keeps the journal records, and the `git` runner.
 final class JournalTarget {
   const new({
     required this.projectRoot,
     required this.docsRoot,
     required this.homeDirectory,
-    this.trust,
+    required this.trust,
     this.agentFiles = const {},
     this.runGit = runRealGit,
     this.warn = warnOnStderr,
@@ -61,12 +58,11 @@ final class JournalTarget {
   /// refused and no journal replays.
   final Directory? homeDirectory;
 
-  /// The roots of an opened project and whether the Owner trusts them; null
-  /// for a legacy tree, whose roots are its own folder.
+  /// Holds the roots and whether the Owner trusts them.
   ///
   /// Roots the Owner has not recorded bound no step: [requireTrusted] refuses
   /// first, and a replay finds every step path outside them.
-  final RootTrust? trust;
+  final RootTrust trust;
 
   /// The canonical paths of the agent files a migrate writes inside the
   /// project root; [MoveJournal.run] records them with the journal, so its
@@ -86,13 +82,12 @@ final class JournalTarget {
   ///
   /// A command that writes a journal calls it before any prompt or change;
   /// [MoveJournal.run] calls it again as the backstop.
-  void requireTrusted() => trust?.requireTrusted(MoveJournal.journalPath);
+  void requireTrusted() => trust.requireTrusted(MoveJournal.journalPath);
 
   /// The folders a step path must land in: the project and docs roots, each
-  /// at its canonical path, none while the roots are untrusted. A code root
-  /// outside the project is read, never written.
+  /// at its canonical path, none while the roots are untrusted.
   List<String> get _bounds => [
-    if (trust?.refusal == null)
+    if (trust.refusal == null)
       for (final folder in [projectRoot, docsRoot])
         if (folder.existsSync()) folder.resolveSymbolicLinksSync(),
   ];
@@ -1087,9 +1082,8 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
 ///
 /// A journal clones and other tools can carry is untrusted input: it runs
 /// only when its digest is recorded under the home folder and every path of
-/// every step lands inside the project, docs, or code root, or on one of the
-/// agent files recorded with it, on no `.git` entry and through no link out
-/// of them.
+/// every step lands inside the project or docs root, or on one of the agent
+/// files recorded with it, on no `.git` entry and through no link out of them.
 ///
 /// Throws [RenderFault] `output_not_writable` when the journal is unrecorded,
 /// a path leaves those roots, or the journal cannot be read or parsed.

@@ -28,22 +28,6 @@ final class PackUpgrade {
   final List<PackStep> steps;
 }
 
-/// Whether [upgrade] moves a pin from below the version [since] holds for its
-/// pack, whatever version it moves to.
-bool isBelowSince(PackUpgrade upgrade, Map<String, PackVersion> since) {
-  final first = since[upgrade.pack];
-  return first != null && upgrade.pin.compareTo(first) < 0;
-}
-
-/// Whether one of [upgrades] moves its pin from below the version [since]
-/// holds for its pack up to that version or later.
-bool crossesSince(List<PackUpgrade> upgrades, Map<String, PackVersion> since) =>
-    upgrades.any(
-      (upgrade) =>
-          isBelowSince(upgrade, since) &&
-          upgrade.target.compareTo(since[upgrade.pack]!) >= 0,
-    );
-
 /// Returns one [PackUpgrade] per pack whose pin is older than its available
 /// version, in code point order of the pack name.
 ///
@@ -121,24 +105,3 @@ RelinkRules _relinkRulesBelow(PackManifest manifest, PackVersion from) {
     renames: earlier.whereType<RenameSection>().toList(),
   );
 }
-
-/// The pack whose release names tests in the records.
-const testNamePack = 'software-tech';
-
-/// The [testNamePack] version from which a record holds `tests` lines, so the
-/// upgrade that reaches it moves each test name's ID into them.
-final PackVersion testNamePassSince = PackVersion.parse(
-  '1.6.0',
-  file: 'migration_chain.dart',
-  key: testNamePack,
-);
-
-/// Whether [upgrades] move the [testNamePack] pin from below
-/// [testNamePassSince] to it or later: the one trigger of the test-name pass
-/// on an upgrade.
-bool runsTestNamePass(List<PackUpgrade> upgrades) => upgrades.any(
-  (upgrade) =>
-      upgrade.pack == testNamePack &&
-      upgrade.pin.compareTo(testNamePassSince) < 0 &&
-      upgrade.target.compareTo(testNamePassSince) >= 0,
-);

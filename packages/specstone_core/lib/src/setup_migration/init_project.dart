@@ -8,16 +8,12 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show warnOnStderr;
 import 'package:specstone_core/src/document_writing/new_doc.dart';
-import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
-import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
-import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show codexTrustLine, holdsCodexHooks, skillFolderOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -33,11 +29,7 @@ final class InitRequest {
     required this.workingDirectory,
     required this.homeDirectory,
     required this.templates,
-    required this.confirmation,
-    required this.readLine,
     required this.out,
-    this.planHash,
-    this.runGit = runRealGit,
     this.warn = warnOnStderr,
   });
 
@@ -50,22 +42,8 @@ final class InitRequest {
   /// Loads the carried packs.
   final TemplateResolver templates;
 
-  /// How the Owner confirms the legacy migrate run: at the terminal's `y`, or
-  /// `--yes`.
-  final OwnerConfirmation confirmation;
-
-  /// Reads one line of the Owner's answer, or null at the end of input.
-  final String? Function() readLine;
-
   /// Where the run prints.
   final StringSink out;
-
-  /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
-  /// `--yes` the legacy run applies only a plan with this hash.
-  final String? planHash;
-
-  /// Starts `git`; replaced in tests.
-  final RunGit runGit;
 
   /// Reports one warning line, such as an agent file the run leaves outside
   /// the project root; writes it to stderr unless replaced.
@@ -74,15 +52,11 @@ final class InitRequest {
 
 /// Runs `specstone init` and returns its exit status.
 ///
-/// The root is [rootThroughDocsLink] of the working directory with no walk up,
-/// so a nested project stays possible. A root holding the config
-/// refuses `config_exists`; a root holding the legacy context doc enters the
-/// legacy migrate run at its git checks; otherwise the drafts are
-/// written and the config last. A root reached through a `docs` link
-/// that leaves the folder, or whose docs folder lies outside it, is written
-/// only once the Owner trusted it: the scaffold refuses `output_not_writable`
-/// naming the config before any write. Throws a `SpecstoneFault` for a
-/// refused run, `output_not_writable` naming the file the disk refuses.
+/// Takes the root from [rootThroughDocsLink] with no walk up, writes the drafts
+/// and then the config, and keeps any draft that exists.
+///
+/// Throws `config_exists` for a root holding the config, and
+/// `output_not_writable` for an untrusted root or a file the disk refuses.
 Future<int> runInit(InitRequest request) async {
   final root = rootThroughDocsLink(request.workingDirectory);
   requireSpecstoneFolder(root);
@@ -94,13 +68,6 @@ Future<int> runInit(InitRequest request) async {
       file: projectConfigPath,
     );
   }
-  if (File.fromUri(root.uri.resolve(legacyContextPath)).existsSync()) {
-    return await runLegacyAt(
-      root,
-      _migrateRequestOf(root, request),
-      linkFolder: _linkFolderOf(request.workingDirectory, root),
-    );
-  }
   RootTrust.at(
     folder: _linkFolderOf(request.workingDirectory, root) ?? root,
     root: root,
@@ -108,21 +75,6 @@ Future<int> runInit(InitRequest request) async {
   ).requireTrusted(projectConfigPath);
   return _scaffold(root, request);
 }
-
-/// Returns the migrate request `init` enters the legacy run with.
-MigrateRequest _migrateRequestOf(Directory root, InitRequest request) =>
-    MigrateRequest(
-      workingDirectory: root,
-      homeDirectory: request.homeDirectory,
-      templates: request.templates,
-      dryRun: false,
-      confirmation: request.confirmation,
-      readLine: request.readLine,
-      out: request.out,
-      planHash: request.planHash,
-      runGit: request.runGit,
-      warn: request.warn,
-    );
 
 /// Returns [folder], canonical, when it is not [root], else null.
 ///

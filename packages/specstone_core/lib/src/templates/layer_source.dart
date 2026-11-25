@@ -97,15 +97,6 @@ final class LoadedPack {
     for (final path in _frozenDocTypeNames(_paths)) _frozenId(path),
   }, frozenFolder: '$displayFolder/$_frozenFolder');
 
-  /// Returns the text of each doc-type file, keyed by layer-relative path, in
-  /// code point order, with CRLF read as LF.
-  ///
-  /// Throws a [TemplateFault] `yaml_syntax` for a file that is not UTF-8.
-  Map<String, String> docTypeTexts() => {
-    for (final path in _docTypeNames(_paths))
-      path: decodeYamlBytes(_read(path), file: '$displayFolder/$path'),
-  };
-
   /// Returns the pack's feature pattern layers, keyed by id, in code point
   /// order.
   ///
@@ -187,20 +178,6 @@ LoadedPack loadPersonalPackManifest(String name, Directory home) {
     read: (path) => readPlanInput(File.fromUri(folder.uri.resolve(path))),
   );
 }
-
-/// Loads the personal packs among [manifests] from [home], in the order of
-/// [manifests].
-///
-/// A manifest read from a shipped pack is skipped. [home] is null only when
-/// [manifests] holds no personal pack.
-List<LoadedPack> loadPersonalPacks(
-  Iterable<PackManifest> manifests, {
-  required Directory? home,
-}) => [
-  for (final manifest in manifests)
-    if (manifest.file.startsWith('$_personalPacksFolder/'))
-      loadPersonalPackManifest(manifest.name, home!),
-];
 
 /// The project's template folder, relative to the project root.
 const projectTemplatesFolder = '.specstone/templates';

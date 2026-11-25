@@ -1,4 +1,4 @@
-# Owner confirmation of a delete, a migrate, or an init
+# Owner confirmation of a delete or a migrate
 
 Items 1 and 3 of `specstone-expert-sdd`'s "Owner confirmation" when the item is not a draft.
 
@@ -7,4 +7,3 @@ Items 1 and 3 of `specstone-expert-sdd`'s "Owner confirmation" when the item is 
 - The command, after `ok`, is one of these, with the shown `<hash>`:
   - `specstone delete <path> … --yes --plan <hash>`
   - `specstone migrate --yes --plan <hash>`
-  - `specstone init --yes --plan <hash>`

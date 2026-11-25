@@ -32,7 +32,6 @@ import 'package:specstone_core/src/setup_migration/tree_move.dart'
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show isPortableCodeEntry;
 import 'package:specstone_core/src/version.dart' show specstoneVersion;
@@ -55,18 +54,6 @@ const _fenceMessage =
 const _byteOrderMark = '﻿';
 final _separators = RegExp(r'[/\\]');
 final _beginToken = RegExp(r'<!-- BEGIN specstone v(\S+) -->');
-
-/// The pack versions from which the agent files are written once.
-///
-/// A pack upgrade that moves one of these pins up from below its version runs
-/// the full agent file upsert.
-final Map<String, PackVersion> agentFilesSince = Map.unmodifiable({
-  for (final (pack, version) in const [
-    ('prd-core', '1.7.0'),
-    ('software-tech', '1.4.0'),
-  ])
-    pack: PackVersion.parse(version, file: 'agent_targets.dart', key: pack),
-});
 
 /// Returns the nearest folder at or above [folder] holding a `.git` entry,
 /// folder or file, or null when none does.
@@ -397,25 +384,15 @@ final class AgentWritePlan {
 
 /// Plans the agent file writes of [inputs].
 ///
-/// [full] is the `init`, legacy, and one-time upgrade upsert at the project
-/// root; otherwise the root and each listed top only refresh what exists. An
-/// unlisted top always takes the full upsert once. [shipsSkills] is the run
-/// that first ships the skill and agent files: it writes all of them at the
-/// root and at each listed top too. Reads every file first.
+/// [full] is the `init` upsert at the project root; otherwise the root and
+/// each listed top only refresh what exists. An unlisted top always takes the
+/// full upsert once. Reads every file first.
 ///
 /// Throws `MigrateFault` `agent_block_malformed`, naming every malformed file
 /// with its first marker line, and every `.claude/settings.json` and
 /// `.codex/hooks.json` no run can merge into, before it returns.
-AgentWritePlan planAgentWrites(
-  AgentFileInputs inputs, {
-  required bool full,
-  bool shipsSkills = false,
-}) {
-  final skills = planSkillAndAgentFiles(
-    inputs,
-    full: full || shipsSkills,
-    includesListedTops: shipsSkills,
-  );
+AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
+  final skills = planSkillAndAgentFiles(inputs, full: full);
   final survey = _Survey.of(inputs)
     ..throwIfMalformed(settings: skills.malformedSettings);
   final root = _canonicalOf(inputs.projectRoot);

@@ -123,7 +123,6 @@ String _baseOf(WriteSession session, LockedDocText text, String laidOut) {
     docPath: text.doc.docPath,
     bytes: utf8.encode(laidOut),
     match: MatchedDocType(text.docType),
-    statusesOutside: session.project.statusesOutsideApproval,
   );
   return wholeDocBaseOf(after.content);
 }

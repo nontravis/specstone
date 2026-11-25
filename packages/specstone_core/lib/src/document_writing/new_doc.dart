@@ -153,7 +153,6 @@ ReadAnswer answerNew(
       docPath: docPath,
       bytes: utf8.encode(lineEnding.apply(lfText)),
       match: MatchedDocType(docType, target: placedIn),
-      statusesOutside: session.project.statusesOutsideApproval,
     );
     return ReadAnswer(
       text: '${namingLine(written.doc)}\n',

@@ -41,7 +41,6 @@ void main() {
     docPath: path,
     bytes: utf8.encode(text),
     match: const NoDocType(),
-    statusesOutside: true,
   );
   File file(Directory r, String p) => File('${r.path}/$p');
 
@@ -796,7 +795,6 @@ void main() {
           MergedSet(docTypes: [recordType]),
           targetNames: const [],
         ).match(path),
-        statusesOutside: true,
       );
       final r = await root();
       final first = IndexStore.open(r);
@@ -847,7 +845,6 @@ void main() {
           'ทุกครั้ง `check`\n',
         ),
         match: MatchedDocType(doc),
-        statusesOutside: true,
         idPrefixes: const {'RULE-'},
       );
       store.write(() {
@@ -907,7 +904,6 @@ void main() {
         docPath: 'n.md',
         bytes: utf8.encode('# N\n\n## A\nfast\n\n## B\nfastly\n'),
         match: MatchedDocType(type),
-        statusesOutside: true,
       );
       store.write(() {
         store
@@ -1232,7 +1228,6 @@ void main() {
         docPath: path,
         bytes: utf8.encode(text),
         match: MatchedDocType(doc),
-        statusesOutside: true,
       );
       store.write(() {
         store
@@ -1266,7 +1261,6 @@ void main() {
         docPath: 'specs/jaspr/f01_login/ARCHITECTURE.md',
         bytes: utf8.encode('# A\n'),
         match: MatchedDocType(type, target: 'jaspr'),
-        statusesOutside: true,
       );
       store.write(() {
         store

@@ -7,8 +7,9 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
-import '../../helpers/legacy_fixture.dart';
+import '../../helpers/legacy_fixture.dart' show gitFixture;
 import '../../helpers/temp_tree.dart';
+import '../../helpers/upgrade_fixture.dart';
 
 /// A `RunGit` that throws `ProcessException`, as a missing `git` does.
 ProcessResult _gitMissing(
@@ -43,7 +44,7 @@ void main() {
 
   test('a repository with no commit is '
       'git_work_tree_required', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await gitFixture(upgradeFiles());
     expect(git(root, ['update-ref', '-d', 'HEAD']).exitCode, 0);
 
     expect(
@@ -60,7 +61,7 @@ void main() {
 
   test('git missing is git_work_tree_required, naming why '
       'git cannot start', () async {
-    final root = await writeTree(acmeLegacy);
+    final root = await writeTree(upgradeFiles());
     const workTreeText =
         'the project is not in a git work tree with a first commit; '
         'put the project under git, git init and a first commit, '
@@ -97,7 +98,7 @@ void main() {
 
     test('a git older than 2.25 is git_work_tree_required '
         'naming 2.25', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = await gitFixture(upgradeFiles());
 
       expect(
         () => requireGitWorkTree(root, gitAt('git version 2.24.4')),
@@ -124,7 +125,7 @@ void main() {
 
     test('git 2.25 or later passes, vendor suffixes '
         'included', () async {
-      final root = await gitFixture(acmeLegacy);
+      final root = await gitFixture(upgradeFiles());
 
       for (final version in [
         'git version 2.25.0',
@@ -143,10 +144,10 @@ void main() {
 
   test('an uncommitted change is '
       'working_tree_dirty', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await gitFixture(upgradeFiles());
 
-    File.fromUri(root.uri.resolve('docs/prds/d01_context.md'))
-        .writeAsStringSync('# D-01 — Project context\n\nchanged\n');
+    File.fromUri(root.uri.resolve(acmeRunbookPath))
+        .writeAsStringSync('$acmeRunbookText\nchanged\n');
 
     expect(
       () => requireCleanWorkTree(root, runRealGit),
@@ -166,7 +167,7 @@ void main() {
 
   test('an untracked file is '
       'working_tree_dirty', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await gitFixture(upgradeFiles());
 
     File.fromUri(root.uri.resolve('notes.txt')).writeAsStringSync('x\n');
 
@@ -184,7 +185,7 @@ void main() {
 
   test('an untracked file is working_tree_dirty when '
       'the git config hides untracked files', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await gitFixture(upgradeFiles());
     expect(
       git(root, ['config', 'status.showUntrackedFiles', 'no']).exitCode,
       0,
@@ -205,7 +206,7 @@ void main() {
 
   test('a git status that fails is '
       'git_work_tree_required', () async {
-    final root = await writeTree(acmeLegacy);
+    final root = await writeTree(upgradeFiles());
     ProcessResult failing(
       List<String> arguments, {
       required String workingDirectory,
@@ -226,7 +227,7 @@ void main() {
 
   test('headSha returns the full HEAD sha; commitsSince '
       'lists commits since a base with short shas', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await gitFixture(upgradeFiles());
     final base = headSha(root, runRealGit);
     File.fromUri(root.uri.resolve('notes.txt')).writeAsStringSync('x\n');
     commitAll(root, 'second');
@@ -242,7 +243,7 @@ void main() {
 
   test('commitsSince returns the whole message beside the '
       'subject, so a prepended paragraph still shows the step line', () async {
-    final root = await gitFixture(acmeLegacy);
+    final root = await gitFixture(upgradeFiles());
     final base = headSha(root, runRealGit);
     File.fromUri(root.uri.resolve('notes.txt')).writeAsStringSync('x\n');
     expect(git(root, ['add', '-A']).exitCode, 0);

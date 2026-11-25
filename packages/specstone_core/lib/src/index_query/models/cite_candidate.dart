@@ -3,8 +3,7 @@
 /// with the section key it names, null when it names none, and the item IDs
 /// of the run right after it.
 ///
-/// A candidate holds no resolution: `check` and the cite pass judge it when
-/// they run.
+/// A candidate holds no resolution: `check` judges it when it runs.
 final class CiteCandidate {
   const new({
     required this.line,

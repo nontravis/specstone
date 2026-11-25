@@ -493,7 +493,6 @@ DocContent _contentOf(WriteSession session, IndexedDoc doc, String lfText) =>
       docPath: doc.docPath,
       bytes: utf8.encode(lfText),
       match: MatchedDocType(_typeOf(session.index, doc), target: doc.target),
-      statusesOutside: session.project.statusesOutsideApproval,
     ).content;
 
 MergedDocType _typeOf(DocIndex index, IndexedDoc doc) =>

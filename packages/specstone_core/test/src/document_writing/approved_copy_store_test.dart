@@ -66,8 +66,7 @@ void main() {
   final skipGit = hasGit ? null : 'git is not available';
 
   group('ApprovedCopyStore', () {
-    String approvedText(String body) =>
-        withApprovalHash(body, null, statusesOutside: true);
+    String approvedText(String body) => withApprovalHash(body, null);
 
     test('a saved copy is found by the mark it carries', () async {
       final store = ApprovedCopyStore(
@@ -265,11 +264,7 @@ void main() {
   });
 
   group('a WriteStep that keeps an approved copy', () {
-    final stamped = withApprovalHash(
-      '# Buyer\n\nBuys.\n',
-      null,
-      statusesOutside: true,
-    );
+    final stamped = withApprovalHash('# Buyer\n\nBuys.\n', null);
     late Directory root;
     late JournalTarget target;
     late String before;

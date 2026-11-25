@@ -208,7 +208,6 @@ Future<CheckReport> runCopyCheck(
     docPath: draft.docPath,
     bytes: utf8.encode(copyLf),
     match: session.project.matcher.match(draft.docPath),
-    statusesOutside: session.project.statusesOutsideApproval,
   );
   final context = CheckContext(session, contents: {draft.docPath: content});
   final work = ImplementedWork(context, CheckScope.project(context).targets);
