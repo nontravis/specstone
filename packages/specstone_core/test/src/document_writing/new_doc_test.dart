@@ -486,19 +486,21 @@ void main() {
     '/drinks': 'part 1 of --slug "/drinks" is empty',
     'kitchen//drinks': 'takes 2 slug parts, got 3',
   }.entries) {
-    test('an empty group part in "$slug" is argument_invalid and creates '
-        'nothing', () async {
-      final root = await writeGroupedProject();
-      final before = namesUnder(root, 'prds/features');
-      expect(
-        () => writeIn(
-          root,
-          (s) => answerNew(s, docTypeId: 'feature', slug: slug),
-        ),
-        throwsA(argumentInvalidNaming(named)),
-      );
-      expect(namesUnder(root, 'prds/features'), before);
-    });
+    test(
+      'an empty group part in "$slug" is argument_invalid and creates nothing',
+      () async {
+        final root = await writeGroupedProject();
+        final before = namesUnder(root, 'prds/features');
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerNew(s, docTypeId: 'feature', slug: slug),
+          ),
+          throwsA(argumentInvalidNaming(named)),
+        );
+        expect(namesUnder(root, 'prds/features'), before);
+      },
+    );
   }
 
   test(

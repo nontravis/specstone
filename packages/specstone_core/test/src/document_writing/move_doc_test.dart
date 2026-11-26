@@ -957,8 +957,7 @@ void main() {
     expect(hasDoc(root, 'specs/kitchen/f02_menus/ARCHITECTURE.md'), isFalse);
   });
 
-  test('rename of a grouped feature with a slash in its new slug is '
-      'argument_invalid', () async {
+  test('rename of a grouped feature with a slash in its new slug is argument_invalid', () async {
     final root = await writeGroupedProject();
     writeIn(root, (s) => s.target('feature:kitchen/menus'));
     final before = treeBytes(root);

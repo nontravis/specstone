@@ -574,10 +574,13 @@ void _syncProcedureTests() {
           (line) =>
               line.contains('`unstated behavior`') &&
               line.contains('`specstone context --code ') &&
-              line.contains(' --for implement --out`'),
+              line.contains(' --for implement --out`') &&
+              line.contains('`specstone context <story> --for implement'),
         ),
         isTrue,
-        reason: 'the PRD docs of the path are read before the point',
+        reason:
+            'the PRD docs of the path and the FR text of each story it '
+            'lists are read before the point',
       );
       expect(
         _hasSentenceWith(
@@ -2066,8 +2069,7 @@ void _approveStepTests() {
     );
   });
 
-  test('expert-sdd sends behavior no PRD doc states to the Owner, never to a '
-      'spec draft', () {
+  test('expert-sdd sends behavior no PRD doc states to the Owner, never to a spec draft', () {
     final text = _pluginText(_expertSdd);
     final flat = _oneLine(text);
     final start = flat.indexOf('1. **Docs lead.**');
@@ -2603,33 +2605,27 @@ void _brainstormFlowTests() {
     }
   });
 
-  test(
-    'the class test asks Doc-only first and Decided last, calls an internal '
-    'code-level change Internal, and takes a doubtful change as Undecided',
-    () {
-      final text = _pluginText(_classReference);
-      final questions = text.substring(0, text.indexOf('| Class |'));
-      final docOnly = questions.indexOf('Doc-only');
-      expect(docOnly, isNonNegative);
-      expect(docOnly, lessThan(questions.indexOf('Decided')));
-      expect(
-        _oneLine(text),
-        contains(
-          RegExp(
-            r'\| Internal \| no observable behavior changes\.'
-            r' An internal code-level change\b[^|]*\bis Internal\b',
-          ),
+  test('the class test asks Doc-only first and Decided last, calls an internal code-level change Internal, and takes a doubtful change as Undecided', () {
+    final text = _pluginText(_classReference);
+    final questions = text.substring(0, text.indexOf('| Class |'));
+    final docOnly = questions.indexOf('Doc-only');
+    expect(docOnly, isNonNegative);
+    expect(docOnly, lessThan(questions.indexOf('Decided')));
+    expect(
+      _oneLine(text),
+      contains(
+        RegExp(
+          r'\| Internal \| no observable behavior changes\.'
+          r' An internal code-level change\b[^|]*\bis Internal\b',
         ),
-      );
-      final closing = text.substring(
-        text.indexOf('A change not shown Decided'),
-      );
-      expect(closing, contains('is Undecided'));
-      expect(closing, contains('- its class is in doubt'));
-      expect(closing, contains('neither `(decided)` nor `(plan)`'));
-      expect(closing, contains('have no `Owner ok:` line in the note'));
-    },
-  );
+      ),
+    );
+    final closing = text.substring(text.indexOf('A change not shown Decided'));
+    expect(closing, contains('is Undecided'));
+    expect(closing, contains('- its class is in doubt'));
+    expect(closing, contains('neither `(decided)` nor `(plan)`'));
+    expect(closing, contains('have no `Owner ok:` line in the note'));
+  });
 }
 
 const _classReference = 'specstone-brainstorming-sdd/references/class.md';
@@ -3182,8 +3178,7 @@ void _bootstrapRoutingTests() {
     }
   });
 
-  test('no bootstrap or init file takes code_uncovered, an Uncovered file, '
-      'or a picks input', () {
+  test('no bootstrap or init file takes code_uncovered, an Uncovered file, or a picks input', () {
     for (final file in [..._bootstrapSpecFiles, ..._bootstrapPrdFiles]) {
       final text = _pluginText(file);
       expect(text, isNot(contains('code_uncovered')), reason: file);

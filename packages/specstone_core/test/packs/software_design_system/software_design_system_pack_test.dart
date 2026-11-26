@@ -1,3 +1,6 @@
+// Test names stay one literal so `specstone check` finds them by exact text.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
@@ -146,9 +149,7 @@ void main() {
       },
     );
 
-    test('ships the shared lines serve_library_builders, library_spec_scope, '
-        'and library_code_detail_home, naming nineteen doc types, and no '
-        'shared field', () {
+    test('ships the shared lines serve_library_builders, library_spec_scope, and library_code_detail_home, naming nineteen doc types, and no shared field', () {
       final shared = _manifest().shared;
       expect(
         [for (final l in shared.lines) (l.id, l.disabled)],
@@ -164,8 +165,7 @@ void main() {
       expect(shared.fields, isEmpty);
     });
 
-    test('library_spec_scope and library_code_detail_home hold the text of '
-        "software-tech's spec_scope and code_detail_home", () {
+    test("library_spec_scope and library_code_detail_home hold the text of software-tech's spec_scope and code_detail_home", () {
       final tech = {
         for (final l in PackManifest.parse(
           utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
@@ -336,8 +336,7 @@ void main() {
       }
     });
 
-    test('with software-design-system listed, every software-tech doc type '
-        'but implementation still prints spec_scope and code_detail_home', () {
+    test('with software-design-system listed, every software-tech doc type but implementation still prints spec_scope and code_detail_home', () {
       for (final id in softwareTechIds.where((id) => id != 'implementation')) {
         final ids = prdCoreDocType(set, id).sharedLines.map((l) => l.id);
         expect(

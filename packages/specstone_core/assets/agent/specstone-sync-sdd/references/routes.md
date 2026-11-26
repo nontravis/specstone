@@ -12,7 +12,7 @@
 
 ## Small group
 
-- Judge each link of its group file as `procedure.md` judges a group file, from that file alone.
+- Judge each link of its group file as `procedure.md` judges a group file, from that file.
 - Fill the verdict part in place, then write the file by one `specstone set --sync`; it writes only that group's docs.
 - A mismatch, any doubt, text ahead of the code, a `draft: true` you meet, or any line `specstone set --sync` refuses hands the whole group to an engineer of its route, with the same group file.
 - At a plan's last sync, a group whose work holds a decided behavior no spec states hands the whole group to an engineer of its route, which drafts it.

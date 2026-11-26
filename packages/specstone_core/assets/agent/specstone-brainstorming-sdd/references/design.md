@@ -59,7 +59,7 @@ Sections, in order:
 - A change from a source adds a Source map after Reach, by `source.md`.
 - Ask the Owner each open question. No draft is written while one is open.
 - Before you report: no placeholder, no contradiction between sections or with a decision, each decision specific
-  enough that two builders would build the same thing.
+  enough that a writer writes its doc with no question, and no decision on a code-level point.
 
 ## 4. Tell the Owner
 

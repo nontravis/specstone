@@ -1,3 +1,6 @@
+// Test names stay one literal so `specstone check` finds them by exact text.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
@@ -359,8 +362,7 @@ void main() {
       expect(group.route, SyncRoute.small);
     });
 
-    test('a new file under a code root that no doc covers or implements adds '
-        'no group', () async {
+    test('a new file under a code root that no doc covers or implements adds no group', () async {
       final project = await _committedProject(
         extra: doc(
           techStack,

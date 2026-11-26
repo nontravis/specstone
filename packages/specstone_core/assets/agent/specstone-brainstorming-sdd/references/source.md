@@ -11,7 +11,7 @@ Match a source item by its content shape alone, never by the tool that wrote it;
 | success criteria, `SC-###` | the feature's Success measures |
 | a Problem Statement | the feature's Problem |
 | an Out of Scope list | the feature's Out-of-scope lines |
-| implementation and testing decisions | the feature's spec docs, and an FR's Verification |
+| implementation and testing decisions | a decision, contract, or constraint code cannot show: the feature's spec docs; a testing decision: an FR's Verification; a code-level point, such as a signature, a field list, or a path: the change note's Left to the builder |
 | ticket lists, task lists, plans | not taken: task management is out of scope |
 
 ## Take in the source

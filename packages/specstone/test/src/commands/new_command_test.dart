@@ -1,3 +1,6 @@
+// Test names stay one literal so `specstone check` finds them by exact text.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -42,8 +45,7 @@ void main() {
     expect(text, startsWith('---\ndraft: true\n---\n\n# recover_account\n'));
     expect(text, contains('## Use Case'));
   });
-  test('new feature with a group slug prints the grouped naming '
-      'line', () async {
+  test('new feature with a group slug prints the grouped naming line', () async {
     final root = await writeGroupedProject();
     final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
     expect(await runner.run(['new', 'feature', '--slug', 'garden/herbs']), 0);
