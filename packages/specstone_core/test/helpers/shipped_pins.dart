@@ -2,18 +2,33 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:specstone_core/src/templates/pack_floors.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show agentFileGroupNames;
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
-/// The `config.yaml` text pinning [packs] to the shipped versions.
+/// The packs [shippedPinsConfig] pins when it is given none.
+const shippedPinsDefaultPacks = ['prd-core', 'software-tech'];
+
+/// The `config.yaml` text listing [agentFileGroups], then pinning [packs] to
+/// the shipped versions.
 ///
-/// Fixtures call it so a pack version bump changes no fixture.
+/// Fixtures call it so a pack version bump changes no fixture. The groups come
+/// first, so a `  <pack>: <version>` line a fixture appends lands in `packs:`;
+/// an empty list writes no `agent_file_groups:` block. Dart allows no named
+/// parameter beside an optional positional one, so a fixture that lists
+/// groups passes [packs] too, [shippedPinsDefaultPacks] for the default.
 String shippedPinsConfig([
-  List<String> packs = const ['prd-core', 'software-tech'],
+  List<String> packs = shippedPinsDefaultPacks,
+  List<String> agentFileGroups = agentFileGroupNames,
 ]) {
   final versions = shippedPackVersions();
+  final groups = agentFileGroups.isEmpty
+      ? ''
+      : 'agent_file_groups:\n'
+            '${[for (final name in agentFileGroups) '  - $name\n'].join()}';
   final pins = [for (final pack in packs) '  $pack: ${versions[pack]}\n'];
-  return 'packs:\n${pins.join()}';
+  return '${groups}packs:\n${pins.join()}';
 }
 
 /// The `config.yaml` text of [shippedPinsConfig] with [pack] pinned one minor

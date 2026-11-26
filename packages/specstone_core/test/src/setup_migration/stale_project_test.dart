@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/setup_migration/stale_project.dart';
+import 'package:specstone_core/src/templates/project_config.dart'
+    show agentFileGroupNames;
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
@@ -22,10 +24,12 @@ const _staleAgentMd = {'.specstone/AGENT.md': 'old\n'};
 
 Future<Directory> _project({
   String config = '',
+  List<String> groups = agentFileGroupNames,
   Map<String, String> files = const {},
 }) async {
   final root = await writeTree({
-    '.specstone/config.yaml': '${shippedPinsConfig()}$config',
+    '.specstone/config.yaml':
+        '${shippedPinsConfig(shippedPinsDefaultPacks, groups)}$config',
     ...files,
   });
   return Directory(root.resolveSymbolicLinksSync());
@@ -111,12 +115,53 @@ void main() {
     });
   });
 
+  group('a refused unlisted group', () {
+    // D16
+    test('a refused unlisted group alone gives no line', () async {
+      final root = await _project(
+        config: 'agent_files_version: $specstoneVersion\n',
+        groups: const ['claude_code', 'shared', 'codex_agents'],
+        files: {
+          for (final MapEntry(:key, :value) in skillFileTexts().entries)
+            if (!key.startsWith('.cursor/')) key: value,
+          '.cursor': 'not a folder\n',
+        },
+      );
+
+      expect(_line(root), isNull);
+    });
+  });
+
   group('a stale file in a group the project opted out of', () {
     test('a malformed settings file with no skill of ours gives no '
         'line', () async {
       final root = await _project(
         files: {'.claude/skills/own/SKILL.md': 'own\n', settingsFilePath: '{'},
       );
+
+      expect(_line(root), isNull);
+    });
+  });
+
+  group('a group the config does not list', () {
+    test('an unlisted group prints the migrate line', () async {
+      final root = await _project(groups: const [], files: skillFileTexts());
+
+      expect(_line(root), _older);
+    });
+
+    test('a refused agent_file_groups value lists no group', () async {
+      final root = await _project(
+        groups: const [],
+        config: 'agent_file_groups: [bogus]\n',
+        files: skillFileTexts(),
+      );
+
+      expect(_line(root), _older);
+    });
+
+    test('every group listed prints no line', () async {
+      final root = await _project(files: skillFileTexts());
 
       expect(_line(root), isNull);
     });

@@ -9,7 +9,8 @@ import 'package:specstone_core/src/index_query/matrix_rows.dart'
     show matrixLinesIn;
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart'
-    show RecordLines, addRecordLines, recordTestFieldOf;
+    show RecordLines, addRecordLines, recordCodeLineOf, recordTestFieldOf;
+import 'package:specstone_core/src/path_tail.dart' show splitPathTail;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
@@ -21,9 +22,11 @@ const _headEnd = ': ';
 // MARK: - Tests lines
 
 /// Returns [lfText], a record of [recordType], with the `<item>:<test file>`
-/// line of [line] added to its `tests` field for `+`, or removed for `-`; as
-/// it is when the field already reads so. A field left with no line loses its
-/// key. Throws an [IndexFault] `argument_invalid` when [recordType] holds no
+/// line of [line] added to its `tests` field for `+`. For `-`, a line ending
+/// in `:<test name>` removes that one entry; any other removes every line of
+/// its item and file, a named test included. Returns [lfText] as it is when
+/// the field already reads so. A field left with no line loses its key.
+/// Throws an [IndexFault] `argument_invalid` when [recordType] holds no
 /// `tests` field.
 String applyTestsLine(String lfText, MergedDocType recordType, TestsLine line) {
   final field =
@@ -39,16 +42,28 @@ String applyTestsLine(String lfText, MergedDocType recordType, TestsLine line) {
     return addRecordLines(lfText, recordType, RecordLines(tests: [entry])) ??
         lfText;
   }
-  if (held == null || !held.entries.contains(entry)) return lfText;
+  if (held == null) return lfText;
   final kept = [
     for (final value in held.entries)
-      if (value != entry) value,
+      if (value is! String || !_namesTestFile(value, line)) value,
   ];
+  if (kept.length == held.entries.length) return lfText;
   return withKeyBlock(
     lfText,
     field.id,
     kept.isEmpty ? null : listBlockOf(field.id, kept, onDisk: held.block),
   );
+}
+
+/// Whether [value], a `tests` entry, is of [line]'s item and test file, with
+/// or without a `:<test name>` after the file, or is the exact entry [line]
+/// names when it ends in `:<test name>`.
+bool _namesTestFile(String value, TestsLine line) {
+  final parsed = recordCodeLineOf(value);
+  return parsed != null &&
+      parsed.item == line.item &&
+      (parsed.code == line.testFile ||
+          splitPathTail(parsed.code).path == line.testFile);
 }
 
 // MARK: - Row lines

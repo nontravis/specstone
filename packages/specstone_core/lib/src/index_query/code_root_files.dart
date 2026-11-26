@@ -40,6 +40,17 @@ String normalCodeEntry(String entry) {
 /// and counts as no entry for the shared-doc rule.
 bool isEmptyCodeEntry(String entry) => normalCodeEntry(entry).isEmpty;
 
+/// Whether [entry], read as [isEmptyCodeEntry] reads it, leaves the root it is
+/// read from: its [normalCodeEntry] form opens with a `..` segment.
+///
+/// An outside entry is read from no path, so no code-link rule resolves it or
+/// takes its fingerprint.
+bool isOutsideCodeEntry(String entry) {
+  final normal = normalCodeEntry(entry);
+  return normal == _parentSegment ||
+      normal.startsWith('$_parentSegment$_separator');
+}
+
 /// Returns the files under the `code:` [entry], as paths from [codeRoot]
 /// sorted by code point; an [entry] that names a file lists that file. Every
 /// path is in [normalCodeEntry]'s form.

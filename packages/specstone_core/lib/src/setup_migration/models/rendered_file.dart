@@ -24,6 +24,22 @@ enum AgentFolderGroup {
   codexAgents,
   cursorAgents;
 
+  /// The name `agent_file_groups:` lists the group by.
+  String get configName => switch (this) {
+    claudeCode => 'claude_code',
+    shared => 'shared',
+    codexAgents => 'codex_agents',
+    cursorAgents => 'cursor_agents',
+  };
+
+  /// Returns the group [name] is the [configName] of, or null for no group.
+  static AgentFolderGroup? ofConfigName(String name) {
+    for (final group in values) {
+      if (group.configName == name) return group;
+    }
+    return null;
+  }
+
   /// The group's folders, in [AgentFolder] order.
   List<AgentFolder> get folders => [
     for (final folder in AgentFolder.values)

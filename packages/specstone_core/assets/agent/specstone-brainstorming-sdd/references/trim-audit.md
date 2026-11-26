@@ -7,9 +7,9 @@ fix; ask the Owner nothing.
 sends its `Findings:` lines into the fix loop of `../../specstone-expert-sdd/references/fix-loop.md`, whose re-reviews
 follow `re-review.md`, never a second trim audit.
 
-1. **Hashes**: run one `specstone approve <targets> --dry-run --json`, no `--target`: its `base` per draft is the
-   `Audited:` hash. On `doc_not_found`, drop each name it names and run it again on the rest. A named doc it does not
-   list is no draft; its hash is the whole-doc `base` of `specstone get <doc> --json`.
+1. **Hashes**: run one `specstone approve <targets> --dry-run --json`, no `--target`: its `doc` and `base` per
+   draft are the `Audited:` `<doc>` and hash. On `doc_not_found`, drop each name it names and run it again on the rest.
+   A named doc it does not list is no draft; its hash is the whole-doc `base` of `specstone get <doc> --json`.
 2. **Ground**: run one `specstone context <draft> <draft> --for design --out` naming each target, each target read
    whole.
 3. **Trim lens**: read each deleted, moved, and cut item against the guide line its `trims` report names, and each
@@ -22,18 +22,19 @@ follow `re-review.md`, never a second trim audit.
 Findings:
 - <type>:<name>#<section>: <gap>
 Outside the drafts:
-- <doc whose fix it is>: <gap whose fix lies in no draft of the round>
+- <docs whose fix it is>: <gap whose fix lies in no draft of the round>
 Notes:
 - <observation>
-Audited: <type>:<name>@<hash>
+Audited: <doc>@<hash>
 ```
 
 - `Findings:` holds each wrong citer or trimmed item, which the fix loop takes. A gap in a draft goes under
   `Findings:`, never under `Outside the drafts:`.
 - `Outside the drafts:` holds each gap whose fix lies in no draft of the round, such as a `Citers outside:` line a
   bootstrap report hands on.
-- Each item under `Outside the drafts:` opens with the name of the doc where its fix lies, never a draft of the round.
+- Each item under `Outside the drafts:` opens with every doc its fix lies in, never a draft of the round, as `audit.md`
+  gives `<docs>`.
 - Put each observation that is no gap under `Notes:`, which the judge never reads and main relays to the Owner.
   Write no `Notes:` heading when there is none.
-- Write one `Audited:` line per target, its hash the `base` of step 1.
+- Write one `Audited:` line per target, its `<doc>` and hash from step 1.
 - Write `none` under an empty heading, `Notes:` excepted.

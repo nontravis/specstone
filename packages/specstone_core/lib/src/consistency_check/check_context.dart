@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
 import 'package:specstone_core/src/consistency_check/code_file_cache.dart';
 import 'package:specstone_core/src/consistency_check/diagram_names.dart';
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
@@ -74,6 +75,9 @@ final class CheckContext {
   /// The index of the session's snapshot.
   DocIndex get index => _session.index;
 
+  /// Resolves code paths by exact letter case, each folder listed once per run.
+  final ExactCasePaths exactPaths = ExactCasePaths();
+
   /// The project root folder.
   Directory get projectRoot => _session.project.projectRoot;
 
@@ -90,6 +94,10 @@ final class CheckContext {
 
   /// The Verification matrix mode the config names.
   MatrixMode get matrixMode => _session.project.matrixMode;
+
+  /// The number label prefixes the config lists, as written; empty when it
+  /// lists none.
+  List<String> get numberLabelPrefixes => _session.project.numberLabelPrefixes;
 
   /// The merged doc types of the project.
   MergedSet get set => _session.project.set;

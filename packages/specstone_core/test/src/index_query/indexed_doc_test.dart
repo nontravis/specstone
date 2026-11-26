@@ -292,6 +292,7 @@ void main() {
         fileLinks: <LinkPlace>[],
         selfLinks: <LinkPlace>[],
         texts: <LinkText>[],
+        addressTexts: <LinkText>[],
         readersAgree: true,
       );
       final disagreeing = LinkPlaces(
@@ -299,6 +300,7 @@ void main() {
         fileLinks: agreeing.fileLinks,
         selfLinks: agreeing.selfLinks,
         texts: agreeing.texts,
+        addressTexts: agreeing.addressTexts,
         readersAgree: false,
       );
 

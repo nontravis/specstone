@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_file_cache.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
@@ -117,6 +118,7 @@ Iterable<Finding> checkCodeLinks(
     projectRoot: context.projectRoot,
     codeRootOf: context.codeRootOf,
     linesOf: () => context.linesOf(doc),
+    exactPaths: context.exactPaths,
   );
   for (final link in links) {
     final current = _currentOf(context, link);
@@ -222,7 +224,8 @@ _CodeLinkState _stateOf(String? recorded, String current) => switch (recorded) {
 /// `root: project` field is read from [projectRoot] whatever [doc]'s target;
 /// any other link only when [work] gives [doc] a target, from the folder
 /// [codeRootOf] gives it. [linesOf] gives [doc]'s lines, read only when [doc]
-/// holds a code-link field.
+/// holds a code-link field. A path reads as present by [exactPaths]'s letter
+/// case rule.
 Iterable<CodeLink> codeLinksOf(
   StatusTree tree,
   ImplementedWork work,
@@ -231,19 +234,35 @@ Iterable<CodeLink> codeLinksOf(
   required Directory projectRoot,
   required Directory Function(CodeTarget target) codeRootOf,
   required DocLines Function() linesOf,
+  required ExactCasePaths exactPaths,
 }) sync* {
   final target = work.targetOf(doc);
   if (target != null) {
-    yield* _entryLinks(tree, doc, target, codeRootOf(target), linesOf);
+    yield* _entryLinks(
+      exactPaths,
+      tree,
+      doc,
+      target,
+      codeRootOf(target),
+      linesOf,
+    );
   }
   final fields = coversFieldsOf(type);
   if (fields.isEmpty) return;
   final lines = linesOf();
   for (final field in fields) {
     if (readsFromProjectRoot(field)) {
-      yield* _coversLinks(field, lines, projectRoot, null, endsWait: true);
+      yield* _coversLinks(
+        exactPaths,
+        field,
+        lines,
+        projectRoot,
+        null,
+        endsWait: true,
+      );
     } else if (target != null) {
       yield* _coversLinks(
+        exactPaths,
         field,
         lines,
         codeRootOf(target),
@@ -256,6 +275,7 @@ Iterable<CodeLink> codeLinksOf(
 
 /// Returns the `implements` entries of a record [doc] whose file is read.
 Iterable<CodeLink> _entryLinks(
+  ExactCasePaths exactPaths,
   StatusTree tree,
   IndexedDoc doc,
   CodeTarget target,
@@ -273,7 +293,7 @@ Iterable<CodeLink> _entryLinks(
     if (parsed == null || item == null) continue;
     final entry = CodeLinkEntry(parsed.code);
     final status = tree.itemStatus(item, codeTarget: doc.target);
-    if (!readsEntryCode(codeRoot, status, entry.pointer)) continue;
+    if (!readsEntryCode(exactPaths, codeRoot, status, entry.pointer)) continue;
     yield CodeLink(
       field: fieldId,
       line: line,
@@ -295,6 +315,7 @@ Iterable<CodeLink> _entryLinks(
 /// An empty entry is no code link, so it takes no state: neither
 /// `code_unconfirmed` nor `code_suspect` reads it.
 Iterable<CodeLink> _coversLinks(
+  ExactCasePaths exactPaths,
   MergedField field,
   DocLines lines,
   Directory root,
@@ -305,7 +326,9 @@ Iterable<CodeLink> _coversLinks(
     if (value is! String) continue;
     final entry = CodeLinkEntry(value);
     if (isEmptyCodeEntry(entry.pointer)) continue;
-    if (!readsCoversCode(root, entry.pointer, endsWait: endsWait)) continue;
+    if (!readsCoversCode(exactPaths, root, entry.pointer, endsWait: endsWait)) {
+      continue;
+    }
     yield CodeLink(
       field: field.id,
       line: line,

@@ -8,6 +8,7 @@ import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -68,7 +69,10 @@ final String _importBlock = importBlock(
 
 /// The config `init` writes on the shipped pins: the running Version stamped.
 String _stampedConfig() =>
-    '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n';
+    '${shippedPinsConfig(shippedPinsDefaultPacks, const [])}'
+    'agent_file_groups:\n  - claude_code\n  - shared\n  - codex_agents\n'
+    '  - cursor_agents\n'
+    'agent_files_version: $specstoneVersion\n';
 
 String _configLine() {
   final versions = shippedPackVersions();
@@ -122,6 +126,19 @@ void main() {
     for (final path in _draftPaths) {
       expect(_read(root, path), startsWith('---\ndraft: true\n'), reason: path);
     }
+  });
+
+  test('init lists the four groups in agent_file_groups', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+
+    await _run(root);
+
+    expect(ProjectConfig.read(root).agentFileGroups, [
+      'claude_code',
+      'shared',
+      'codex_agents',
+      'cursor_agents',
+    ]);
   });
 
   test('a rerun that finds every agent file as written still stamps the '

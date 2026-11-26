@@ -1141,6 +1141,39 @@ void main() {
     });
   });
 
+  test(
+    '--auto --author approves a draft whose Decision line lists section keys',
+    () async {
+      final root = await _draftsProject();
+      final author = File('${root.path}/author.md')
+        ..writeAsStringSync(
+          'Decision: D14 -> feature:setup_migration (summary, #scope)\n',
+        );
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(approveModeVariable: 'auto'),
+      );
+
+      final code = await runner.run([
+        'approve',
+        _story,
+        '--auto',
+        '--no-audit',
+        '--author',
+        author.path,
+        '--json',
+      ]);
+
+      expect(code, 0, reason: '$err');
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['approved'], [
+        {'doc': _story, 'path': check.loginStory, 'carried': <Object>[]},
+      ]);
+      expect(json['asked'], isEmpty);
+      expect(_isApproved(root, check.loginStory), isTrue);
+    },
+  );
+
   group('--auto', () {
     late String binary;
     setUpAll(() async {
@@ -1257,6 +1290,63 @@ void main() {
       expect(json['warnings'], isEmpty);
     });
 
+    test(
+      'approves a draft a Findings item names only past its lead names',
+      () async {
+        final root = await _draftsProject();
+        final audit = File('${root.path}/audit.md')
+          ..writeAsStringSync(
+            [
+              'Audited: $_fr@${getDoc(root, _fr)['base']}',
+              'Findings:',
+              '- fr:login/other/doc#statement: a point that mentions $_fr',
+            ].join('\n'),
+          );
+
+        final result = await run(root, [_fr, '--auto', '--audit', audit.path]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(result.stdout, 'mode: auto\napproved $_fr\n');
+      },
+    );
+
+    test(
+      'asks a draft that a Findings item with a label lead mentions',
+      () async {
+        // D4: a lead holding no doc name reads by mention, and fails closed.
+        final root = await _draftsProject();
+        final audit = File('${root.path}/audit.md')
+          ..writeAsStringSync(
+            [
+              'Audited: $_fr@${getDoc(root, _fr)['base']}',
+              'Findings:',
+              '- Hole: a point on $_fr',
+            ].join('\n'),
+          );
+
+        final result = await run(root, [
+          _fr,
+          '--auto',
+          '--audit',
+          audit.path,
+          '--json',
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final json =
+            jsonDecode(result.stdout as String) as Map<String, Object?>;
+        expect(json['approved'], isEmpty);
+        expect(json['asked'], [
+          {
+            'doc': _fr,
+            'path': check.loginFr,
+            'reason': 'named in Findings of audit.md',
+            'waitsFor': 'owner',
+          },
+        ]);
+      },
+    );
+
     test('reads an audit path holding a comma as one path', () async {
       final root = await _draftsProject();
       final audit = _writeAudit(root, [_story, _fr], name: 'audit,round1.md');
@@ -1350,6 +1440,59 @@ void main() {
       expect(one.stdout, isNot(contains(flutterArchitecture)));
       expect(_docBytes(root), before);
     });
+
+    test(
+      'auto call reads an Audited line that names a doc by its DocPath',
+      () async {
+        const draft =
+            '---\ndraft: true\n---\n\n# Login architecture\n\n'
+            '## Technical diagram\n\nOne box.\n\n## Components\n\n'
+            '| Component | Responsibility |\n|---|---|\n'
+            '| Sign-in page | Takes the form |\n';
+        final root = await writeTwinProject(
+          extra: {
+            'docs/$flutterArchitecture': draft,
+            'docs/$jasprArchitecture': draft,
+          },
+        );
+        final audit = _writeAudit(root, [flutterArchitecture]);
+
+        final fresh = await run(root, [
+          flutterArchitecture,
+          '--auto',
+          '--audit',
+          audit,
+        ]);
+        expect(fresh.exitCode, 0, reason: '${fresh.stderr}');
+        expect(fresh.stdout, 'mode: auto\napproved $flutterArchitecture\n');
+        expect(_isApproved(root, flutterArchitecture), isTrue);
+
+        final staleRoot = await writeTwinProject(
+          extra: {
+            'docs/$flutterArchitecture': draft,
+            'docs/$jasprArchitecture': draft,
+          },
+        );
+        final base = getDoc(staleRoot, flutterArchitecture)['base'];
+        const old = 'aaaaaaaaaaaa';
+        final stale = File('${staleRoot.path}/stale.md')
+          ..writeAsStringSync(
+            'Audited: $flutterArchitecture@$old\nFindings: none',
+          );
+        final asked = await run(staleRoot, [
+          flutterArchitecture,
+          '--auto',
+          '--audit',
+          stale.path,
+        ]);
+        expect(asked.exitCode, 0, reason: '${asked.stderr}');
+        expect(
+          asked.stdout,
+          'mode: auto\nask $flutterArchitecture: audited at $old, now $base\n',
+        );
+        expect(_isApproved(staleRoot, flutterArchitecture), isFalse);
+      },
+    );
   });
 
   group('--out', () {

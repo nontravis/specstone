@@ -4,6 +4,7 @@ import 'package:specstone_core/src/index_query/models/frontmatter_yaml.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
 import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/link_place.dart';
+import 'package:specstone_core/src/index_query/models/prefixed_label_place.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:yaml/yaml.dart';
 
@@ -38,6 +39,10 @@ final class DocLines {
 
   /// The number labels of the body at their file lines, in source order.
   List<LabelPlace> get numberLabels => _facts.numberLabels;
+
+  /// The capital-prefix label runs of the body at their file lines, in source
+  /// order, whatever prefixes the config lists.
+  List<PrefixedLabelPlace> get prefixedLabels => _facts.prefixedLabels;
 
   /// The header line of each section, in the order of `Doc.sections`.
   List<int> get sectionLines => _facts.sectionLines;

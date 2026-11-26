@@ -70,7 +70,8 @@ typedef NewDocFill = String Function(
 /// too, `argument_missing`), a [slug] with more parts, an empty part, or a
 /// part that is no slug (`argument_invalid`), a per-target doc type with no
 /// [codeTarget] among two or more targets, a [codeTarget] the project does not
-/// name, a [parent] already at `max_depth`, or a [text] that holds a naming
+/// name, a [parent] already at `max_depth`, a DocPath that no doc type or
+/// two or more match (`argument_invalid`), or a [text] that holds a naming
 /// line at column 0 outside fenced code, [WriteFault] `doc_exists` when the
 /// doc is there and `field_not_writable` when [text] holds an `approved` key,
 /// and [RenderFault] `output_not_writable` when the disk refuses or the doc
@@ -297,7 +298,7 @@ NewDocPlace planNewDoc(
     if (onSlugFault == null) rethrow;
     throw onSlugFault(fault);
   }
-  return NewDocPlace(
+  final place = NewDocPlace(
     docType: docType,
     shape: placed,
     parentDoc: parentDoc,
@@ -305,6 +306,29 @@ NewDocPlace planNewDoc(
     placedIn: placedIn,
     slug: parts.own,
   );
+  _checkPlaceable(session, set, place);
+  return place;
+}
+
+/// Throws [IndexFault] `argument_invalid` when the DocPath [place] builds at
+/// sibling number 1 matches no doc type or two or more.
+///
+/// A `{nn}` segment takes any number, so the verdict holds for every number
+/// the claim may take.
+void _checkPlaceable(WriteSession session, MergedSet set, NewDocPlace place) {
+  final docPath = place.docPathAt(1);
+  final match = DocTypeMatcher(
+    set,
+    targetNames: session.index.twinNames,
+  ).match(docPath);
+  final message = switch (match) {
+    MatchedDocType() => null,
+    NoDocType() => '$docPath matches no doc type',
+    AmbiguousDocType(:final docTypeIds) =>
+      '$docPath matches ${docTypeIds.join(', ')}',
+  };
+  if (message == null) return;
+  throw IndexFault(IndexFaultCode.argumentInvalid, message);
 }
 
 /// Writes the new doc at [docPath] and the planned line of each of [records]

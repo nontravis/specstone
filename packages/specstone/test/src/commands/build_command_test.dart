@@ -401,7 +401,8 @@ void main() {
           final base = await writeTree({
             for (final MapEntry(:key, :value) in _fixture.entries)
               'ext/${key.substring('docs/'.length)}': value,
-            'clone/.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+            'clone/.specstone/config.yaml':
+                '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n',
           });
           createRelativeLink('${base.path}/clone/docs', '../ext');
           return (

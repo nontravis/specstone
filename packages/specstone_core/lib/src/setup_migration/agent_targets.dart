@@ -22,11 +22,13 @@ import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/setup_migration/models/code_file.dart';
 import 'package:specstone_core/src/setup_migration/models/malformed_settings_file.dart';
 import 'package:specstone_core/src/setup_migration/models/marker_scan.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart'
+    show AgentFolderGroup;
 import 'package:specstone_core/src/setup_migration/models/skill_file_drift.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
-    show planSkillAndAgentFiles, skillAndAgentFileDrifts;
+    show planSkillAndAgentFiles, skillAndAgentFileDrifts, unofferedGroupsOf;
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -239,6 +241,7 @@ final class AgentFileInputs {
     required this.cliVersion,
     required this.codeRootFolders,
     required this.agentFileRoots,
+    required this.agentFileGroups,
   });
 
   /// The canonical project root.
@@ -252,15 +255,26 @@ final class AgentFileInputs {
 
   /// The tops `agent_file_roots` lists, each as a path from [projectRoot].
   final List<String> agentFileRoots;
+
+  /// The folder groups `agent_file_groups` lists, offered at the project root.
+  final List<AgentFolderGroup> agentFileGroups;
 }
+
+/// Returns the groups [names] name, in [names] order; a name no group has is
+/// skipped.
+List<AgentFolderGroup> agentFileGroupsOf(List<String> names) => [
+  for (final name in names) ?AgentFolderGroup.ofConfigName(name),
+];
 
 /// Returns every drift of the agent files at the project root and at each
 /// repository top, in the order of the files.
 ///
 /// The one predicate `check` and `migrate` call: it is empty exactly when
 /// [planAgentWrites] with `full: false` has nothing to do, bar a malformed
-/// file. A file whose real path lies outside the project root is no drift,
-/// since no run writes it.
+/// file and bar a folder group at the root that `agent_file_groups` does not
+/// list: the plan writes that group whole, and no drift here names it. A file
+/// whose real path lies outside the project root is no drift, since no run
+/// writes it.
 List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
   final survey = _Survey.of(inputs);
   final root = _canonicalOf(inputs.projectRoot);
@@ -311,6 +325,8 @@ final class AgentWritePlan {
     required this.agentFileRoots,
     required this.addedRoots,
     required this.writeSet,
+    this.agentFileGroups = const [],
+    this.addedGroups = const [],
     this.trash = const [],
     this.topTrash = const [],
     this.trashContents = const {},
@@ -328,6 +344,19 @@ final class AgentWritePlan {
 
   /// The tops this run lists for the first time, in [agentFileRoots] order.
   final List<String> addedRoots;
+
+  /// The full new `agent_file_groups` list: the names the config lists, then
+  /// each of [addedGroups].
+  ///
+  /// Empty unless given: only [planAgentWrites] builds the full list.
+  final List<String> agentFileGroups;
+
+  /// The groups this run offers at the project root for the first time, in
+  /// [agentFileGroups] order; empty unless given.
+  ///
+  /// A group with a refused folder, or one that is no folder, is left out and
+  /// offered again once the folder is fixed.
+  final List<String> addedGroups;
 
   /// The canonical path of every agent file the plan writes and the place of
   /// every entry or file it moves to the trash, each inside the project root.
@@ -374,19 +403,21 @@ final class AgentWritePlan {
   String get line =>
       listed.isEmpty ? '' : '$_agentsLinePrefix${listed.length} files';
 
-  /// Whether the run writes or trashes no file and lists no new top.
+  /// Whether the run writes or trashes no file and lists no new top or group.
   bool get isEmpty =>
       rootWrites.isEmpty &&
       topWrites.isEmpty &&
       trash.isEmpty &&
-      addedRoots.isEmpty;
+      addedRoots.isEmpty &&
+      addedGroups.isEmpty;
 }
 
 /// Plans the agent file writes of [inputs].
 ///
 /// [full] is the `init` upsert at the project root; otherwise the root and
 /// each listed top only refresh what exists. An unlisted top always takes the
-/// full upsert once. Reads every file first.
+/// full upsert once, and so does each folder group at the root that
+/// `agent_file_groups` does not list. Reads every file first.
 ///
 /// Throws `MigrateFault` `agent_block_malformed`, naming every malformed file
 /// with its first marker line, and every `.claude/settings.json` and
@@ -453,11 +484,19 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
     for (final path in skills.writeSet) _realPathOf(_fileIn(root, path)),
     for (final path in trash) _placeOf(root, path),
   ]);
+  final addedGroups = [
+    for (final group in unofferedGroupsOf(inputs)) group.configName,
+  ];
   return AgentWritePlan(
     rootWrites: rootWrites,
     topWrites: topWrites,
     agentFileRoots: [...inputs.agentFileRoots, ...added],
     addedRoots: added,
+    agentFileGroups: [
+      for (final group in inputs.agentFileGroups) group.configName,
+      ...addedGroups,
+    ],
+    addedGroups: addedGroups,
     writeSet: writeSet,
     trash: trash,
     topTrash: [

@@ -24,7 +24,7 @@ const _forms = {
   'match': 'match <doc> <entry> <fingerprint>',
   'planned': 'planned <doc> <entry> <fingerprint>',
   'mismatch': 'mismatch <doc> <entry>: <point>',
-  'repoint': 'repoint <doc> <entry> <new path>',
+  'repoint': 'repoint <doc> <entry> <new path>[:<new symbol>]',
   'row':
       'row <record> <item>[ <edge case>]: <sign><literal>[ <sign><literal>]…',
   'tests': 'tests <record> <item>: <sign><test file>',
@@ -123,7 +123,8 @@ final class RepointLine extends SyncLine {
   /// The entry as its doc holds it.
   final String entry;
 
-  /// The path the entry's path becomes.
+  /// The path the entry's path becomes, with `:<symbol>` after it when the
+  /// entry's symbol changes too.
   final String newPath;
 }
 

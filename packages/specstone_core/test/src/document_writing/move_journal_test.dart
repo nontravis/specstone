@@ -2290,17 +2290,24 @@ void main() {
           ),
     );
 
+    /// The tree's bytes without the index, a cache a refused run's refresh
+    /// may rewrite.
+    Map<String, List<int>> treeWithoutIndex(Directory dir) => {
+      for (final MapEntry(:key, :value) in treeBytes(dir).entries)
+        if (!key.contains('.specstone/index.sqlite')) key: value,
+    };
+
     /// Runs [command] with no home folder and expects the refusal, the tree
     /// as it stood after the first read unchanged.
     void refuses(String command, void Function(WriteSession session) body) {
       test('$command refuses before its first change', () async {
         dropLinkIntoStory3();
         getDoc(root, 'user_story:login/reset_password');
-        final before = treeBytes(root);
+        final before = treeWithoutIndex(root);
 
         expect(() => writeInNoHome(root, body), refusal);
 
-        expect(treeBytes(root), before);
+        expect(treeWithoutIndex(root), before);
         expect(dirExists('.specstone/trash'), isFalse);
       });
     }
@@ -2337,7 +2344,7 @@ void main() {
     test('move refuses before its first change', () async {
       final nested = await writeNestedProject();
       getDoc(nested, 'user_story:shop/cart/add_item');
-      final before = treeBytes(nested);
+      final before = treeWithoutIndex(nested);
 
       expect(
         () => writeInNoHome(
@@ -2349,7 +2356,7 @@ void main() {
         refusal,
       );
 
-      expect(treeBytes(nested), before);
+      expect(treeWithoutIndex(nested), before);
     });
 
     refuses(

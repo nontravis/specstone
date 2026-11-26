@@ -72,18 +72,28 @@ List<CatalogDoc> _catalogsOf(CheckContext context) {
   return catalogs;
 }
 
-/// Returns each body row's code span under [column]; header and separator
-/// rows hold none.
+/// Returns each body row's code span under [column] of its own table; the
+/// header and separator rows hold none, and a table whose header lacks
+/// [column] yields none. A line that is no table row ends the table.
 List<CodeAt> _catalogRowsOf(List<BodyLine> body, String column) {
   final rows = <CodeAt>[];
   int? codeColumn;
+  var tableStarted = false;
   for (final line in body) {
     final text = line.text.trim();
-    if (line.fenced || !text.startsWith('|')) continue;
+    if (line.fenced || !text.startsWith('|')) {
+      codeColumn = null;
+      tableStarted = false;
+      continue;
+    }
     final cells = _cellsOf(text);
     if (cells.every((cell) => cell.isEmpty || _isSeparator(cell))) continue;
-    codeColumn ??= _columnOf(cells, column);
-    if (codeColumn >= cells.length) continue;
+    if (!tableStarted) {
+      tableStarted = true;
+      codeColumn = _columnOf(cells, column);
+      continue;
+    }
+    if (codeColumn == null || codeColumn >= cells.length) continue;
     final span = codeSpansOf(cells[codeColumn]).firstOrNull;
     if (span == null) continue;
     rows.add(CodeAt(code: _spanText(cells[codeColumn], span), line: line.line));
@@ -100,10 +110,10 @@ List<String> _cellsOf(String row) {
 
 bool _isSeparator(String cell) => RegExp(r'^:?-{3,}:?$').hasMatch(cell);
 
-/// Returns the index of [column] in [cells], or 0 when it names none.
-int _columnOf(List<String> cells, String column) {
+/// Returns the index of [column] in [cells], or null when it names none.
+int? _columnOf(List<String> cells, String column) {
   final index = cells.indexWhere((cell) => cell == column);
-  return index < 0 ? 0 : index;
+  return index < 0 ? null : index;
 }
 
 String _spanText(String line, CodeSpan span) =>

@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/code_rules.dart'
+    show namesFileExactlyFrom;
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/models/record_doc.dart';
@@ -57,7 +59,11 @@ Iterable<Finding> _resolve(
 ) sync* {
   final entry = ImplementsEntry(code);
   final path = entry.path;
-  if (!entry.namesFileFrom(context.codeRootOf(target))) {
+  if (!namesFileExactlyFrom(
+    context.exactPaths,
+    context.codeRootOf(target),
+    path,
+  )) {
     yield context.finding(
       doc,
       FindingKind.implementsPathUnresolved,

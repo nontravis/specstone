@@ -16,6 +16,7 @@ import '../../../../specstone_core/test/helpers/shipped_pins.dart'
     show shippedPinsConfig;
 import '../../../../specstone_core/test/helpers/skill_doc_fixture.dart';
 import '../../helpers/built_cli.dart';
+import '../../helpers/fixture_packs.dart' show fixtureAgentGroups;
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
@@ -554,7 +555,7 @@ void main() {
       final project = await writeReadProject(
         extra: {
           '.specstone/config.yaml':
-              'packs:\n'
+              '${fixtureAgentGroups}packs:\n'
               '  prd-core: ${shippedPackVersions()['prd-core']}\n'
               '  software-tech: ${shippedPackVersions()['software-tech']}\n'
               'targets:\n  app:\n    code_root: nowhere\n',
@@ -603,7 +604,7 @@ void main() {
         '.specstone/templates/tech_stack.yaml':
             'id: tech_stack\nper_target: true\n',
         '.specstone/config.yaml':
-            'packs:\n'
+            '${fixtureAgentGroups}packs:\n'
             '  prd-core: ${shippedPackVersions()['prd-core']}\n'
             '  software-tech: ${shippedPackVersions()['software-tech']}\n'
             'targets:\n'
@@ -1009,7 +1010,7 @@ void main() {
       final one = await writeReadProject(
         extra: {
           '.specstone/config.yaml':
-              'packs:\n'
+              '${fixtureAgentGroups}packs:\n'
               '  prd-core: ${shippedPackVersions()['prd-core']}\n'
               '  software-tech: ${shippedPackVersions()['software-tech']}\n'
               'targets:\n  app:\n    code_root: app\n',

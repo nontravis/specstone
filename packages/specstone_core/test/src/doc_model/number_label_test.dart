@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 String f(int n) => 'F-$n';
 String us(int n) => 'US-$n';
 String fr(int n) => 'FR-$n';
+String fo(Object n) => 'FO-$n';
 
 String fPath(int n, [String slug = '']) => 'f${_pad(n)}$slug';
 String usPath(int n, [String slug = '']) => 'us${_pad(n)}$slug';
@@ -336,6 +337,58 @@ void main() {
       final label = numberLabelsInMarkdown('us01/fr01/nf02\n').single;
 
       expect((label.written, label.isPartOfPath), ('us01/fr01', true));
+    });
+  });
+
+  group('labelLinesInMarkdown, the prefixed chains', () {
+    test('a capital prefix and digits read as a candidate run', () {
+      final chains = labelLinesInMarkdown(
+        'Intro.\nsee ${fo(12)} ${us(3)} here\n',
+      ).prefixed;
+
+      expect(chains, hasLength(1));
+      final chain = chains.single;
+      expect(chain.line, 1);
+      expect([for (final part in chain.parts) part.written], [fo(12), us(3)]);
+      expect([for (final part in chain.parts) part.prefix], ['FO-', 'US-']);
+      expect(chain.parts.first.ownerWritten, isNull);
+      expect(chain.parts.last.ownerWritten, us(3));
+      expect(chain.parts.last.ownerStart, 'see ${fo(12)} '.length);
+      expect(labelLinesInMarkdown('`${fo(12)}`\n').prefixed, isEmpty);
+    });
+
+    test('a chain of built-in labels, a link destination, and a placeholder '
+        'give none, a chain keeps every part', () {
+      expect(
+        labelLinesInMarkdown(
+          '${f(1)} ${us(2)} ${fr(3)} [x](../${fo(4)}.md) ${fo('<nn>')}\n',
+        ).prefixed,
+        isEmpty,
+      );
+      final chains = labelLinesInMarkdown(
+        '${fo(1)} ${fo(2)} ${fo(3)} ${fo(4)}\n',
+      ).prefixed;
+      expect(chains.single.parts.map((part) => part.written), [
+        fo(1),
+        fo(2),
+        fo(3),
+        fo(4),
+      ]);
+      expect(
+        labelLinesInMarkdown('UTF-8 and xFO-1 and A-b\n').prefixed.single.parts
+            .map((part) => part.prefix),
+        ['UTF-'],
+      );
+    });
+
+    test('the number labels carry the line of each, as the index stores '
+        'them', () {
+      final lines = labelLinesInMarkdown('a ${f(1)}\n\n`${us(2)}` ${fr(3)}\n');
+
+      expect(
+        [for (final l in lines.numbers) (l.line, l.written)],
+        [(0, f(1)), (2, fr(3))],
+      );
     });
   });
 }

@@ -91,10 +91,11 @@ String _fixTextOf(AgentFixDirection direction, ReleaseVersion? stamp) =>
     };
 
 /// Returns one `agent_block_stale` finding per drift `agentFileDrifts` and
-/// `skillAndAgentFileDrifts` find.
+/// `skillAndAgentFileDrifts` find, then one per group `unofferedGroupsOf`
+/// names.
 ///
 /// Each finding carries the file's path from the project root and no `name`;
-/// a skill or agent file's sits on line 1.
+/// a skill or agent file's sits on line 1, and a group's is its first folder.
 /// The code roots come from `codeFoldersOf`, as `migrate` reads them.
 Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
   final config = ProjectConfig.read(context.projectRoot);
@@ -107,6 +108,7 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
       targets: config.targets,
     ),
     agentFileRoots: config.agentFileRoots,
+    agentFileGroups: agentFileGroupsOf(config.agentFileGroups),
   );
   final stamp = config.agentFilesVersion;
   final direction = agentFixDirectionOf(stamp);
@@ -132,5 +134,12 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
   for (final SkillFileDrift(:path, :kind) in skillAndAgentFileDrifts(inputs)) {
     if (unlistedTops.any(path.startsWith)) continue;
     yield findingOf(path, 1, _skillTextOf(kind, path));
+  }
+  for (final group in unofferedGroupsOf(inputs)) {
+    yield findingOf(
+      '${group.folders.first.path}/',
+      1,
+      _command('the ${group.configName} agent files are not offered yet'),
+    );
   }
 }

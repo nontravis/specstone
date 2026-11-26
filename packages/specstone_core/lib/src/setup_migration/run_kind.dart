@@ -28,7 +28,8 @@ enum RunKind {
   /// At least one pin is older than its available pack version, or every pin
   /// is equal and a typed doc is off the layout `format` writes, an agent
   /// file or `specstone-*` skill or agent file drifts from what the CLI
-  /// writes, a per-target doc sits at a one-target path under two or more
+  /// writes, an agent file group is missing from `agent_file_groups`, a
+  /// per-target doc sits at a one-target path under two or more
   /// code targets, or a record holds a row the matrix fold pass folds.
   upgrade,
 
@@ -51,8 +52,9 @@ enum RunKind {
 /// agent files hold. Then any older pin gives [RunKind.upgrade]. With every pin
 /// equal, a doc off its layout, generated blocks aside, then any agent file
 /// drift (`agentFileDrifts`, the predicate `check` uses, a malformed marker
-/// included) or skill and agent file drift (`skillAndAgentFileDrifts`), then
-/// two or more code targets over a per-target doc at a one-target path
+/// included), skill and agent file drift (`skillAndAgentFileDrifts`), or an
+/// agent file group `agent_file_groups` does not list (`unlistedGroupsOf`),
+/// then two or more code targets over a per-target doc at a one-target path
 /// (`treeMovesOf`), then a row the matrix fold pass folds, gives
 /// [RunKind.upgrade], otherwise [RunKind.none].
 /// [homeDirectory] is the personal pack home, or null. With [hasAdds], a
@@ -194,7 +196,9 @@ bool _hasAgentFileDrift(
     cliVersion: specstoneVersion,
     codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
     agentFileRoots: config.agentFileRoots,
+    agentFileGroups: agentFileGroupsOf(config.agentFileGroups),
   );
   return agentFileDrifts(inputs).isNotEmpty ||
-      skillAndAgentFileDrifts(inputs).isNotEmpty;
+      skillAndAgentFileDrifts(inputs).isNotEmpty ||
+      unlistedGroupsOf(inputs).isNotEmpty;
 }

@@ -23,10 +23,35 @@ String planHashOf(String planText, PlanInputs inputs) =>
 /// A path read twice keeps its first hash. A read that throws a
 /// [FileSystemException] is recorded as [PlanInputs.firstUnreadable] on every
 /// active recorder, then rethrown.
-Uint8List readPlanInput(File file) {
+Uint8List readPlanInput(File file) => _readRecorded(file, file.readAsBytesSync);
+
+/// Reads at most [maxBytes] + 1 bytes of [file] and records them as
+/// [readPlanInput] does.
+///
+/// Opens the file once and reads until the end or the bound, so a file that
+/// grows or is a device never reads whole;
+/// a result longer than [maxBytes] tells the caller the file is over the bound.
+Uint8List readPlanInputAtMost(File file, int maxBytes) =>
+    _readRecorded(file, () {
+      final handle = file.openSync();
+      try {
+        final limit = maxBytes + 1;
+        final builder = BytesBuilder(copy: false);
+        while (builder.length < limit) {
+          final chunk = handle.readSync(limit - builder.length);
+          if (chunk.isEmpty) break;
+          builder.add(chunk);
+        }
+        return builder.takeBytes();
+      } finally {
+        handle.closeSync();
+      }
+    });
+
+Uint8List _readRecorded(File file, Uint8List Function() read) {
   final Uint8List bytes;
   try {
-    bytes = file.readAsBytesSync();
+    bytes = read();
   } on FileSystemException {
     for (final recorder in _activeRecorders) {
       recorder._recordUnreadable(file);

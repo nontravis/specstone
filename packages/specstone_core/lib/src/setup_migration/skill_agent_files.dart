@@ -25,14 +25,88 @@ const _ownedPrefix = 'specstone-';
 ///
 /// [full] is the `init` upsert at the project root; otherwise a folder group
 /// takes writes only while one of its folders holds a `specstone-*` entry. An
-/// unlisted top always takes the full upsert once.
+/// unlisted top always takes the full upsert once, and so does each group at
+/// the root that [unlistedGroupsOf] names.
 /// Entries not named `specstone-*` are never read.
 SkillFilePlan planSkillAndAgentFiles(
   AgentFileInputs inputs, {
   required bool full,
+}) => _planOf(inputs, full: full, leavesUnoffered: false);
+
+/// Returns the groups of [inputs] that `agent_file_groups` does not list, in
+/// [AgentFolderGroup] order; the project root offers each once.
+List<AgentFolderGroup> unlistedGroupsOf(AgentFileInputs inputs) => [
+  for (final group in AgentFolderGroup.values)
+    if (!inputs.agentFileGroups.contains(group)) group,
+];
+
+/// Returns the groups of [unlistedGroupsOf] none of whose folders is refused at
+/// the project root or is no folder there (D16); a run leaves such a group
+/// as it is, so no `migrate` can offer it.
+List<AgentFolderGroup> unofferedGroupsOf(AgentFileInputs inputs) {
+  final root = AgentFileBase(
+    path: '',
+    directory: inputs.projectRoot,
+    isTop: false,
+    isListed: true,
+  );
+  return [
+    for (final group in unlistedGroupsOf(inputs))
+      if (group.folders.every(
+        (folder) =>
+            _folderSkipOf(root, folder, projectRoot: inputs.projectRoot) ==
+            null,
+      ))
+        group,
+  ];
+}
+
+/// Returns the line that leaves [folder] of [base] as it is, or null when it
+/// and its top are folders, or missing, where a run may write.
+///
+/// The folder's top is its first path segment; the top is judged first.
+String? _folderSkipOf(
+  AgentFileBase base,
+  AgentFolder folder, {
+  required Directory projectRoot,
+}) {
+  for (final relative in [folder.path.split('/').first, folder.path]) {
+    final path = _pathIn(base, relative);
+    final refusal = writeRefusalOf(path, projectRoot: projectRoot);
+    if (refusal != null) {
+      return skippedLineOf(_rootPath(base, relative), refusal);
+    }
+    if (_isNoFolder(path)) {
+      return '${_rootPath(base, relative)} is not a folder; left as it is';
+    }
+  }
+  return null;
+}
+
+String _pathIn(AgentFileBase base, String relative) => File.fromUri(
+  base.directory.uri.resolveUri(Uri(pathSegments: relative.split('/'))),
+).path;
+
+String _rootPath(AgentFileBase base, String relative) =>
+    base.path.isEmpty ? relative : '${base.path}/$relative';
+
+bool _isNoFolder(String path) {
+  final type = FileSystemEntity.typeSync(path);
+  return type != FileSystemEntityType.notFound &&
+      type != FileSystemEntityType.directory;
+}
+
+SkillFilePlan _planOf(
+  AgentFileInputs inputs, {
+  required bool full,
+  required bool leavesUnoffered,
 }) {
   final bases = agentFileBasesOf(inputs);
-  final planner = _Planner(bases.first.directory);
+  final planner = _Planner(
+    bases.first.directory,
+    unoffered: unlistedGroupsOf(inputs),
+    leavesUnoffered: leavesUnoffered,
+  );
   for (final base in bases) {
     planner.plan(base, full: full);
   }
@@ -61,10 +135,12 @@ String? skillFolderOf(String path) {
 /// Returns every drift of the skill and agent files, in plan order.
 ///
 /// Empty exactly when [planSkillAndAgentFiles] with `full: false` has nothing
-/// to write or trash and no malformed hook file. Never throws for a malformed
-/// hook file; it is a [SkillFileDriftKind.settingsMalformed].
+/// to write or trash and no malformed hook file, bar a group at the root that
+/// [unlistedGroupsOf] names: only a `migrate` writes that group, whole, so it
+/// has no drift here. Never throws for a malformed hook file; it is a
+/// [SkillFileDriftKind.settingsMalformed].
 List<SkillFileDrift> skillAndAgentFileDrifts(AgentFileInputs inputs) {
-  final plan = planSkillAndAgentFiles(inputs, full: false);
+  final plan = _planOf(inputs, full: false, leavesUnoffered: true);
   return [
     for (final write in plan.writes)
       SkillFileDrift(path: write.path, kind: _kindOf(write)),
@@ -114,11 +190,20 @@ SpecstoneHookFile? _hookFileOfGroup(AgentFolderGroup group) => switch (group) {
 };
 
 final class _Planner {
-  new(this._root) : _rendered = renderHostFiles() {
+  new(this._root, {required this.unoffered, required bool leavesUnoffered})
+    : _leavesUnoffered = leavesUnoffered,
+      _rendered = renderHostFiles() {
     _shipped = {for (final file in _rendered) file.path};
   }
 
   final Directory _root;
+
+  /// The groups the project root has not been offered; each takes the full
+  /// upsert at the root.
+  final List<AgentFolderGroup> unoffered;
+
+  /// Whether a group of [unoffered] is left out of the plan at the root.
+  final bool _leavesUnoffered;
   final List<RenderedFile> _rendered;
   late final Set<String> _shipped;
 
@@ -146,7 +231,9 @@ final class _Planner {
       }
     }
     for (final group in AgentFolderGroup.values) {
-      _planGroup(base, group, isUpsert: isUpsert);
+      final isUnoffered = !base.isTop && unoffered.contains(group);
+      if (isUnoffered && _leavesUnoffered) continue;
+      _planGroup(base, group, isUpsert: isUpsert || isUnoffered);
     }
   }
 
@@ -202,33 +289,15 @@ final class _Planner {
     AgentFolder folder,
     List<String> refusals,
   ) {
-    for (final relative in [folder.path.split('/').first, folder.path]) {
-      final path = _pathIn(base, relative);
-      final refusal = writeRefusalOf(path, projectRoot: _root);
-      if (refusal != null) {
-        refusals.add(skippedLineOf(_rootPath(base, relative), refusal));
-        return false;
-      }
-      if (_isNoFolder(path)) {
-        refusals.add(
-          '${_rootPath(base, relative)} is not a folder; '
-          'left as it is',
-        );
-        return false;
-      }
-    }
-    return true;
+    final skip = _folderSkipOf(base, folder, projectRoot: _root);
+    if (skip == null) return true;
+    refusals.add(skip);
+    return false;
   }
 
   bool _existsAt(String path) =>
       FileSystemEntity.typeSync(path, followLinks: false) !=
       FileSystemEntityType.notFound;
-
-  bool _isNoFolder(String path) {
-    final type = FileSystemEntity.typeSync(path);
-    return type != FileSystemEntityType.notFound &&
-        type != FileSystemEntityType.directory;
-  }
 
   /// The names listed in [folder], by code point; none when it is missing.
   List<String> _namesIn(AgentFileBase base, AgentFolder folder) {
@@ -413,13 +482,6 @@ final class _Planner {
   void _skip(String line) {
     if (!skipped.contains(line)) skipped.add(line);
   }
-
-  String _pathIn(AgentFileBase base, String relative) => File.fromUri(
-    base.directory.uri.resolveUri(Uri(pathSegments: relative.split('/'))),
-  ).path;
-
-  String _rootPath(AgentFileBase base, String relative) =>
-      base.path.isEmpty ? relative : '${base.path}/$relative';
 }
 
 /// An entry a group listed, and the folder that holds it, waiting for the trash

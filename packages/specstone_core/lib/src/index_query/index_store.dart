@@ -104,8 +104,13 @@ const _notWritableMessage =
 /// `generation` column to the meta row, which tells a peer's write of docs from
 /// a peer's write of code-file facts, so an index of layout 36 is rebuilt.
 /// Layout 38 stores one fenced range per block, so an index of layout 37,
-/// whose ranges merge blocks that touch, is rebuilt.
-const indexLayoutVersion = 38;
+/// whose ranges merge blocks that touch, is rebuilt. Layout 39 adds each
+/// doc's capital-prefix label runs to the line facts, so an index of layout 38,
+/// which holds none, is rebuilt. Layout 40 adds each doc's address-shaped link
+/// texts to the line facts, so an index of layout 39, which holds none, is
+/// rebuilt. Layout 41 stores only the typed address link texts, so an index of
+/// layout 40, whose line facts hold bare ones, is rebuilt.
+const indexLayoutVersion = 41;
 
 const _schema = '''
 CREATE TABLE meta (

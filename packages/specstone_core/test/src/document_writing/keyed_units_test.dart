@@ -11,12 +11,41 @@ import 'package:specstone_core/src/document_writing/move_plan_engine.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show fingerprintFor;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
 const _cartApi = 'specs/f02_shop/f01_cart/API.md';
+const _payApi = 'specs/f02_shop/f02_pay/API.md';
+const _giftFeature = 'prds/features/f03_gift/FEATURE.md';
+const _giftApi = 'specs/f03_gift/API.md';
+
+/// An API doc whose one trace row names an FR no test moves, under [front],
+/// the frontmatter it holds.
+String _otherApiText(String title, String cell, {String front = ''}) =>
+    '$front# $title API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+    '| $cell | `other` |\n\n## Operations\n### `other`\nDoes it.\n';
+
+/// The first cell of each fr_trace row of [docPath].
+List<String> _traceCellsOf(Directory root, String docPath) => [
+  for (final match in RegExp(
+    r'^\| ([\w/]+) \| `\w+` \|$',
+    multiLine: true,
+  ).allMatches(readDoc(root, docPath)))
+    match.group(1)!,
+];
+
+/// The `confirmed` entry lines of [docPath].
+List<String> _confirmedOf(Directory root, String docPath) => [
+  for (final match in RegExp(
+    r'^  - (\S+ [0-9a-f]{12})$',
+    multiLine: true,
+  ).allMatches(readDoc(root, docPath)))
+    match.group(1)!,
+];
 
 const _catalogHead =
     '| Code | Status or exit | Condition | Client action | Retryable |\n'
@@ -45,14 +74,15 @@ Future<Directory> _project(Map<String, String> docs) => writeNestedProject(
   extra: {for (final e in docs.entries) 'docs/${e.key}': e.value},
 );
 
-ReadAnswer _apply(Directory root, String plan) => writeIn(
-  root,
-  (session) => answerPlanMove(
-    session,
-    parseMovePlan(plan, path: 'plan.txt'),
-    dryRun: false,
-  ),
-);
+ReadAnswer _apply(Directory root, String plan, {bool dryRun = false}) =>
+    writeIn(
+      root,
+      (session) => answerPlanMove(
+        session,
+        parseMovePlan(plan, path: 'plan.txt'),
+        dryRun: dryRun,
+      ),
+    );
 
 /// Every doc of [root] as bytes.
 Map<String, List<int>> _docBytes(Directory root) => {
@@ -446,5 +476,235 @@ void main() {
       readDoc(root, _cartApi),
       contains('Lists items; see [drop](#dropitem).'),
     );
+  });
+
+  group('an fr_trace row moved to another api doc', () {
+    const rowPlan =
+        'api:shop#fr_trace/cart/add_item/check_stock -> api:shop/cart\n';
+    final fingerprint = fingerprintFor(checkStockStatement);
+
+    Future<Directory> cartProject() =>
+        _project({_cartApi: _otherApiText('Cart', 'drop_item/check')});
+
+    test('lands its cell cut below the destination feature and carries its confirmed entry', () async {
+      final root = await cartProject();
+      _apply(root, rowPlan);
+      expect(_traceCellsOf(root, _cartApi), [
+        'drop_item/check',
+        'add_item/check_stock',
+      ]);
+      expect(_confirmedOf(root, _cartApi), [
+        'add_item/check_stock $fingerprint',
+      ]);
+      expect(_traceCellsOf(root, shopApi), isEmpty);
+      expect(_confirmedOf(root, shopApi), isEmpty);
+      expect(_isDraft(root, _cartApi), isTrue);
+      expect(_isDraft(root, shopApi), isTrue);
+    });
+
+    test('lands its cell relative to the destination feature its FR moves to, whichever line comes first', () async {
+      const storyMove = 'user_story:shop/cart/add_item -> feature:gift\n';
+      const rowMove =
+          'api:shop#fr_trace/cart/add_item/check_stock -> api:gift\n';
+      Future<Directory> giftProject() => _project({
+        _giftFeature: nestedFiles()['docs/$payFeature']!.replaceAll(
+          'Pay',
+          'Gift',
+        ),
+        _giftApi: _otherApiText('Gift', 'wrap/choose'),
+      });
+      final storyFirst = await giftProject();
+      _apply(storyFirst, '$storyMove$rowMove');
+      final rowFirst = await giftProject();
+      _apply(rowFirst, '$rowMove$storyMove');
+      expect(_traceCellsOf(storyFirst, _giftApi), [
+        'wrap/choose',
+        'add_item/check_stock',
+      ]);
+      expect(_confirmedOf(storyFirst, _giftApi), [
+        'add_item/check_stock $fingerprint',
+      ]);
+      expect(_docBytes(rowFirst), _docBytes(storyFirst));
+    });
+
+    test('whose FR stays outside the destination feature is refused with nothing written', () async {
+      final root = await _project({
+        _payApi: _otherApiText('Pay', 'charge/check'),
+      });
+      expect(
+        _refusal(
+          root,
+          'api:shop#fr_trace/cart/add_item/check_stock -> api:shop/pay\n',
+        ),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'plan.txt:1: shop/cart/add_item/check_stock is no requirement of shop/pay',
+            ),
+      );
+    });
+
+    test('whose FR a later line moves out of the destination feature is refused with nothing written', () async {
+      final root = await cartProject();
+      expect(
+        _refusal(
+          root,
+          '${rowPlan}user_story:shop/cart/add_item -> feature:shop/pay\n',
+        ),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'plan.txt:1: shop/pay/add_item/check_stock is no requirement of shop/cart',
+            ),
+      );
+    });
+
+    test('whose key the destination already traces is refused with nothing written', () async {
+      final root = await _project({
+        _cartApi: _otherApiText('Cart', 'add_item/check_stock'),
+      });
+      expect(
+        _refusal(root, rowPlan),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              '$_cartApi already holds fr_trace/add_item/check_stock',
+            ),
+      );
+    });
+
+    test('whose key the destination traces only once a later line moves its FR is refused with nothing written', () async {
+      final root = await _project({
+        _cartApi: _otherApiText('Cart', 'drop_item/check_stock'),
+      });
+      expect(
+        _refusal(
+          root,
+          '${rowPlan}fr:shop/cart/add_item/check_stock -> user_story:shop/cart/drop_item\n',
+        ),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              '$_cartApi already holds fr_trace/drop_item/check_stock',
+            ),
+      );
+    });
+
+    test('under --dry-run writes nothing', () async {
+      final root = await cartProject();
+      final before = _docBytes(root);
+      _apply(root, rowPlan, dryRun: true);
+      expect(_docBytes(root), before);
+    });
+
+    test('keeps the other confirmed entries of its source and the backticks of its cell', () async {
+      final root = await _project({
+        shopApi:
+            '---\nconfirmed:\n  - cart/add_item/check_stock $fingerprint\n'
+            '  - cart/drop_item/check b1b2b3b4b5b6\n---\n\n'
+            '# Shop API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+            '| `cart/add_item/check_stock` | `addItem` |\n'
+            '| cart/drop_item/check | `dropItem` |\n',
+        _cartApi: _otherApiText('Cart', 'drop_item/check_stock'),
+      });
+      _apply(root, rowPlan);
+      expect(_confirmedOf(root, shopApi), [
+        'cart/drop_item/check b1b2b3b4b5b6',
+      ]);
+      expect(_traceCellsOf(root, shopApi), ['cart/drop_item/check']);
+      expect(
+        readDoc(root, _cartApi),
+        contains('| `add_item/check_stock` | `addItem` |\n'),
+      );
+    });
+
+    test(
+      'adds its confirmed entry after the entries its destination holds',
+      () async {
+        final root = await _project({
+          _cartApi: _otherApiText(
+            'Cart',
+            'drop_item/check',
+            front: '---\nconfirmed:\n  - drop_item/check c1c2c3c4c5c6\n---\n\n',
+          ),
+        });
+        _apply(root, rowPlan);
+        expect(_confirmedOf(root, _cartApi), [
+          'drop_item/check c1c2c3c4c5c6',
+          'add_item/check_stock $fingerprint',
+        ]);
+      },
+    );
+
+    test('whose confirmed entry meets one its destination holds for the landed key is refused with nothing written', () async {
+      final root = await _project({
+        _cartApi: _otherApiText(
+          'Cart',
+          'drop_item/check',
+          front:
+              '---\nconfirmed:\n  - add_item/check_stock d1d2d3d4d5d6\n---\n\n',
+        ),
+      });
+      expect(
+        _refusal(root, rowPlan),
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              '$_cartApi already holds a confirmed entry for add_item/check_stock',
+            ),
+      );
+    });
+
+    test('whose source holds no confirmed entry lands beside a destination entry of the landed key', () async {
+      final root = await _project({
+        shopApi:
+            '# Shop API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+            '| cart/add_item/check_stock | `addItem` |\n',
+        _cartApi: _otherApiText(
+          'Cart',
+          'drop_item/check',
+          front:
+              '---\nconfirmed:\n  - add_item/check_stock d1d2d3d4d5d6\n---\n\n',
+        ),
+      });
+      _apply(root, rowPlan);
+      expect(_confirmedOf(root, _cartApi), [
+        'add_item/check_stock d1d2d3d4d5d6',
+      ]);
+      expect(_traceCellsOf(root, _cartApi), [
+        'drop_item/check',
+        'add_item/check_stock',
+      ]);
+    });
+
+    test('whose destination confirmed list is no valid YAML is refused with nothing written', () async {
+      final root = await _project({
+        _cartApi: _otherApiText(
+          'Cart',
+          'drop_item/check',
+          front: '---\nconfirmed:\n  - "unterminated\n---\n\n',
+        ),
+      });
+      expect(
+        _refusal(root, rowPlan),
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $_cartApi: its confirmed list is not valid YAML',
+            ),
+      );
+    });
   });
 }

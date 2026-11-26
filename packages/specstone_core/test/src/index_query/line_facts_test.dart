@@ -69,6 +69,32 @@ void main() {
       );
     });
 
+    test('a chain with a part outside the built-in prefixes is stored at its '
+        'file line with its parts and their owners, and survives a JSON '
+        'round trip', () {
+      const labelled =
+          '---\nnote: FO-01\n---\n# T\n\nSee FO-02 US-03 and F-04 only.\n';
+      final facts = _factsOf(labelled);
+      final chain = facts.prefixedLabels.single;
+
+      expect(chain.line, 6);
+      expect([for (final p in chain.parts) p.written], ['FO-02', 'US-03']);
+      expect(chain.parts.last.ownerWritten, 'US-03');
+      expect(chain.parts.last.ownerStart, 'See FO-02 '.length);
+      final back = lineFactsFromJson(
+        jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+        sectionCounts: facts.sectionCounts,
+      ).prefixedLabels.single;
+      expect(back.line, chain.line);
+      for (final (i, part) in back.parts.indexed) {
+        final held = chain.parts[i];
+        expect(part.prefix, held.prefix);
+        expect(part.written, held.written);
+        expect(part.ownerWritten, held.ownerWritten);
+        expect(part.ownerStart, held.ownerStart);
+      }
+    });
+
     test('each TBR '
         'marker of the body is stored at its file line and survives a JSON '
         'round trip', () {
@@ -559,6 +585,22 @@ void main() {
       expect(roundTrip(facts).linkTexts, facts.linkTexts);
     });
 
+    test('each doc link whose text reads as a typed doc address '
+        'stores its text, and the JSON round trip keeps them', () {
+      // D9: the bare texts `login/email` and `login` are stored by no rule.
+      const line =
+          'See [domain:login#rules](doc_model.md#rules) and '
+          '[login/email](y.md) and [login](z.md) and [the login rules](z.md).';
+      final facts = _factsOf('# T\n\n$line\n');
+
+      expect(
+        [for (final t in facts.addressLinkTexts) (t.text, t.target, t.line)],
+        [('domain:login#rules', 'doc_model.md', 3)],
+      );
+      expect(facts.linkTexts, isEmpty);
+      expect(roundTrip(facts).addressLinkTexts, facts.addressLinkTexts);
+    });
+
     test('each heading stores its level, and '
         'its file line when every heading is a line of ATX text', () {
       final facts = _factsOf(
@@ -681,7 +723,6 @@ void main() {
         doc: Doc.parse('# T\n'),
         sectionCounts: const [],
         frontmatterErrorLine: null,
-        bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
         citeCandidates: const [],
         bareItemIds: const [],
@@ -754,7 +795,6 @@ void main() {
           SectionCounts(lines: 2, chars: 4),
         ],
         frontmatterErrorLine: null,
-        bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
         citeCandidates: const [],
         bareItemIds: const [],

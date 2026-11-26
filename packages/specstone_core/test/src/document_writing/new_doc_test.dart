@@ -419,6 +419,66 @@ void main() {
     },
   );
 
+  test('a new doc at a path no doc type matches is argument_invalid naming the DocPath, and no file or folder is created', () async {
+    final root = await writeGroupedProject(
+      extra: {
+        '.specstone/templates/security.yaml':
+            'path: specs/s{nn}_{slug}/SECURITY.md\n',
+      },
+    );
+    final before = treeBytes(root)
+      ..removeWhere((k, _) => !k.startsWith('docs'));
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'security', parent: 'kitchen/recipes'),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'specs/skitchen_01/SECURITY.md matches no doc type',
+            ),
+      ),
+    );
+    expect(
+      treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+      before,
+    );
+  });
+
+  test('a new doc at a path two doc types match is argument_invalid listing both ids, and no file is created', () async {
+    final root = await writeGroupedProject(
+      extra: {
+        '.specstone/templates/api.yaml':
+            'path: specs/{slug}/f{nn}_recipes/SECURITY.md\n',
+      },
+    );
+    final before = treeBytes(root)
+      ..removeWhere((k, _) => !k.startsWith('docs'));
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'security', parent: 'kitchen/recipes'),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              'specs/kitchen/f01_recipes/SECURITY.md matches api, security',
+            ),
+      ),
+    );
+    expect(
+      treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+      before,
+    );
+  });
+
   test(
     'no slug on a flat story is argument_missing naming one part and the path',
     () async {

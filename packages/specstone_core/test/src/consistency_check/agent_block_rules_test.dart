@@ -591,6 +591,128 @@ void main() {
     });
   });
 
+  group('an unoffered group', () {
+    const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
+    const listed = ['claude_code', 'shared', 'cursor_agents'];
+
+    /// The findings of a check over the shipped files but for [changes],
+    /// where the config lists [groups].
+    Future<List<Finding>> groupFindingsOf(
+      List<String> groups, {
+      Map<String, String?> changes = const {},
+    }) async {
+      final files = {
+        ...skillFileTexts(),
+        '.specstone/config.yaml': shippedPinsConfig(
+          shippedPinsDefaultPacks,
+          groups,
+        ),
+        ...changes,
+      }..removeWhere((_, text) => text == null);
+      return _staleOf({for (final e in files.entries) e.key: e.value!});
+    }
+
+    final codexFiles = {
+      for (final path in skillFileTexts().keys)
+        if (path.startsWith('.codex/')) path: null,
+    };
+
+    test('an unlisted group is one finding at its first folder', () async {
+      expect(codexFiles, isNotEmpty);
+
+      final found = await groupFindingsOf(listed, changes: codexFiles);
+
+      expect(found, hasLength(1));
+      expect(found.single.path, '.codex/agents/');
+      expect(found.single.line, 1);
+      expect(
+        found.single.message,
+        'the codex_agents agent files are not offered yet; $_migrate',
+      );
+      expect(found.single.waitsFor, WaitsFor.owner);
+    });
+
+    test("an unlisted group's own stale files give no other finding", () async {
+      final found = await groupFindingsOf(
+        listed,
+        changes: {...codexFiles, codexToml: 'hand edit\n'},
+      );
+
+      expect([for (final f in found) f.path], ['.codex/agents/']);
+    });
+
+    test('no agent_file_groups key gives four group findings', () async {
+      final found = await groupFindingsOf(const []);
+
+      expect(found.map((f) => f.line), everyElement(1));
+      expect(
+        {for (final f in found) f.path: f.message},
+        {
+          for (final (path, name) in [
+            ('.claude/skills/', 'claude_code'),
+            ('.agents/skills/', 'shared'),
+            ('.codex/agents/', 'codex_agents'),
+            ('.cursor/agents/', 'cursor_agents'),
+          ])
+            path: 'the $name agent files are not offered yet; $_migrate',
+        },
+      );
+      expect(found, hasLength(4));
+    });
+
+    // D16
+    test(
+      'a group whose root folder is refused gives no unoffered-group finding',
+      () async {
+        final cursorFiles = {
+          for (final path in skillFileTexts().keys)
+            if (path.startsWith('.cursor/')) path: null,
+        };
+        expect(cursorFiles, isNotEmpty);
+
+        final found = await groupFindingsOf(
+          ['claude_code', 'shared', 'codex_agents'],
+          changes: {...cursorFiles, '.cursor': 'not a folder\n'},
+        );
+
+        expect(found.where((f) => f.path == '.cursor/agents/'), isEmpty);
+      },
+    );
+
+    test('a listed group with no entry stays opted out', () async {
+      final emptied = {
+        for (final path in skillFileTexts().keys)
+          if (path.startsWith('.claude/')) path: null,
+      };
+
+      final found = await groupFindingsOf([
+        'claude_code',
+        'shared',
+        'codex_agents',
+        'cursor_agents',
+      ], changes: emptied);
+
+      expect(found, isEmpty);
+    });
+
+    test('a stamp above the running Version names upgrade', () async {
+      final found = await groupFindingsOf(
+        listed,
+        changes: {
+          ...codexFiles,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig(shippedPinsDefaultPacks, listed)}'
+              'agent_files_version: 99.0.0\n',
+        },
+      );
+
+      expect(
+        found.single.message,
+        _newer('the codex_agents agent files are not offered yet', '99.0.0'),
+      );
+    });
+  });
+
   group('the settings file', () {
     Future<List<Finding>> settingsOf(
       String? text, {

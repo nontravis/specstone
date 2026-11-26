@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/cold_node.dart';
+import '../../helpers/shipped_pins.dart';
 
 const _file = 'USER_STORY.md';
 
@@ -18,6 +19,7 @@ String f(int n) => 'F-$n';
 String us(int n) => 'US-$n';
 String fr(int n) => 'FR-$n';
 String path(String first, String second) => '$first/$second';
+String fo(int n) => 'FO-$n';
 
 Future<List<Finding>> labelFindings(Map<String, String> extra) async {
   final report = await checkOf(await writeCheckProject(extra: extra));
@@ -29,6 +31,15 @@ Future<List<Finding>> labelFindings(Map<String, String> extra) async {
 
 Future<List<Finding>> labelsInFeature(String replacement) =>
     labelFindings(doc(loginFeature, _line, replacement));
+
+Future<List<Finding>> labelsWithPrefixes(
+  List<String> prefixes,
+  String replacement,
+) => labelFindings({
+  ...doc(loginFeature, _line, replacement),
+  '.specstone/config.yaml':
+      '${shippedPinsConfig()}number_label_prefixes: [${prefixes.join(', ')}]\n',
+});
 
 void main() {
   useColdHostNode();
@@ -187,6 +198,62 @@ void main() {
       '[${us(1)} ${fr(2)}](../${path('us01', 'fr02')}.md)',
     );
     expect(findings.map((f) => f.keys['label']), ['${us(1)} ${fr(2)}']);
+  });
+
+  test('a listed prefix gives one number_label', () async {
+    final findings = await labelsWithPrefixes(['FO-'], 'see ${fo(12)}');
+
+    expect(findings, hasLength(1));
+    expect(findings.single.line, _lineNumber);
+    expect(findings.single.keys, {'label': fo(12)});
+    expect(
+      findings.single.message,
+      '${fo(12)} is a number label; cite the doc by its name, '
+      'such as `<feature>/<story>`',
+    );
+  });
+
+  test('a listed prefix run that holds a built-in label is one '
+      'finding', () async {
+    final run = '${fo(12)} ${us(3)}';
+    final listed = await labelsWithPrefixes(['FO-'], 'see $run');
+    expect(listed, hasLength(1));
+    expect(listed.single.keys, {'label': run});
+
+    final unlisted = await labelsInFeature('see $run');
+    expect(unlisted, hasLength(1));
+    expect(unlisted.single.keys, {'label': us(3)});
+  });
+
+  test(
+    'a run keeps its listed parts when an unlisted token joins it',
+    () async {
+      final one = await labelsWithPrefixes(['FO-'], 'see ${fo(12)} UTF-8');
+      expect(one.map((f) => f.keys['label']), [fo(12)]);
+
+      final two = await labelsWithPrefixes([
+        'FO-',
+      ], 'see ${fo(1)} UTF-8 ${fo(2)} ${us(3)}');
+      expect(two.map((f) => f.keys['label']), [fo(1), '${fo(2)} ${us(3)}']);
+    },
+  );
+
+  test('a listed prefix run of four labels gives two findings, none loses '
+      'a built-in part', () async {
+    final findings = await labelsWithPrefixes([
+      'FO-',
+    ], 'see ${fo(1)} ${f(2)} ${us(3)} ${fr(4)}');
+
+    expect(findings.map((f) => f.keys['label']), [
+      '${fo(1)} ${f(2)} ${us(3)}',
+      fr(4),
+    ]);
+  });
+
+  test('an unlisted prefix gives none', () async {
+    expect(await labelsInFeature('see ${fo(12)}'), isEmpty);
+    expect(await labelsWithPrefixes(['UTF-'], 'see ${fo(12)}'), isEmpty);
+    expect(await labelsWithPrefixes(['FO-'], 'UTF-8 stays.'), isEmpty);
   });
 
   test('a doc-scope run reports the same finding', () async {

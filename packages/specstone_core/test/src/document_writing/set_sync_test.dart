@@ -201,6 +201,105 @@ void main() {
     },
   );
 
+  test('a repoint to <new path>:<new symbol> writes both and keeps the fingerprint, and a match naming the new pointer stamps it in the same write', () async {
+    const moved = 'app/lib/sign_in.dart';
+    const entry = '$_checkPassword:$moved:SignInPage';
+    for (final lines in [
+      ['repoint $_record $_check $moved:SignInPage'],
+      [
+        'repoint $_record $_check $moved:SignInPage',
+        'match $_record $entry $_loginFingerprint',
+      ],
+    ]) {
+      final root = await _project(
+        extra: {
+          loginRecord: _recordText().replaceFirst(
+            "'$_check'",
+            "'$_check $_old'",
+          ),
+        },
+      );
+      File('${root.path}/$_login').renameSync('${root.path}/$moved');
+
+      _sync(root, lines);
+
+      final fingerprint = lines.length == 1 ? _old : _loginFingerprint;
+      expect(
+        readDoc(root, loginRecord),
+        contains("'$entry $fingerprint'"),
+        reason: '$lines',
+      );
+      expect(
+        readDoc(root, loginRecord),
+        isNot(contains('checkPassword $_old')),
+      );
+    }
+  });
+
+  test('a tests minus line removes the named entry of its file, once, and a rerun writes no doc', () async {
+    const file = 'app/test/login_test.dart';
+    final root = await _project(
+      extra: {
+        loginRecord: _recordText().replaceFirst(
+          'implements:',
+          "tests:\n  - '$_checkPassword:$file:refuses an empty password'\nimplements:",
+        ),
+      },
+    );
+    final lines = ['tests $_record $_checkPassword: -$file'];
+
+    final first = _sync(root, lines);
+    final after = _docBytes(root);
+    final again = _sync(root, lines);
+
+    expect(first.json['docs'], hasLength(1));
+    expect(readDoc(root, loginRecord), isNot(contains('tests:')));
+    expect(again.json['docs'], isEmpty);
+    expect(_docBytes(root), after);
+  });
+
+  test(
+    'a repoint of a tests entry to a bare new file keeps its test name',
+    () async {
+      const entry =
+          '$_checkPassword:app/test/login_test.dart:refuses an empty password';
+      final root = await _project(
+        extra: {
+          loginRecord: _recordText().replaceFirst(
+            'implements:',
+            "tests:\n  - '$entry'\nimplements:",
+          ),
+        },
+      );
+
+      _sync(root, ['repoint $_record $entry app/test/auth_test.dart']);
+
+      expect(
+        readDoc(root, loginRecord),
+        contains(
+          "'$_checkPassword:app/test/auth_test.dart:refuses an empty password'",
+        ),
+      );
+    },
+  );
+
+  test(
+    'a rerun of a repoint to <new path>:<new symbol> writes no doc',
+    () async {
+      const moved = 'app/lib/sign_in.dart';
+      final root = await _project();
+      File('${root.path}/$_login').renameSync('${root.path}/$moved');
+      final lines = ['repoint $_record $_check $moved:SignInPage'];
+      _sync(root, lines);
+      final before = _docBytes(root);
+
+      final answer = _sync(root, lines);
+
+      expect(answer.json['docs'], isEmpty);
+      expect(_docBytes(root), before);
+    },
+  );
+
   test('a match line beside a verdict line naming its entry another way, by DocPath or by the path a repoint gives, refuses argument_invalid naming both lines and writes nothing', () async {
     const gone = 'app/lib/gone.dart';
     for (final (covers, lines) in [

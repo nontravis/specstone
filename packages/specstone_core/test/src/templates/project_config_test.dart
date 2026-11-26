@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
 import 'package:specstone_core/src/templates/cleanup_bounds.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
@@ -22,6 +23,15 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
         .having((f) => f.file, 'file', _configPath)
         .having((f) => f.key, 'key', key)
         .having((f) => f.line, 'line', line);
+
+const _notRegularMessage =
+    'config.yaml must be a regular file inside .specstone, not a link';
+
+/// A valid config padded with a YAML comment to exactly [bytes] bytes.
+String _paddedConfig(int bytes) {
+  const base = 'packs:\n  prd-core: 1.0.0\n#';
+  return '$base${'x' * (bytes - base.length)}';
+}
 
 /// The root a project is found at is canonical, as a `docs` link makes it.
 String _canonical(Directory dir) => dir.resolveSymbolicLinksSync();
@@ -247,6 +257,80 @@ void main() {
           );
         });
       }
+    });
+
+    group('number_label_prefixes', () {
+      test('number_label_prefixes reads a list of prefixes', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\nnumber_label_prefixes: [FO-, CO-]\n',
+        );
+
+        expect(ProjectConfig.read(root).numberLabelPrefixes, ['FO-', 'CO-']);
+      });
+
+      test('no number_label_prefixes key reads as an empty list', () async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+        expect(ProjectConfig.read(root).numberLabelPrefixes, isEmpty);
+      });
+
+      for (final (name, line) in [
+        ('a scalar value', 'number_label_prefixes: FO-'),
+        ('a lowercase entry', 'number_label_prefixes: [fo-]'),
+        ('an entry with no hyphen', 'number_label_prefixes: [FO]'),
+        ('a non-string entry', 'number_label_prefixes: [3]'),
+      ]) {
+        test('$name is unknown_value for number_label_prefixes', () async {
+          final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(FaultCode.unknownValue, key: 'number_label_prefixes'),
+            ),
+          );
+        });
+      }
+    });
+
+    group('agent_file_groups', () {
+      test('agent_file_groups reads each listed group', () async {
+        final root = await _withConfig(
+          'packs:\n  prd-core: 1.0.0\n'
+          'agent_file_groups: [claude_code, shared, codex_agents, '
+          'cursor_agents]\n',
+        );
+
+        expect(ProjectConfig.read(root).agentFileGroups, agentFileGroupNames);
+      });
+
+      test('no agent_file_groups key reads as an empty list', () async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+        expect(ProjectConfig.read(root).agentFileGroups, isEmpty);
+      });
+
+      for (final (name, line) in [
+        ('a scalar value', 'agent_file_groups: claude_code'),
+        ('an unknown name', 'agent_file_groups: [claude]'),
+        ('a non-string entry', 'agent_file_groups: [3]'),
+      ]) {
+        test('$name is unknown_value for agent_file_groups', () async {
+          final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(_fault(FaultCode.unknownValue, key: 'agent_file_groups')),
+          );
+        });
+      }
+
+      test('the config group names are the folder group config names', () {
+        expect(
+          AgentFolderGroup.values.map((g) => g.configName),
+          agentFileGroupNames,
+        );
+      });
     });
 
     group('agent_files_version', () {
@@ -802,6 +886,79 @@ void main() {
 
       expect(config.pins.keys, ['prd-core', 'software-tech']);
     });
+
+    test(
+      'ProjectConfig.read refuses a linked config.yaml before reading it',
+      () async {
+        final other = await writeTree({
+          'config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+        });
+        final root = await writeTree({'.specstone/keep.txt': 'x'});
+        Link('${root.path}${Platform.pathSeparator}$_configPath')
+            .createSync('${other.path}${Platform.pathSeparator}config.yaml');
+
+        expect(
+          () => ProjectConfig.read(root),
+          throwsA(
+            _fault(FaultCode.unknownValue)
+                .having((f) => f.message, 'message', _notRegularMessage),
+          ),
+        );
+      },
+      skip: _linksUnavailable,
+    );
+
+    test('readProjectConfigBytes refuses a linked .specstone folder', () async {
+      final other = await writeTree({
+        '.specstone/config.yaml': 'packs:\n  prd-core: 1.0.0\n',
+      });
+      final root = await writeTree({'keep.txt': 'x'});
+      Link('${root.path}${Platform.pathSeparator}.specstone')
+          .createSync('${other.path}${Platform.pathSeparator}.specstone');
+
+      expect(
+        () => readProjectConfigBytes(root),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.unknownValue,
+          ),
+        ),
+      );
+    }, skip: _linksUnavailable);
+
+    test('ProjectConfig.read refuses a config.yaml that is a folder', () async {
+      final root = await writeTree({'$_configPath/inner': 'x'});
+
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(
+          _fault(FaultCode.unknownValue)
+              .having((f) => f.message, 'message', _notRegularMessage),
+        ),
+      );
+    });
+
+    test('ProjectConfig.read refuses a config.yaml over 1 MiB', () async {
+      final root = await writeTree({_configPath: ''});
+      final file = File.fromUri(root.uri.resolve(_configPath))
+        ..writeAsStringSync(_paddedConfig(1048577));
+
+      expect(
+        () => ProjectConfig.read(root),
+        throwsA(
+          _fault(FaultCode.unknownValue).having(
+            (f) => f.message,
+            'message',
+            'config.yaml holds more than 1 MiB',
+          ),
+        ),
+      );
+
+      file.writeAsStringSync(_paddedConfig(1048576));
+      expect(ProjectConfig.read(root).pins.keys, ['prd-core']);
+    });
   });
 
   group('readAgentFilesVersion', () {
@@ -900,6 +1057,64 @@ void main() {
     });
   });
 
+  group('readAgentFileGroups', () {
+    test('readAgentFileGroups reads a bad value as no group', () async {
+      final root = await _withConfig(
+        'bogus: 1\nagent_file_groups: claude_code\n',
+      );
+
+      expect(readAgentFileGroups(root), isEmpty);
+    });
+
+    test('a listed group reads beside an unknown key', () async {
+      final root = await _withConfig('bogus: 1\nagent_file_groups: [shared]\n');
+
+      expect(readAgentFileGroups(root), ['shared']);
+    });
+
+    test('a linked config.yaml is refused, not read as no group', () async {
+      final other = await writeTree({
+        'config.yaml':
+            'packs:\n  prd-core: 1.0.0\nagent_file_groups: [shared]\n',
+      });
+      final root = await writeTree({'.specstone/keep.txt': 'x'});
+      Link('${root.path}${Platform.pathSeparator}$_configPath')
+          .createSync('${other.path}${Platform.pathSeparator}config.yaml');
+
+      expect(
+        () => readAgentFileGroups(root),
+        throwsA(
+          _fault(FaultCode.unknownValue)
+              .having((f) => f.message, 'message', _notRegularMessage),
+        ),
+      );
+    }, skip: _linksUnavailable);
+
+    test('a config path that is a folder is refused', () async {
+      final root = await writeTree({'$_configPath/inner': 'x'});
+
+      expect(
+        () => readAgentFileGroups(root),
+        throwsA(_fault(FaultCode.unknownValue)),
+      );
+    });
+
+    test('a config over 1 MiB is refused', () async {
+      final root = await _withConfig(_paddedConfig(projectConfigMaxBytes + 1));
+
+      expect(
+        () => readAgentFileGroups(root),
+        throwsA(
+          _fault(FaultCode.unknownValue).having(
+            (f) => f.message,
+            'message',
+            'config.yaml holds more than 1 MiB',
+          ),
+        ),
+      );
+    });
+  });
+
   group('readCleanupBounds', () {
     test('a bad key reads its default and a good key its value', () async {
       final root = await _withConfig(
@@ -959,6 +1174,26 @@ void main() {
         CleanupBounds.defaults.bundlesMaxAge,
       );
     });
+
+    test('readCleanupBounds refuses a linked config.yaml, '
+        'readAgentFilesVersion reads it as unreadable', () async {
+      final other = await writeTree({
+        'config.yaml':
+            'packs:\n  prd-core: 1.0.0\nagent_files_version: 1.3.0\n',
+      });
+      final root = await writeTree({'.specstone/keep.txt': 'x'});
+      Link('${root.path}${Platform.pathSeparator}$_configPath')
+          .createSync('${other.path}${Platform.pathSeparator}config.yaml');
+
+      expect(
+        () => readCleanupBounds(root),
+        throwsA(
+          _fault(FaultCode.unknownValue)
+              .having((f) => f.message, 'message', _notRegularMessage),
+        ),
+      );
+      expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
+    }, skip: _linksUnavailable);
   });
 
   group('findProjectRoot', () {

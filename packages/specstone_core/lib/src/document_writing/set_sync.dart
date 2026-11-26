@@ -561,14 +561,16 @@ String _pointerOf(StampField field, String value) =>
     : CodeLinkEntry(value).pointer;
 
 /// Returns [pointer] with its path made [newPath]: a record entry keeps its
-/// item and its Symbol or test name.
+/// item, and its Symbol or test name unless [newPath] holds `:<symbol>`, which
+/// replaces it.
 String _movedPointer(String pointer, String newPath, MergedDocType docType) {
   final holdsItems =
       recordCodeFieldOf(docType) != null || recordTestFieldOf(docType) != null;
   final line = holdsItems ? recordCodeLineOf(pointer) : null;
   if (line == null) return newPath;
-  final tail = splitPathTail(line.code).tail;
-  return '${line.item}:$newPath${tail == null ? '' : ':$tail'}';
+  final next = splitPathTail(newPath);
+  final tail = next.tail ?? splitPathTail(line.code).tail;
+  return '${line.item}:${next.path}${tail == null ? '' : ':$tail'}';
 }
 
 /// Returns [lfText] with the `planned` status of the item of [entry], a

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/models/line_range.dart';
 import 'package:specstone_core/src/index_query/models/link_place.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
+import 'package:specstone_core/src/index_query/models/prefixed_label_place.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 
@@ -25,8 +26,10 @@ final class LineFacts {
     required this.fileLinks,
     required this.selfLinks,
     required this.linkTexts,
+    required this.addressLinkTexts,
     required this.nameMentions,
     required this.numberLabels,
+    required this.prefixedLabels,
     required this.tbrMarkers,
     required this.citeCandidates,
     required this.bareItemIds,
@@ -58,6 +61,10 @@ final class LineFacts {
   /// item ID, in source order.
   final List<LinkText> linkTexts;
 
+  /// The text and place of each doc link and self link whose whole text reads
+  /// as a typed no-lookup doc address, in source order.
+  final List<LinkText> addressLinkTexts;
+
   /// The doc-name mentions of the body, in source order; `line` is
   /// the file line.
   final List<NameMention> nameMentions;
@@ -65,6 +72,11 @@ final class LineFacts {
   /// The number labels of the body as `number_label` reads them, in
   /// source order; `line` is the file line.
   final List<LabelPlace> numberLabels;
+
+  /// The chains of capital-prefix label parts of the body with a part outside
+  /// `F-`, `US-`, and `FR-`, in source order, whatever prefixes the config
+  /// lists; `line` is the file line.
+  final List<PrefixedLabelPlace> prefixedLabels;
 
   /// The `TBR —` markers of the body outside fenced code and code spans, in
   /// source order; `line` is the file line and `rest` the line's text after
@@ -130,24 +142,23 @@ final class LineFacts {
     'links': _placesToJson(links),
     'file_links': _placesToJson(fileLinks),
     'self_links': _placesToJson(selfLinks),
-    'link_texts': [
-      for (final t in linkTexts)
-        [
-          t.line,
-          t.column,
-          t.endLine,
-          t.endColumn,
-          t.text,
-          t.target,
-          t.anchor,
-          t.shown,
-        ],
-    ],
+    'link_texts': _linkTextsToJson(linkTexts),
+    'address_link_texts': _linkTextsToJson(addressLinkTexts),
     'name_mentions': [
       for (final m in nameMentions) [m.line, m.column, m.text],
     ],
     'number_labels': [
       for (final label in numberLabels) [label.line, label.written],
+    ],
+    'prefixed_labels': [
+      for (final chain in prefixedLabels)
+        [
+          chain.line,
+          [
+            for (final part in chain.parts)
+              [part.prefix, part.written, part.ownerWritten, part.ownerStart],
+          ],
+        ],
     ],
     'tbr_markers': [
       for (final marker in tbrMarkers) [marker.line, marker.rest],
@@ -183,6 +194,21 @@ List<Object?> _bareItemIdToJson(BareItemId bare) {
   };
   return [bare.line, bare.column, bare.id, kind, written];
 }
+
+/// Returns [texts] as JSON values.
+List<List<Object?>> _linkTextsToJson(List<LinkText> texts) => [
+  for (final t in texts)
+    [
+      t.line,
+      t.column,
+      t.endLine,
+      t.endColumn,
+      t.text,
+      t.target,
+      t.anchor,
+      t.shown,
+    ],
+];
 
 /// Returns [places] as JSON values.
 List<List<Object?>> _placesToJson(List<LinkPlace> places) => [

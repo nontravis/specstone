@@ -12,6 +12,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 
 import '../../helpers/built_cli.dart';
+import '../../helpers/fixture_packs.dart' show fixtureAgentGroups;
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -69,7 +70,7 @@ Future<Directory> writeTargetedTree() {
           '    type: record_status\n'
           '    list: true\n',
       '.specstone/config.yaml':
-          'packs:\n'
+          '${fixtureAgentGroups}packs:\n'
           '  prd-core: ${shippedPackVersions()['prd-core']}\n'
           '  software-tech: ${shippedPackVersions()['software-tech']}\n'
           'targets:\n'

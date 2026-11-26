@@ -1,11 +1,12 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show isEmptyCodeEntry, normalCodeEntry;
+    show isEmptyCodeEntry, isOutsideCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/portable_path.dart';
@@ -126,24 +127,39 @@ final class _TargetWork {
 ///
 /// An entry of a `skipped` item reads nothing. Any other entry is read once a
 /// stat finds a regular file at its path, a `planned` entry's file included.
-bool readsEntryCode(Directory codeRoot, RecordStatus status, String pointer) =>
+/// A path that differs from the disk's by letter case names nothing, as
+/// [namesFileExactlyFrom] reads it.
+bool readsEntryCode(
+  ExactCasePaths paths,
+  Directory codeRoot,
+  RecordStatus status,
+  String pointer,
+) =>
     status != RecordStatus.skipped &&
-    ImplementsEntry(pointer).namesFileFrom(codeRoot);
+    namesFileExactlyFrom(paths, codeRoot, ImplementsEntry(pointer).path);
 
 /// Whether the check reads the code a `covers:` entry names, [pointer] being
 /// its path from [root], a code root or the project root, and [endsWait]
 /// whether its wait is over ([ImplementedWork.endsWaitOf]).
+///
+/// An entry that leaves [root] reads nothing.
 bool readsCoversCode(
+  ExactCasePaths paths,
   Directory root,
   String pointer, {
   required bool endsWait,
-}) => endsWait && namesFileOrFolderFrom(root, pointer);
+}) =>
+    endsWait &&
+    !isOutsideCodeEntry(pointer) &&
+    namesFileOrFolderExactlyFrom(paths, root, pointer);
 
-/// Returns the `covers_entry_empty`, `covers_path_missing`, and
-/// `code_root_missing` findings of a typed [doc].
+/// Returns the `covers_entry_empty`, `covers_path_outside`,
+/// `covers_path_missing`, and `code_root_missing` findings of a typed [doc].
 ///
-/// An empty `covers` entry names no path of its own, so it is reported in
-/// every run, a waiting target's docs included, and no other rule reads it.
+/// An empty `covers` entry names no path of its own, and an outside one leaves
+/// its root, so each is reported in every run, a waiting target's docs
+/// included. No path or fingerprint rule reads either; only the shared-doc rule
+/// still counts an outside entry.
 /// A `root: project` entry resolves from the project root in every run. Any
 /// other `covers` entry and each `code` root resolve from the code root of
 /// the doc's target, once [work] says it holds the work that ends their
@@ -167,16 +183,27 @@ Iterable<Finding> checkCoversAndCodeRoots(
     for (final YamlEntry(:value, :line) in lines.entriesOf(field.id)) {
       if (value is! String) continue;
       final entry = CodeLinkEntry(value).pointer;
-      if (!isEmptyCodeEntry(entry)) continue;
-      yield context.finding(
-        doc,
-        FindingKind.coversEntryEmpty,
-        line: line,
-        message:
-            '"$entry" names no path of its own, only the whole root; the '
-            'Owner sets the path it covers',
-        keys: {'entry': entry},
-      );
+      if (isEmptyCodeEntry(entry)) {
+        yield context.finding(
+          doc,
+          FindingKind.coversEntryEmpty,
+          line: line,
+          message:
+              '"$entry" names no path of its own, only the whole root; the '
+              'Owner sets the path it covers',
+          keys: {'entry': entry},
+        );
+      } else if (isOutsideCodeEntry(entry)) {
+        yield context.finding(
+          doc,
+          FindingKind.coversPathOutside,
+          line: line,
+          message:
+              '"$entry" starts with `..`, so it leaves the root it is read '
+              'from',
+          keys: {'entry': entry},
+        );
+      }
     }
     final base = readsFromProjectRoot(field) ? context.projectRoot : codeRoot;
     if (base == null) continue;
@@ -205,9 +232,10 @@ Iterable<Finding> checkCoversAndCodeRoots(
 /// Yields a [kind] finding for each entry of [doc]'s [fieldId] whose path,
 /// as [pathOf] reads it, names nothing from [base].
 ///
-/// With [skipsEmpty], an empty entry gives none: a `covers` entry that names
-/// no path is `covers_entry_empty`'s. A `code` root has no such finding, so it
-/// keeps resolving.
+/// With [skipsEmpty], an empty or outside entry gives none: a `covers` entry
+/// that names no path is `covers_entry_empty`'s, and one that leaves its root
+/// is `covers_path_outside`'s. A `code` root has no such finding, so it keeps
+/// resolving.
 Iterable<Finding> _missingPaths(
   CheckContext context,
   IndexedDoc doc,
@@ -221,8 +249,10 @@ Iterable<Finding> _missingPaths(
       in context.linesOf(doc).entriesOf(fieldId)) {
     if (value is! String) continue;
     final entry = pathOf(value);
-    if (skipsEmpty && isEmptyCodeEntry(entry)) continue;
-    if (namesFileOrFolderFrom(base, entry)) continue;
+    if (skipsEmpty && (isEmptyCodeEntry(entry) || isOutsideCodeEntry(entry))) {
+      continue;
+    }
+    if (namesFileOrFolderExactlyFrom(context.exactPaths, base, entry)) continue;
     yield context.finding(
       doc,
       kind,
@@ -288,3 +318,23 @@ bool namesFileOrFolderFrom(Directory base, String entry) {
       FileSystemEntity.typeSync('${base.path}$_separator$normal') !=
           FileSystemEntityType.notFound;
 }
+
+/// Whether [entry], in [normalCodeEntry]'s form, is a file or a folder from
+/// [base], each segment equal to a disk name by letter case too.
+///
+/// [namesFileOrFolderFrom]'s rule, read through [paths].
+bool namesFileOrFolderExactlyFrom(
+  ExactCasePaths paths,
+  Directory base,
+  String entry,
+) =>
+    isPortablePath(entry) &&
+    paths.typeOf(base, normalCodeEntry(entry)) != FileSystemEntityType.notFound;
+
+/// Whether [path], in [normalCodeEntry]'s form, is a regular file from [base],
+/// each segment equal to a disk name by letter case too.
+///
+/// [ImplementsEntry.namesFileFrom]'s rule, read through [paths].
+bool namesFileExactlyFrom(ExactCasePaths paths, Directory base, String path) =>
+    isPortablePath(path) &&
+    paths.typeOf(base, normalCodeEntry(path)) == FileSystemEntityType.file;

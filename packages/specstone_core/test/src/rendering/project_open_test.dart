@@ -82,6 +82,25 @@ InitRequest _init(Directory root) => InitRequest(
 );
 
 void main() {
+  group('project open: number label prefixes', () {
+    test('DocsProject carries the config number_label_prefixes', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}number_label_prefixes: [FO-, CO-]\n',
+      });
+
+      expect(_open(root).numberLabelPrefixes, ['FO-', 'CO-']);
+    });
+
+    test('DocsProject reads no prefix when the config has none', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+
+      expect(_open(root).numberLabelPrefixes, isEmpty);
+    });
+  });
+
   group('project open: .specstone must be a real folder', () {
     late Directory base;
     late Directory project;

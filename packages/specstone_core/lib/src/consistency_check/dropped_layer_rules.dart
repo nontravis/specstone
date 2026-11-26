@@ -6,11 +6,12 @@ import 'package:specstone_core/src/templates/layer_source.dart'
     show projectTemplatesFolder;
 
 /// Yields one finding per project layer file of a doc type a pack folded,
-/// then one per orphaned layer file, an override of a doc type no loaded pack
-/// defines.
+/// then one per layer file of a doc type a pack dropped, then one per orphaned
+/// layer file, an override of a doc type no loaded pack defines.
 ///
-/// A folded type's file is reported whatever it holds: the Owner moves its
-/// settings to the doc type it folded into, or deletes it.
+/// A folded or dropped type's file is reported whatever it holds, unread: the
+/// Owner moves a folded file's settings to the doc type it folded into, or
+/// deletes the file.
 Iterable<Finding> droppedTypeLayers(CheckContext context) sync* {
   final folded = context.set.foldedDocTypes;
   for (final MapEntry(key: from, value: to) in folded.entries) {
@@ -20,6 +21,15 @@ Iterable<Finding> droppedTypeLayers(CheckContext context) sync* {
       path,
       'a pack folded doc type $from into $to; move the settings of this '
       'file to the $to doc type, or delete the file',
+    );
+  }
+  for (final id in context.set.droppedDocTypes) {
+    final path = '$projectTemplatesFolder/$id.yaml';
+    if (!File('${context.projectRoot.path}/$path').existsSync()) continue;
+    yield _dropped(
+      path,
+      'a pack dropped doc type $id, and no doc type takes its settings; '
+      'delete the file',
     );
   }
   for (final id in context.set.orphanedDocTypes) {

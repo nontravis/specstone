@@ -6,6 +6,8 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart'
+    show AgentFolderGroup;
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/version.dart';
 
@@ -37,6 +39,7 @@ Set<String> importedDocPaths(
       targets: project.targets,
     ),
     agentFileRoots: ProjectConfig.read(project.projectRoot).agentFileRoots,
+    agentFileGroups: AgentFolderGroup.values,
   );
   final docPaths = <String>{};
   for (final base in agentFileBasesOf(inputs)) {

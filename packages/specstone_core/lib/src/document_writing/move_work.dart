@@ -13,6 +13,8 @@ import 'package:specstone_core/src/document_writing/keyed_units.dart'
     show KeyedLanding;
 import 'package:specstone_core/src/document_writing/models/new_item.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart'
+    show RenamedNames;
 import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_feature.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
@@ -172,6 +174,13 @@ ReadAnswer applyMoveWork(
     );
   });
 }
+
+/// Returns the names the doc moves of [work] change, read as the apply reads
+/// them, so a judge can name a doc as it stands once every line has landed.
+///
+/// Throws the faults of [DocMoveGroup]'s move and [planNewDoc].
+RenamedNames renamedNamesAfter(WriteSession session, MoveWork work) =>
+    renamedNamesOf(session, _Placed.of(session, work).moves);
 
 /// The writes of one move call, planned under its lock, and the mentions
 /// they leave.

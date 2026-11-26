@@ -75,6 +75,41 @@ void main() {
       );
     },
   );
+  test(
+    'new at a path no doc type matches exits 64 and prints the fault on stderr',
+    () async {
+      final root = await writeGroupedProject(
+        extra: {
+          '.specstone/templates/security.yaml':
+              'path: specs/s{nn}_{slug}/SECURITY.md\n',
+        },
+      );
+      final before = treeBytes(root)
+        ..removeWhere((k, _) => !k.startsWith('docs'));
+      final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
+      expect(
+        await runner.run([
+          'new',
+          'security',
+          '--parent',
+          'kitchen/recipes',
+          '--json',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+      expect(error['code'], 'argument_invalid');
+      expect(
+        error['message'],
+        'specs/skitchen_01/SECURITY.md matches no doc type',
+      );
+      expect(
+        treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+        before,
+      );
+    },
+  );
   test('new with a slash in a one-slug segment exits 64', () async {
     final root = await writeWriteProject();
     final loginFolder = Directory('${root.path}/docs/prds/features/f01_login');

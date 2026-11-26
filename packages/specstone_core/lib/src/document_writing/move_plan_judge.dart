@@ -10,6 +10,8 @@ import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_plan.dart';
 import 'package:specstone_core/src/document_writing/move_work.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
+    show apiTypeId;
 import 'package:specstone_core/src/document_writing/scenario_items.dart';
 import 'package:specstone_core/src/document_writing/sibling_ledger.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -72,6 +74,33 @@ final class _Judged {
   final String instruction;
 }
 
+/// An `fr_trace` row a plan line lands in another `api` doc, held until the
+/// plan's other lines are judged.
+final class _TraceLanding {
+  const new(
+    this.line,
+    this.landing,
+    this.units, {
+    required this.frName,
+    required this.toFeature,
+  });
+
+  final MoveLine line;
+
+  /// The landing as the line writes it, its key not yet rebased.
+  final KeyedLanding landing;
+  final List<KeyedUnit> units;
+
+  /// The Name of the row's FR before the plan.
+  final String frName;
+
+  /// The feature of the destination doc.
+  final IndexedDoc toFeature;
+}
+
+/// The key of the section that traces each FR an `api` doc covers.
+const _frTraceSection = 'fr_trace';
+
 /// Judges each line of one plan against the index, in plan line order.
 final class _PlanJudge {
   new(this.session, this.plan, this.codeTarget);
@@ -90,6 +119,10 @@ final class _PlanJudge {
   final _keptDocs = <String, int>{};
   final _children = <String, Set<String>>{};
   final _keyed = <KeyedLanding>[];
+
+  /// The `fr_trace` rows landing in another `api` doc, judged once every line
+  /// is, since a later line may move their FR.
+  final _traceLandings = <_TraceLanding>[];
 
   /// The block and row addresses of each doc's `keep` lines, by DocPath.
   final _keyedKeeps = <String, List<String>>{};
@@ -130,6 +163,7 @@ final class _PlanJudge {
           _keep(line, unit);
       }
     }
+    _landTraceRows();
     final ordered = _fullyNamed();
     final orders = {
       for (final MapEntry(key: docPath, value: kept) in _keeps.entries)
@@ -271,11 +305,79 @@ final class _PlanJudge {
       sectionKey: keyed.sectionKey,
       key: keyed.key,
     );
+    final fromFeature = _parentOf(source);
+    final toFeature = _parentOf(to);
+    if (fromFeature != null &&
+        toFeature != null &&
+        keyed.sectionKey == _frTraceSection &&
+        _index.typeOf(source)?.id == apiTypeId &&
+        _index.typeOf(to)?.id == apiTypeId &&
+        units.every((unit) => unit is RowUnit)) {
+      _traceLandings.add(
+        _TraceLanding(
+          line,
+          landing,
+          units,
+          frName: '${fromFeature.name}/${keyed.key}',
+          toFeature: toFeature,
+        ),
+      );
+      return;
+    }
+    _land(landing, units);
+  }
+
+  /// Throws [IndexFault] `argument_invalid` when [landing]'s destination
+  /// cannot take [units], then adds [landing] to the work.
+  void _land(KeyedLanding landing, List<KeyedUnit> units) {
+    final to = landing.to;
     final created = _created.where((c) => c.docPath == to.docPath).firstOrNull;
     final content = created?.content ?? _index.contentOf(to);
     requireKeyedRoom(landing, _index.typeOf(to), content, units);
     _requireFirstLanding(landing);
     _keyed.add(landing);
+  }
+
+  /// Lands each queued `fr_trace` row, in plan line order, under the FR name
+  /// the plan leaves, once every line is judged.
+  ///
+  /// A row's cell is its FR's path below the feature of its doc, so it is cut
+  /// again below the destination doc's feature. Throws [IndexFault]
+  /// `argument_invalid` when the FR lies outside that feature, or as
+  /// [requireKeyedRoom] does for the rebased key.
+  void _landTraceRows() {
+    if (_traceLandings.isEmpty) return;
+    final renamed = renamedNamesAfter(
+      session,
+      MoveWork(
+        creates: _creates,
+        groups: [for (final draft in _groups.values) draft.group],
+      ),
+    );
+    for (final queued in _traceLandings) {
+      final frName = renamed.newNameOf(frType, queued.frName) ?? queued.frName;
+      final featureName =
+          renamed.newNameOf(featureType, queued.toFeature.name) ??
+          queued.toFeature.name;
+      final prefix = '$featureName/';
+      if (!frName.startsWith(prefix) || frName.length == prefix.length) {
+        throw _lineFault(
+          queued.line,
+          '$frName is no requirement of $featureName',
+        );
+      }
+      final KeyedLanding(:from, :to, :sectionKey, :key) = queued.landing;
+      _land(
+        KeyedLanding(
+          from: from,
+          to: to,
+          sectionKey: sectionKey,
+          key: key,
+          landedKey: frName.substring(prefix.length),
+        ),
+        queued.units,
+      );
+    }
   }
 
   /// Judges a block or row `keep` line: its units stay, and their address
@@ -294,10 +396,11 @@ final class _PlanJudge {
   /// Throws [IndexFault] `argument_invalid` when an earlier line lands units
   /// of [landing]'s address in its destination.
   void _requireFirstLanding(KeyedLanding landing) {
-    if (_landedKeys.add('${landing.to.docPath}#${landing.address}')) return;
+    final landed = landing.landedAddress;
+    if (_landedKeys.add('${landing.to.docPath}#$landed')) return;
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      '${landing.to.docPath} already holds ${landing.address}',
+      '${landing.to.docPath} already holds $landed',
     );
   }
 

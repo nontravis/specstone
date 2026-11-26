@@ -2062,4 +2062,147 @@ void main() {
       );
     });
   });
+
+  group('link_text_stale', () {
+    const architecture = '../../../specs/f01_login/ARCHITECTURE.md';
+    const story = 'us01_email_login/USER_STORY.md';
+
+    Future<List<Finding>> staleOf(Directory project) async => [
+      for (final f in (await checkOf(project)).findings)
+        if (f.kind == FindingKind.linkTextStale) f,
+    ];
+
+    Future<Directory> featureLinking(String text) => writeCheckProject(
+      extra: doc(
+        loginFeature,
+        'Users forget passwords.',
+        'Users forget passwords; $text',
+      ),
+    );
+
+    test('a typed link text naming another doc is link_text_stale', () async {
+      final found = await staleOf(
+        await featureLinking('[domain:login]($architecture).'),
+      );
+      expect(
+        [for (final f in found) f.textLine],
+        [
+          '$loginFeature:14: link_text_stale: link text domain:login names another address than the doc it links; write it as architecture:login',
+        ],
+      );
+      expect(found.single.keys, {
+        'value': 'domain:login',
+        'fix': 'architecture:login',
+      });
+      expect(found.single.waitsFor, WaitsFor.agent);
+    });
+
+    test('a typed text with a section key keeps the key in its fix', () async {
+      // D9: the fix keeps the text's `#<key>`.
+      final found = await staleOf(
+        await featureLinking(
+          '[feature:login#rules]($architecture#technical_diagram).',
+        ),
+      );
+      expect(
+        [for (final f in found) f.keys],
+        [
+          {'value': 'feature:login#rules', 'fix': 'architecture:login#rules'},
+        ],
+      );
+    });
+
+    test('a bare text of any slug count gives no link_text_stale', () async {
+      // D9: a bare text, one slug or more, takes no finding.
+      final project = await featureLinking(
+        '[login/other]($story), [read/write]($story), and [login]($story).',
+      );
+      expect(await staleOf(project), isEmpty);
+    });
+
+    test('a typed text naming the last slug of its target by the target type gives none', () async {
+      // D9: `rename` writes the last slug under the target's own type.
+      final project = await featureLinking(
+        '[user_story:email_login]($story) and '
+        '[user_story:email_login#rules]($story#rules).',
+      );
+      expect(await staleOf(project), isEmpty);
+    });
+
+    test('a typed text of another type or a slug other than the last is link_text_stale', () async {
+      // D9: the last slug passes only under the target's own type.
+      for (final text in ['feature:email_login', 'user_story:login']) {
+        final found = await staleOf(await featureLinking('[$text]($story).'));
+        expect(
+          [for (final f in found) f.keys],
+          [
+            {'value': text, 'fix': 'user_story:login/email_login'},
+          ],
+          reason: text,
+        );
+      }
+    });
+
+    test('a link text naming an unknown doc type is link_text_stale', () async {
+      final found = await staleOf(
+        await featureLinking('[nosuch_type:login]($architecture).'),
+      );
+      expect(
+        [for (final f in found) f.keys],
+        [
+          {'value': 'nosuch_type:login', 'fix': 'architecture:login'},
+        ],
+      );
+    });
+
+    test('an item link text, a one-slug text, and a text of other words give no link_text_stale', () async {
+      final project = await featureLinking(
+        '[E02](us01_email_login/fr01_check_password.md#edge-cases), '
+        '[login]($story), and [the login rules]($story).',
+      );
+      expect(await staleOf(project), isEmpty);
+    });
+
+    test('a typed link text matching its target gives none', () async {
+      final project = await featureLinking(
+        '[architecture:login]($architecture), '
+        '[architecture:login#components]($architecture#components), '
+        '[login/email_login]($story), and [feature:login](FEATURE.md#problem).',
+      );
+      expect(await staleOf(project), isEmpty);
+    });
+
+    test(
+      'a link to an untyped doc, which has no address, gives none',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            ...doc(
+              loginFeature,
+              'Users forget passwords.',
+              'Users forget passwords; [domain:login](../../notes.md) and '
+                  '[login/email](../../notes.md).',
+            ),
+            'docs/prds/notes.md': '# Notes\n',
+          },
+        );
+        expect(await staleOf(project), isEmpty);
+      },
+    );
+
+    test('a link that resolves to no doc, or to a file outside the docs, gives none here', () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...doc(
+            loginFeature,
+            'Users forget passwords.',
+            'Users forget passwords; [domain:login](gone.md) and '
+                '[domain:login](../../../superpowers/specs/design.md).',
+          ),
+          'docs/superpowers/specs/design.md': '# Design\n',
+        },
+      );
+      expect(await staleOf(project), isEmpty);
+    });
+  });
 }

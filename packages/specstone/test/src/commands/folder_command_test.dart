@@ -154,6 +154,24 @@ void main() {
       expect(Directory('${tree.path}/real/reports').existsSync(), isFalse);
     }, skip: _linksUnavailable);
 
+    test('folder refuses a linked config.yaml with exit 78', () async {
+      final tree = await writeTree({
+        'real/config.yaml': shippedPinsConfig(),
+        'proj/.specstone/keep.txt': '',
+      });
+      createRelativeLink(
+        '${tree.path}/proj/.specstone/config.yaml',
+        '../../real/config.yaml',
+      );
+
+      final result = await run('${tree.path}/proj');
+
+      expect(result.exitCode, 78, reason: '${result.stderr}');
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, contains('.specstone/config.yaml'));
+      expect(result.stderr, contains('not a link'));
+    }, skip: _linksUnavailable);
+
     test('a positional argument is argument_invalid, '
         'exit 64', () async {
       final root = await writeTree(_project());

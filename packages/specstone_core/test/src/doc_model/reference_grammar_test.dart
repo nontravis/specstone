@@ -880,4 +880,112 @@ void main() {
       });
     }
   });
+
+  group('targetListsIn', () {
+    test('reads the list of each target followed by parentheses', () {
+      expect(
+        targetListsIn('D14 -> feature:a (summary, #scope) and fr:b/c(x)'),
+        ['summary, #scope', 'x'],
+      );
+      expect(targetListsIn('feature:a () then fr:b'), ['']);
+    });
+
+    test('reads no list from a target without parentheses', () {
+      expect(targetListsIn('feature:a#scope, no list'), isEmpty);
+      expect(targetListsIn('(summary) alone'), isEmpty);
+    });
+
+    test('reads the list of a doc type id holding digits', () {
+      expect(targetListsIn('D3 -> api2:x (a, b) and v1_doc:y(z)'), [
+        'a, b',
+        'z',
+      ]);
+    });
+  });
+
+  group('holdsSectionAddress', () {
+    test('reads a section address whose doc type id holds digits', () {
+      expect(holdsSectionAddress('see api2:x#scope'), isTrue);
+      expect(holdsSectionAddress('see api:x#scope'), isTrue);
+      expect(holdsSectionAddress('see api2:x'), isFalse);
+    });
+  });
+
+  group('isCleanNameBody', () {
+    test('accepts a slug path and rejects each bound', () {
+      expect(isCleanNameBody('a/b_c-d'), isTrue);
+      for (final body in [
+        '',
+        'a b',
+        'a`b',
+        'a@b',
+        'a#b',
+        'a,b',
+        'a;b',
+        'a)b',
+      ]) {
+        expect(isCleanNameBody(body), isFalse, reason: body);
+      }
+      for (final body in ['a]', 'a:b', 'a.b']) {
+        expect(isCleanNameBody(body), isFalse, reason: body);
+      }
+    });
+  });
+
+  group('isDocPathText', () {
+    test(
+      'accepts a bare path and rejects a mark, a blank, or a missing .md',
+      () {
+        expect(isDocPathText('prds/a_b-c/fr01.md'), isTrue);
+        expect(isDocPathText('a.md'), isTrue);
+        for (final text in [
+          '',
+          '(a.md',
+          '[a.md',
+          '*a.md',
+          'a.md)',
+          '`a.md`',
+          'a b.md',
+          '/a.md',
+          'a//b.md',
+          'a/b',
+          'a.mdx',
+        ]) {
+          expect(isDocPathText(text), isFalse, reason: text);
+        }
+      },
+    );
+  });
+
+  group('mentionSearchOf', () {
+    test('widens its bounds only when leadless', () {
+      final names = mentionSearchOf(['fr:a', 'p/a.md']);
+      final leadless = mentionSearchOf(['fr:a', 'p/a.md'], isLeadless: true);
+      for (final (text, isNamed, isLeadless) in [
+        ('see fr:a x', true, true),
+        ('(fr:a)', true, true),
+        ('p/a.md,', true, true),
+        ('fr:ab', false, false),
+        ('xfr:a', false, false),
+        ('*fr:a*', false, true),
+        ('fr:b,fr:a', false, true),
+        ('fr:a,fr:b', true, true),
+      ]) {
+        expect(names.hasMatch(text), isNamed, reason: 'names $text');
+        expect(leadless.hasMatch(text), isLeadless, reason: 'leadless $text');
+      }
+    });
+
+    test('escapes each form', () {
+      expect(mentionSearchOf(['a.b']).hasMatch('axb'), isFalse);
+    });
+  });
+
+  group('leadTextOf', () {
+    test('cuts at the first dash or colon separator', () {
+      expect(leadTextOf('fr:a#k, fr:b — two docs'), 'fr:a#k, fr:b');
+      expect(leadTextOf('fr:a#k: E02 cites'), 'fr:a#k');
+      expect(leadTextOf('fr:a#k'), 'fr:a#k');
+    });
+  });
 }

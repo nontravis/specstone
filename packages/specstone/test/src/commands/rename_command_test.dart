@@ -179,6 +179,36 @@ void main() {
     expect(headersOf(fr12), frBefore);
   });
 
+  test('rename sets a link text that is the old last slug, bare or typed, on '
+      'a link to the renamed doc', () async {
+    final root = await writeWriteProject();
+    const links =
+        '\n[reset_password](us03_reset_password/USER_STORY.md) and '
+        '[user_story:reset_password](us03_reset_password/USER_STORY.md)\n';
+    final feature = docFile(root, loginFeature);
+    feature.writeAsStringSync(
+      '${feature.readAsStringSync().trimRight()}\n$links',
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    expect(err.toString(), isEmpty);
+    expect(
+      readDoc(root, loginFeature),
+      contains(
+        '[recover_account](us03_recover_account/USER_STORY.md) and '
+        '[user_story:recover_account](us03_recover_account/USER_STORY.md)',
+      ),
+    );
+  });
+
   group('with two code targets', () {
     const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
     const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';

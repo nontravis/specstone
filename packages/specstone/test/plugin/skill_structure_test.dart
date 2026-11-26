@@ -615,6 +615,41 @@ void _syncProcedureTests() {
   );
 
   test(
+    'sync procedure lists a covers path outside entry and never repoints it',
+    () {
+      final procedure = _pluginText(_syncProcedure);
+      final judging = _sectionOf(
+        procedure,
+        '## 2. Judge each line',
+      ).split('\n');
+      expect(
+        judging.any(
+          (line) =>
+              line.contains('`covers_path_outside`') &&
+              line.contains('<doc>: covers path outside: <entry>') &&
+              line.contains('repoint'),
+        ),
+        isTrue,
+      );
+      expect(
+        _sectionOf(procedure, '## Report to the Owner'),
+        contains("step 2's `covers` report lines"),
+      );
+    },
+  );
+
+  test('sync procedure shows a repoint line with an optional new symbol', () {
+    final judging = _sectionOf(
+      _pluginText(_syncProcedure),
+      '## 2. Judge each line',
+    );
+    expect(
+      judging,
+      contains('repoint <doc> <entry> <new path>[:<new symbol>]'),
+    );
+  });
+
+  test(
     'sync names an unstated behavior point and routes it to a PRD change',
     () {
       final judging = _sectionOf(
@@ -2490,7 +2525,7 @@ void _trimReferenceTests() {
       'Misplaced',
     ];
     for (final label in labels) {
-      expect(check, contains('- $label: <doc>#<key>: <point>'), reason: label);
+      expect(check, contains('- $label: <docs>: <point>'), reason: label);
     }
   });
 
@@ -2499,7 +2534,7 @@ void _trimReferenceTests() {
       _pluginText(_auditReference),
       _builderCheckHeading,
     );
-    expect(check, contains('- Misplaced: <doc>#<key>: <point>'));
+    expect(check, contains('- Misplaced: <docs>: <point>'));
   });
 
   test(
@@ -2753,13 +2788,78 @@ void _reReviewTests() {
   });
 
   test(
-    'the trim audit opens each outside item with the doc that holds its fix',
+    'the trim audit opens each outside item with the docs that hold its fix',
     () {
       final audit = _sectionOf(
         _pluginText(_trimAuditReference),
         _trimAuditHeading,
       );
       expect(audit, contains('Notes: - <observation>'));
+      expect(audit, contains('- <docs whose fix it is>:'));
+    },
+  );
+
+  test(
+    'each audit reference opens its items with a comma-joined docs list',
+    () {
+      final audit = _pluginText(_auditReference);
+      final decided = _pluginText(_decidedAuditReference);
+      final reReview = _pluginText(_reReviewReference);
+      final trim = _pluginText(_trimAuditReference);
+      final jobs = {
+        _auditReference: _sectionOf(audit, _builderCheckHeading),
+        _decidedAuditReference: _sectionOf(decided, '## Decided audit'),
+        _reReviewReference: _sectionOf(reReview, _reReviewHeading),
+      };
+      for (final MapEntry(:key, :value) in jobs.entries) {
+        expect(value, contains(': <docs>: <point>'), reason: key);
+        expect(value, isNot(contains('<doc>#<key>: <point>')), reason: key);
+      }
+      expect(_oneLine(audit), contains('`<docs>`'));
+      expect(_oneLine(audit), contains('joined by `, `'));
+      for (final text in [decided, reReview, trim]) {
+        expect(_oneLine(text), contains('`audit.md` gives `<docs>`'));
+      }
+      for (final text in [reReview, trim]) {
+        final flat = _oneLine(text);
+        expect(flat, contains('- <docs whose fix it is>:'));
+        expect(flat, isNot(contains('- <doc whose fix it is>:')));
+      }
+      for (final text in [audit, decided, reReview, trim]) {
+        expect(
+          _oneLine(text),
+          isNot(contains('the name of the doc where its fix lies')),
+        );
+      }
+    },
+  );
+
+  test(
+    'each audit writes its Audited lines from the dry run doc and base keys',
+    () {
+      final texts = {
+        _auditReference: _pluginText(_auditReference),
+        _decidedAuditReference: _pluginText(_decidedAuditReference),
+        _reReviewReference: _pluginText(_reReviewReference),
+        _trimAuditReference: _pluginText(_trimAuditReference),
+      };
+      for (final MapEntry(:key, :value) in texts.entries) {
+        final flat = _oneLine(value);
+        expect(flat, contains('Audited: <doc>@<hash>'), reason: key);
+        expect(
+          flat,
+          isNot(contains('Audited: <type>:<name>@<hash>')),
+          reason: key,
+        );
+      }
+      for (final entry in {
+        _auditReference: _builderCheckHeading,
+        _reReviewReference: _reReviewHeading,
+        _trimAuditReference: _trimAuditHeading,
+      }.entries) {
+        final step = _sectionOf(texts[entry.key]!, entry.value);
+        expect(step, contains('`doc`'), reason: entry.key);
+      }
     },
   );
 
@@ -2783,6 +2883,18 @@ void _reReviewTests() {
       final bullet = _bulletOf(text, lead);
       expect(bullet, contains('`Notes:`'), reason: lead);
     }
+  });
+
+  test('the auditor report shape opens each item with its fix docs after any '
+      'label', () {
+    final text = _pluginText(_auditor);
+    final lead = _bulletOf(text, '- **Lead names**');
+    expect(lead, contains('plan check'));
+    expect(lead, contains('after any label'));
+    expect(lead, contains('`, `'));
+    final trim = _bulletOf(text, '- **Trim audit**');
+    expect(trim, contains('**Lead names**'));
+    expect(trim, isNot(contains('the doc where its fix lies')));
   });
 
   test('the auditor takes findings, and no sections or citers', () {
@@ -2877,7 +2989,7 @@ void _reReviewTests() {
     );
     expect(
       check,
-      contains('- Guess: <doc>#<key>: <point> Fix: <type>:<name>#<key>'),
+      contains('- Guess: <docs>: <point> Fix: <type>:<name>#<key>'),
     );
   });
 
@@ -2897,15 +3009,15 @@ void _reReviewTests() {
   test('the re-review reports audited lines, one verdict per open finding, '
       'and new gaps', () {
     final read = _sectionOf(_pluginText(_reReviewReference), _reReviewHeading);
-    final findings = read.indexOf('Findings: - <Label>: <doc>#<key>: <point>');
+    final findings = read.indexOf('Findings: - <Label>: <docs>: <point>');
     final verdicts = read.indexOf(
       'Verdicts: - ADDRESSED: <item> - NOT ADDRESSED: <item>',
     );
     final outside = read.indexOf(
-      'Outside the round: - <doc whose fix it is>: <gap>',
+      'Outside the round: - <docs whose fix it is>: <gap>',
     );
     final notes = read.indexOf('Notes: - <observation>');
-    final audited = read.indexOf('Audited: <type>:<name>@<hash>');
+    final audited = read.indexOf('Audited: <doc>@<hash>');
     expect(findings, isNonNegative);
     expect(verdicts, greaterThan(findings));
     expect(outside, greaterThan(verdicts));

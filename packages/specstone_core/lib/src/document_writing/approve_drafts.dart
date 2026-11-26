@@ -205,7 +205,7 @@ Map<String, List<String>> _changedSectionsOf(
 ) {
   final changed = <String, List<String>>{};
   for (final view in views) {
-    final hash = audit.auditedHashOf(view.address);
+    final hash = audit.auditedHashOf({view.address, view.docPath});
     final currentLf = toLf(view.text);
     if (hash == null) {
       changed[view.docPath] = draftDeltaOf(

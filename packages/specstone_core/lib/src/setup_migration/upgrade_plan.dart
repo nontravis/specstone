@@ -93,6 +93,7 @@ const _layoutAndAgentCommit2Message =
     'lay docs out and refresh the Specstone agent files';
 const _treeMoveCommit2Message = 'point links at the moved spec docs';
 const _agentFileRootsKey = 'agent_file_roots';
+const _agentFileGroupsKey = 'agent_file_groups';
 const _agentFilesVersionKey = 'agent_files_version';
 const _layersKeptPrefix = 'layers kept: ';
 const _draftChange = 'draft flag';
@@ -313,7 +314,7 @@ RunPlan _upgradeRunOf(
   };
   final folds = _foldsOf(
     root,
-    steps,
+    upgrades,
     docPaths: docPaths,
     originals: originals,
     planned: planned,
@@ -508,7 +509,10 @@ RunPlan _upgradeRunOf(
               header: step.sectionHeader,
             );
           }
-          (changedAt[index] ??= []).add(plannedPath);
+          // A doc only folded on is written by no commit.
+          if (originals.containsKey(path) || !folds.fromPaths.contains(path)) {
+            (changedAt[index] ??= []).add(plannedPath);
+          }
         }
         lf = renamed;
         changes.add(_describe(step));
@@ -518,10 +522,11 @@ RunPlan _upgradeRunOf(
   }
 
   for (final MapEntry(key: path, value: doc) in frozenFromDocs.entries) {
+    // A doc an earlier step creates starts empty and is planned where it is.
     steppedTextByDocPath[path] = stepped(
-      originals[path]!.lf,
+      (originals[path] ?? _absentDoc).lf,
       path: path,
-      plannedPath: planned[path]!,
+      plannedPath: planned[path] ?? path,
       docType: doc.match.docType,
       firstStep: doc.packStart,
       endStep: doc.foldIndex,
@@ -811,6 +816,9 @@ RunPlan _upgradeRunOf(
     agentFileRoots: agentFiles.addedRoots.isEmpty
         ? null
         : agentFiles.agentFileRoots,
+    agentFileGroups: agentFiles.addedGroups.isEmpty
+        ? null
+        : agentFiles.agentFileGroups,
     agentFilesVersion: _stampOf(
       agentInputs,
       agentFiles,
@@ -885,6 +893,9 @@ RunPlan _upgradeRunOf(
           header: 'pack upgrade: ${headerParts.join(', ')}',
           commit2Message: _commit2Message,
         );
+  final addedGroups = agentFiles.addedGroups.join(', ');
+  final addedGroupsLine =
+      '$projectConfigPath: $_agentFileGroupsKey $addedGroups (added)';
   final plan = RunPlan(
     header: header,
     moves: moves,
@@ -913,11 +924,12 @@ RunPlan _upgradeRunOf(
       ?mentionsLine(mentions),
       for (final line in added) '$projectConfigPath: $line',
       if (upgrades.isNotEmpty) '$projectConfigPath: ${pinned.join(', ')}',
+      if (agentFiles.addedGroups.isNotEmpty) addedGroupsLine,
     ],
     agentFiles: agentFiles,
     trashedDocs: [
       for (final path in {
-        ...folds.fromPaths,
+        ...folds.fromPaths.where(originals.containsKey),
         ...regeneratedAway,
       }.toList()..sort(compareCodePoints))
         projectPathOfDocPath(planned[path] ?? path),
@@ -1138,13 +1150,16 @@ final class _Folds {
   final List<MigrateFault> collisions;
 }
 
-/// Finds the docs of [docPaths] each `merge_doc` step of [steps] folds.
+/// Finds the docs of [docPaths] each `merge_doc` step of [upgrades] folds.
 ///
 /// A `from` doc whose `to` doc is not UTF-8 text is not folded; the pair is
-/// queued in [_Folds.collisions].
+/// queued in [_Folds.collisions]. A `to` doc no project doc holds, which a
+/// step creates, is a `from` doc only of a later step of the same pack that an
+/// earlier step of that pack touches by `from` id: only then does the run hold
+/// the doc's stepped text ([_frozenFromDocsOf]).
 _Folds _foldsOf(
   Directory root,
-  List<PackStep> steps, {
+  List<PackUpgrade> upgrades, {
   required List<String> docPaths,
   required Map<String, DocText?> originals,
   required Map<String, String> planned,
@@ -1160,44 +1175,60 @@ _Folds _foldsOf(
   final docs = FoldedDocs();
   final fromPaths = <String>{};
   final collisions = <MigrateFault>[];
-  for (final (index, PackStep(:step)) in steps.indexed) {
-    if (step is! MergeDoc) continue;
-    final toType = set.lookup(step.toId);
-    if (toType == null) continue;
-    final sources = [
-      for (final source in foldSourcesOf(
-        step,
-        docPaths: docPaths,
-        set: set,
-        twinNames: twinNames,
-        // The from docs sit where the project's current pins put them; a pack
-        // that ships no frozen copy leaves the `to` type's group levels.
-        fromPattern: groupedStepPattern(
-          _keptLayerOf(root, step.fromId)?.path ?? step.fromPath,
-          stepTypes.lookup(step.fromId) ?? toType,
-        ),
-      ))
-        if (originals[source.fromPath] != null &&
-            source.fromPath != source.toPath)
-          source,
-    ];
-    byStep[index] = sources;
-    for (final source in sources) {
-      if (unreadable[source.toPath] case final toPath?) {
-        collisions.add(
-          MigrateFault(
-            MigrateFaultCode.upgradeCollision,
-            'merge_doc of ${step.fromId} into ${step.toId} cannot add '
-            '${source.fromPath}, because $toPath is not UTF-8 text; '
-            '$_resolveCollision',
-            file: toPath,
+  final held = {for (final path in docPaths) planned[path]!};
+  var packStart = 0;
+  for (final PackUpgrade(:steps) in upgrades) {
+    final created = <String>{};
+    for (final (offset, PackStep(:step)) in steps.indexed) {
+      if (step is! MergeDoc) continue;
+      final toType = set.lookup(step.toId);
+      if (toType == null) continue;
+      final readsCreated = steps
+          .take(offset)
+          .any((earlier) => earlier.step.touches(step.fromId));
+      final pool = [...docPaths, if (readsCreated) ...created];
+      final sources = [
+        for (final source in foldSourcesOf(
+          step,
+          docPaths: pool,
+          set: set,
+          twinNames: twinNames,
+          // The from docs sit where the project's current pins put them; a
+          // pack that ships no frozen copy leaves the `to` type's group
+          // levels.
+          fromPattern: groupedStepPattern(
+            _keptLayerOf(root, step.fromId)?.path ?? step.fromPath,
+            stepTypes.lookup(step.fromId) ?? toType,
           ),
-        );
-        continue;
+        ))
+          if ((originals[source.fromPath] != null ||
+                  created.contains(source.fromPath)) &&
+              source.fromPath != source.toPath)
+            source,
+      ];
+      byStep[packStart + offset] = sources;
+      created.addAll([
+        for (final source in sources)
+          if (!held.contains(source.toPath)) source.toPath,
+      ]);
+      for (final source in sources) {
+        if (unreadable[source.toPath] case final toPath?) {
+          collisions.add(
+            MigrateFault(
+              MigrateFaultCode.upgradeCollision,
+              'merge_doc of ${step.fromId} into ${step.toId} cannot add '
+              '${source.fromPath}, because $toPath is not UTF-8 text; '
+              '$_resolveCollision',
+              file: toPath,
+            ),
+          );
+          continue;
+        }
+        docs.add(source, step, toHeaders: _headersOf(toType));
+        fromPaths.add(source.fromPath);
       }
-      docs.add(source, step, toHeaders: _headersOf(toType));
-      fromPaths.add(source.fromPath);
     }
+    packStart += steps.length;
   }
   return _Folds(
     byStep: byStep,
@@ -1671,6 +1702,7 @@ AgentFileInputs _agentInputsOf(
     cliVersion: specstoneVersion,
     codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
     agentFileRoots: config.agentFileRoots,
+    agentFileGroups: agentFileGroupsOf(config.agentFileGroups),
   );
 }
 
@@ -1726,25 +1758,26 @@ final class _DocWork {
 }
 
 /// Returns the rewrite of `config.yaml` that moves the pins of [upgrades],
-/// appends [addedPins], and sets `agent_file_roots` to [agentFileRoots] and
-/// `agent_files_version` to [agentFilesVersion] when each is not null, every
-/// other byte kept, or null when none changes.
+/// appends [addedPins], and sets `agent_file_roots` to [agentFileRoots],
+/// `agent_file_groups` to [agentFileGroups], and `agent_files_version` to
+/// [agentFilesVersion] when each is not null, every other byte kept, or null
+/// when none changes.
 PlannedRewrite? _configRewriteOf(
   Directory root,
   List<PackUpgrade> upgrades, {
   required List<AddedPin> addedPins,
   required List<String>? agentFileRoots,
+  required List<String>? agentFileGroups,
   required ReleaseVersion? agentFilesVersion,
 }) {
   if (upgrades.isEmpty &&
       addedPins.isEmpty &&
       agentFileRoots == null &&
+      agentFileGroups == null &&
       agentFilesVersion == null) {
     return null;
   }
-  final original = DocFileText.read(
-    readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
-  );
+  final original = DocFileText.read(readProjectConfigBytes(root));
   final packs =
       (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;
   var text = _withScalarsReplaced(original.lf, [
@@ -1756,6 +1789,9 @@ PlannedRewrite? _configRewriteOf(
   ]);
   text = withPinsAppended(text, addedPins);
   if (agentFileRoots != null) text = _withAgentFileRoots(text, agentFileRoots);
+  if (agentFileGroups != null) {
+    text = _withAgentFileGroups(text, agentFileGroups);
+  }
   if (agentFilesVersion != null) {
     text = _withAgentFilesVersion(text, agentFilesVersion);
   }
@@ -1766,6 +1802,7 @@ PlannedRewrite? _configRewriteOf(
     changes: [
       if (upgrades.isNotEmpty || addedPins.isNotEmpty) 'pins',
       if (agentFileRoots != null) _agentFileRootsKey,
+      if (agentFileGroups != null) _agentFileGroupsKey,
       if (agentFilesVersion != null) _agentFilesVersionKey,
     ],
   );
@@ -1786,9 +1823,7 @@ _PacksForm? _packsFormOf(YamlMap packs) => switch (packs.style) {
 /// Throws `unknown_value` at `packs` when the config of [root] holds `packs:`
 /// in a form [withPinsAppended] cannot write.
 void _requirePacksWritable(Directory root) {
-  final original = DocFileText.read(
-    readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
-  );
+  final original = DocFileText.read(readProjectConfigBytes(root));
   final packs =
       (loadYamlNode(original.lf) as YamlMap).nodes['packs']! as YamlMap;
   if (_packsFormOf(packs) != null) return;
@@ -1839,6 +1874,14 @@ String _withAgentFileRoots(String text, List<String> roots) => _withKeyBlock(
   text,
   _agentFileRootsKey,
   configText(const {}, agentFileRoots: roots).substring('packs:\n'.length),
+);
+
+/// Returns [text] with the `agent_file_groups` entry set to [groups]: replaced
+/// in place when present, else appended.
+String _withAgentFileGroups(String text, List<String> groups) => _withKeyBlock(
+  text,
+  _agentFileGroupsKey,
+  configText(const {}, agentFileGroups: groups).substring('packs:\n'.length),
 );
 
 /// Returns [text] with the `agent_files_version` entry set to [version]:

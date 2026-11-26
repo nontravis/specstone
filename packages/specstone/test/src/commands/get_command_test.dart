@@ -6,6 +6,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/rulebook_fixture.dart';
+import '../../helpers/fixture_packs.dart' show fixtureAgentGroups;
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -19,7 +20,8 @@ String targetedConfig(Map<String, String> targets) {
   final entries = [
     for (final e in targets.entries) '  ${e.key}:\n    code_root: ${e.value}\n',
   ];
-  return 'packs:\n${pins.join()}targets:\n${entries.join()}';
+  return '${fixtureAgentGroups}packs:\n${pins.join()}'
+      'targets:\n${entries.join()}';
 }
 
 /// Writes a two-target fixture: the feature `feedback/toast`, its
@@ -42,7 +44,7 @@ Future<Directory> writeTargetedProject({Map<String, String> extra = const {}}) {
         '    type: record_status\n'
         '    list: true\n',
     '.specstone/templates/feature.yaml': 'max_depth: 1\n',
-    '.specstone/config.yaml': '',
+    '.specstone/config.yaml': fixtureAgentGroups,
     'flutter_lib/.keep': '',
     'jaspr_lib/.keep': '',
     'docs/prds/features/f02_feedback/f03_toast/FEATURE.md':

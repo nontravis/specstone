@@ -1,9 +1,14 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show opensHeadingItem;
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show withKeyBlock, withoutKeyBlocks;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart'
     show MatchedDocType;
+import 'package:specstone_core/src/doc_model/list_block_writer.dart'
+    show listBlockOf, listEntriesOf;
 import 'package:specstone_core/src/document_writing/item_landing.dart'
     show requireUnchanged;
 import 'package:specstone_core/src/document_writing/keyed_links.dart';
@@ -16,10 +21,12 @@ import 'package:specstone_core/src/document_writing/set_doc.dart'
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/line_range.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Edits
@@ -203,13 +210,23 @@ final class _Pieces {
     final paragraphs = {for (final row in rows) ...row.spans.skip(1)}.toList()
       ..sort((a, b) => a.first.compareTo(b.first));
     final head = rows.firstOrNull?.headerLine;
+    final landedKey = landing.landedKey;
+    List<_Line> rowLinesOf(RowUnit row) {
+      final lines = linesOf(row.spans.first);
+      if (landedKey == null) return lines;
+      return [
+        for (final line in lines)
+          _Line(_withFirstCell(line.text, row.key, landedKey), line.origin),
+      ];
+    }
+
     return _Pieces(
       landing: landing,
       blocks: [
         for (final block in units.whereType<BlockUnit>())
           linesOf(block.spans.single),
       ],
-      rows: [for (final row in rows) ...linesOf(row.spans.first)],
+      rows: [for (final row in rows) ...rowLinesOf(row)],
       tableHead: head == null
           ? const []
           : linesOf(LineRange(first: head, last: head + 1)),
@@ -232,6 +249,17 @@ final class _Pieces {
     ...blocks,
     ...paragraphs,
   ];
+}
+
+/// Returns the table [row] with [key] in its first cell set to [landedKey],
+/// the cell's backticks kept.
+String _withFirstCell(String row, String key, String landedKey) {
+  final open = row.indexOf('|') + 1;
+  final close = row.indexOf('|', open);
+  final end = close < 0 ? row.length : close;
+  return row.substring(0, open) +
+      row.substring(open, end).replaceFirst(key, landedKey) +
+      row.substring(end);
 }
 
 /// Returns the lines of [span] of [source], their links rebased to reach
@@ -286,7 +314,39 @@ final class _Writer {
     }
     final text = _textOf(lines);
     _recordAnchors(lines, text);
-    return text;
+    return _withMovedEntries(text, pieces);
+  }
+
+  /// Returns [text] with the `confirmed` entry of each rebased row of
+  /// [pieces] gone when this doc is its source, and gained, under the row's
+  /// landed key and its fingerprint kept, when this doc is its destination.
+  String _withMovedEntries(String text, List<_Pieces> pieces) {
+    final fieldOrder = [
+      for (final field in _typeOf(session.index, doc).fields) field.id,
+    ];
+    var result = text;
+    for (final KeyedLanding(:from, :to, :key, :landedKey) in [
+      for (final piece in pieces) piece.landing,
+    ]) {
+      if (landedKey == null) continue;
+      if (from.docPath == read.docPath) {
+        result = _withoutEntries(read.docPath, result, key);
+      }
+      if (to.docPath != read.docPath) continue;
+      final source = reads[from.docPath]!;
+      final held = _entriesLabelled(source.docPath, source.text, key);
+      if (held.isNotEmpty &&
+          _entriesLabelled(read.docPath, result, landedKey).isNotEmpty) {
+        throw IndexFault(
+          IndexFaultCode.argumentInvalid,
+          '${to.docPath} already holds a $_confirmedKey entry for $landedKey',
+        );
+      }
+      result = _withEntries(read.docPath, result, [
+        for (final entry in held) '$landedKey${entry.substring(key.length)}',
+      ], fieldOrder);
+    }
+    return result;
   }
 
   /// Removes the lines of [units] from [lines], fresh from the doc's text; a
@@ -482,6 +542,80 @@ int? _laterSectionLine(
     if (at >= 0) return content.lineFacts.sectionLines[at];
   }
   return null;
+}
+
+// MARK: - Confirmed
+
+const _confirmedKey = 'confirmed';
+
+KeyBlock? _confirmedBlockOf(String lfText) =>
+    Doc.parse(lfText).frontmatter
+        ?.where((block) => block.name == _confirmedKey)
+        .firstOrNull;
+
+bool _isLabelled(Object? entry, String label) =>
+    entry is String && entry.split(' ').first == label;
+
+/// Returns the entries of [block], the `confirmed` block of the doc at
+/// [docPath]; none for no block.
+///
+/// Throws [RenderFault] `output_not_writable` when it is no valid YAML, so a
+/// move refuses before the journal rather than drop an entry it cannot place.
+List<Object?> _entriesOf(String docPath, KeyBlock? block) {
+  if (block == null) return const [];
+  return listEntriesOf(block) ??
+      (throw RenderFault(
+        RenderFaultCode.outputNotWritable,
+        'cannot write $docPath: its $_confirmedKey list is not valid YAML',
+      ));
+}
+
+/// Returns each `confirmed` entry of [lfText], the text of the doc at
+/// [docPath], that names [label].
+List<String> _entriesLabelled(String docPath, String lfText, String label) => [
+  for (final entry in _entriesOf(docPath, _confirmedBlockOf(lfText)))
+    if (entry case final String text when _isLabelled(text, label)) text,
+];
+
+/// Returns [lfText], the text of the doc at [docPath], without its
+/// `confirmed` entries that name [label]; the key goes with its last entry,
+/// since a flow list takes no appended item.
+String _withoutEntries(String docPath, String lfText, String label) {
+  final block = _confirmedBlockOf(lfText);
+  final held = _entriesOf(docPath, block);
+  if (block == null) return lfText;
+  final kept = [
+    for (final entry in held)
+      if (!_isLabelled(entry, label)) entry,
+  ];
+  if (kept.length == held.length) return lfText;
+  return kept.isEmpty
+      ? withoutKeyBlocks(lfText, [_confirmedKey])
+      : withKeyBlock(
+          lfText,
+          _confirmedKey,
+          listBlockOf(_confirmedKey, kept, onDisk: block),
+        );
+}
+
+/// Returns [lfText], the text of the doc at [docPath], with [entries] added
+/// at the end of its `confirmed` list, an absent key at its slot in
+/// [fieldOrder].
+String _withEntries(
+  String docPath,
+  String lfText,
+  List<String> entries,
+  List<String> fieldOrder,
+) {
+  if (entries.isEmpty) return lfText;
+  final block = _confirmedBlockOf(lfText);
+  final held = _entriesOf(docPath, block);
+  return withKeyBlock(
+    lfText,
+    _confirmedKey,
+    listBlockOf(_confirmedKey, [...held, ...entries], onDisk: block),
+    fieldOrder: fieldOrder,
+  );
 }
 
 String _textOf(List<_Line> lines) =>

@@ -4,7 +4,7 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/source_order_nodes.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show parsedDestinationOf;
+    show parsedDestinationOf, readDocAddress;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 import 'package:specstone_core/src/index_query/models/href_destination.dart';
 import 'package:specstone_core/src/index_query/models/href_destinations.dart';
@@ -24,6 +24,7 @@ const LinkPlaces noLinks = LinkPlaces(
   fileLinks: [],
   selfLinks: [],
   texts: [],
+  addressTexts: [],
   readersAgree: true,
 );
 
@@ -125,14 +126,22 @@ LinkPlaces? linkPlacesOf(
     for (final (i, _Located(:place)) in located.indexed)
       if (placed[i].kind == kind) place,
   ];
+  final written = [
+    for (final (i, _Located(:place, :source)) in located.indexed)
+      if (placed[i].kind == _LinkKind.doc || placed[i].kind == _LinkKind.self)
+        if (source != null) ?_linkTextOf(lfBody, source, place),
+  ];
   return LinkPlaces(
     docLinks: placesOf(_LinkKind.doc),
     fileLinks: placesOf(_LinkKind.file),
     selfLinks: placesOf(_LinkKind.self),
     texts: [
-      for (final (i, _Located(:place, :source)) in located.indexed)
-        if (placed[i].kind == _LinkKind.doc || placed[i].kind == _LinkKind.self)
-          if (source != null) ?_linkTextOf(lfBody, source, place),
+      for (final link in written)
+        if (_itemIdShapedText.hasMatch(link.text)) link,
+    ],
+    addressTexts: [
+      for (final link in written)
+        if (_isAddressShapedText(link.text)) link,
     ],
     readersAgree: agree,
   );
@@ -216,16 +225,30 @@ List<LinkSource> parserReadSourcesOf(
 /// The text of a link whose text holds no whitespace and a digit.
 final _itemIdShapedText = RegExp(r'^\S*\d\S*$');
 
+/// The characters of a section key after the `#` of an address text.
+final _sectionKeyShape = RegExp(r'^[A-Za-z0-9_]+$');
+
+/// Whether [text] reads whole as a typed no-lookup doc address, with or
+/// without a `#<section key>`; a bare text, of any slug count, is none (D9).
+bool _isAddressShapedText(String text) {
+  final address = readDocAddress(text);
+  if (address.typeId == null || !address.isReferenceWithoutLookup) return false;
+  final key = address.sectionKey;
+  return key == null || _sectionKeyShape.hasMatch(key);
+}
+
 /// Returns the [LinkText] of [place], which [source] is the use of in
 /// [lfBody], or null for an image, a link with no bracketed text, and a text
-/// that cannot read as an item ID.
+/// that reads as neither an item ID nor a typed doc address.
 LinkText? _linkTextOf(String lfBody, LinkSource source, LinkPlace place) {
   final textEnd = source.textEnd;
   final offset = source.offset;
   final end = source.end;
   if (textEnd == null || lfBody.codeUnitAt(offset) == _bang) return null;
   final text = lfBody.substring(offset + 1, textEnd);
-  if (!_itemIdShapedText.hasMatch(text)) return null;
+  if (!_itemIdShapedText.hasMatch(text) && !_isAddressShapedText(text)) {
+    return null;
+  }
   return LinkText(
     line: source.line,
     column: offset - _lineStartAt(lfBody, offset),

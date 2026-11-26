@@ -239,19 +239,19 @@ void main() {
     _reportTest('continues an item on an indented raw line', () {
       final named = [
         _audited(_name, _hash),
-        'Findings:',
+        'Verdicts:',
         '- the item has a wrapped second line',
         '  naming $_name here',
       ].join('\n');
-      expect(_reasonForAudit(named), _namedIn('Findings', 'audit1.md'));
+      expect(_reasonForAudit(named), _namedIn('Verdicts', 'audit1.md'));
 
       final tabbed = [
         _audited(_name, _hash),
-        'Findings:',
+        'Verdicts:',
         '- wrapped',
         '\t$_name',
       ].join('\n');
-      expect(_reasonForAudit(tabbed), _namedIn('Findings', 'audit1.md'));
+      expect(_reasonForAudit(tabbed), _namedIn('Verdicts', 'audit1.md'));
 
       final noItem = [
         _audited(_name, _hash),
@@ -312,10 +312,10 @@ void main() {
         '####### $_name',
         '#x $_name',
       ]) {
-        final text = [_audited(_name, _hash), 'Findings:', line].join('\n');
+        final text = [_audited(_name, _hash), 'Verdicts:', line].join('\n');
         expect(
           _reasonForAudit(text),
-          _namedIn('Findings', 'audit1.md'),
+          _namedIn('Verdicts', 'audit1.md'),
           reason: line,
         );
       }
@@ -474,7 +474,7 @@ void main() {
         final underFindings = [
           _audited(_name, _hash),
           'Findings:',
-          '- ADDRESSED: $_name x',
+          '- $_name#statement: ADDRESSED: x',
         ].join('\n');
         expect(
           _reasonForAudit(underFindings),
@@ -645,11 +645,11 @@ void main() {
       },
     );
 
-    _reportTest('an outside item counts only by its lead name, a findings item by any mention', () {
+    _reportTest('an outside or findings item counts only by its lead names, a verdict by any mention', () {
       for (final (label, isLeadOnly) in [
         ('Outside the drafts', true),
         ('Outside the round', true),
-        ('Findings', false),
+        ('Findings', true),
         ('Verdicts', false),
       ]) {
         final mentioned = [
@@ -675,6 +675,148 @@ void main() {
         );
       }
     });
+
+    _reportTest(
+      'a findings item whose lead is two names asks each of the two drafts',
+      () {
+        const other = JudgedDraft(
+          name: 'fr:b',
+          docPath: 'prds/features/f01_x/fr02_b.md',
+          currentHash: _hash,
+        );
+        final text = [
+          _audited(_name, _hash),
+          _audited('fr:b', _hash),
+          'Findings:',
+          '- fr:a#statement, fr:b#statement: the two docs disagree',
+        ].join('\n');
+        final judge = _judge(audit: _sequence([text]));
+        expect(judge.reasonFor(_draft), _namedIn('Findings', 'audit1.md'));
+        expect(judge.reasonFor(other), _namedIn('Findings', 'audit1.md'));
+      },
+    );
+
+    _reportTest('a findings item led by each report_draft_gaps label asks both drafts of its lead', () {
+      const other = JudgedDraft(
+        name: 'fr:b',
+        docPath: 'prds/features/f01_x/fr02_b.md',
+        currentHash: _hash,
+      );
+      for (final label in [
+        'Guess',
+        'Contradiction',
+        'Stale reader',
+        'Not carried',
+        'Misplaced',
+      ]) {
+        final text = [
+          _audited(_name, _hash),
+          _audited('fr:b', _hash),
+          'Findings:',
+          '- $label: fr:a#statement, fr:b#statement: a point',
+        ].join('\n');
+        final judge = _judge(audit: _sequence([text]));
+        expect(
+          judge.reasonFor(_draft),
+          _namedIn('Findings', 'audit1.md'),
+          reason: '$label, first lead name',
+        );
+        expect(
+          judge.reasonFor(other),
+          _namedIn('Findings', 'audit1.md'),
+          reason: '$label, second lead name',
+        );
+      }
+    });
+
+    _reportTest(
+      'a label, bullet, bold, or link lead asks each draft its text names',
+      () {
+        // D4: an item whose lead holds no doc name fails closed on a mention.
+        const other = JudgedDraft(
+          name: 'fr:b',
+          docPath: 'prds/features/f01_x/fr02_b.md',
+          currentHash: _hash,
+        );
+        for (final label in [
+          'Findings',
+          'Outside the drafts',
+          'Outside the round',
+        ]) {
+          for (final (item, asksB) in [
+            ('- Hole: fr:a — x', false),
+            ('- * fr:a — x', false),
+            ('- 1. fr:a — x', false),
+            ('- **fr:a** — x', false),
+            ('- [fr:a](fr01_a.md) — x', false),
+            ('- fr:a, per fr:b: x', true),
+            ('- fr:b,fr:a — x', true),
+          ]) {
+            final text = [
+              _audited(_name, _hash),
+              _audited('fr:b', _hash),
+              '$label:',
+              item,
+            ].join('\n');
+            final judge = _judge(audit: _sequence([text]));
+            expect(
+              judge.reasonFor(_draft),
+              _namedIn(label, 'audit1.md'),
+              reason: '$label $item, fr:a',
+            );
+            expect(
+              judge.reasonFor(other),
+              asksB ? _namedIn(label, 'audit1.md') : isNull,
+              reason: '$label $item, fr:b',
+            );
+          }
+        }
+
+        final lead = [
+          _audited(_name, _hash),
+          'Findings:',
+          '- specs/TECH_STACK.md: names $_name',
+        ].join('\n');
+        expect(_reasonForAudit(lead), isNull, reason: 'a lead name');
+
+        final verdict = [
+          _audited(_name, _hash),
+          'Verdicts:',
+          '- **fr:a** x',
+        ].join('\n');
+        expect(_reasonForAudit(verdict), isNull, reason: 'Verdicts bounds');
+      },
+    );
+
+    _reportTest('a Queued line clears no outside item led by no doc name', () {
+      // D4: a leadless item has no lead name for a Queued line to clear.
+      final text = [
+        _audited(_name, _hash),
+        'Outside the drafts:',
+        '- Hole: fr:c and $_name — x',
+        'Queued: fr:c',
+      ].join('\n');
+      expect(
+        _reasonForAudit(text),
+        _namedIn('Outside the drafts', 'audit1.md'),
+      );
+    });
+
+    _reportTest(
+      'an outside item with two lead names, one queued, still asks the other',
+      () {
+        final text = [
+          _audited(_name, _hash),
+          'Outside the drafts:',
+          '- fr:c#edge_cases, fr:a#edge_cases: a gap',
+          'Queued: fr:c',
+        ].join('\n');
+        expect(
+          _reasonForAudit(text),
+          _namedIn('Outside the drafts', 'audit1.md'),
+        );
+      },
+    );
 
     _reportTest('an item with no lead name counts beside a Queued line', () {
       final text = [
@@ -747,18 +889,130 @@ void main() {
         '- $_docPath#sec',
       ];
       for (final item in items) {
-        final text = [
-          _audited(_name, _hash),
-          'Findings:',
-          if (item.startsWith('- ')) item else 'Findings: $item',
-        ].join('\n');
+        final text = [_audited(_name, _hash), 'Verdicts:', item].join('\n');
+        expect(
+          _reasonForAudit(text),
+          _namedIn('Verdicts', 'audit1.md'),
+          reason: item,
+        );
+      }
+    });
+
+    _reportTest(
+      'a findings item with a closing mark asks each draft it leads with',
+      () {
+        const other = JudgedDraft(
+          name: 'fr:b',
+          docPath: 'prds/features/f01_x/fr02_b.md',
+          currentHash: _hash,
+        );
+        for (final (item, asksA, asksB) in [
+          ('- fr:a, fr:b.', true, true),
+          ('- fr:a, fr:b;', true, true),
+          ('- fr:a, fr:b)', true, true),
+          ('- fr:a.', true, false),
+          ('- fr:a;', true, false),
+          ('- fr:a)', true, false),
+          ('- fr:a, fr:b!x', true, false),
+        ]) {
+          final text = [
+            _audited(_name, _hash),
+            _audited('fr:b', _hash),
+            'Findings:',
+            item,
+          ].join('\n');
+          final judge = _judge(audit: _sequence([text]));
+          expect(
+            judge.reasonFor(_draft),
+            asksA ? _namedIn('Findings', 'audit1.md') : isNull,
+            reason: '$item, fr:a',
+          );
+          expect(
+            judge.reasonFor(other),
+            asksB ? _namedIn('Findings', 'audit1.md') : isNull,
+            reason: '$item, fr:b',
+          );
+        }
+      },
+    );
+
+    _reportTest('a findings item with a lead name names a draft only when that lead is the draft within its bounds', () {
+      for (final item in [
+        '- $_name',
+        '- `$_name`',
+        '- $_name@$_hash',
+        '- $_name#edge_cases',
+        '- $_name, again',
+        '- $_name. Done',
+        '- $_name; next',
+        '- $_docPath.',
+        '- $_docPath,',
+        '- $_docPath#sec',
+        // D4: no lead name, so the mention within the leadless bounds asks.
+        '- ($_name)',
+        '- [$_name]',
+        '- x\t$_name',
+        '- see ($_docPath)',
+        '- see `$_docPath`',
+        '- [$_docPath] x',
+        '- ($_docPath) x',
+      ]) {
+        final text = [_audited(_name, _hash), 'Findings:', item].join('\n');
         expect(
           _reasonForAudit(text),
           _namedIn('Findings', 'audit1.md'),
           reason: item,
         );
       }
+      for (final item in [
+        '- fr:ab',
+        '- xfr:a',
+        '- fr:a_b',
+        '- fr:a-b',
+        '- fr:a/b',
+        '- other/$_docPath',
+        '- ${_docPath}x',
+        '- fr:A',
+      ]) {
+        final text = [_audited(_name, _hash), 'Findings:', item].join('\n');
+        expect(_reasonForAudit(text), isNull, reason: item);
+      }
     });
+
+    _reportTest(
+      'a lead is read from the first line of an item with continuation lines',
+      () {
+        const other = JudgedDraft(
+          name: 'fr:b',
+          docPath: 'prds/features/f01_x/fr02_b.md',
+          currentHash: _hash,
+        );
+        for (final (label, extra) in [
+          ('Findings', ''),
+          ('Outside the drafts', 'Queued: fr:c'),
+        ]) {
+          final text = [
+            _audited(_name, _hash),
+            _audited('fr:b', _hash),
+            '$label:',
+            '- fr:a#statement, fr:b',
+            '  more text on a second line: x',
+            if (extra.isNotEmpty) extra,
+          ].join('\n');
+          final judge = _judge(audit: _sequence([text]));
+          expect(
+            judge.reasonFor(_draft),
+            _namedIn(label, 'audit1.md'),
+            reason: '$label, fr:a',
+          );
+          expect(
+            judge.reasonFor(other),
+            _namedIn(label, 'audit1.md'),
+            reason: '$label, fr:b',
+          );
+        }
+      },
+    );
 
     _reportTest('does not match a name inside a longer name', () {
       const items = [
@@ -772,7 +1026,7 @@ void main() {
         '- fr:A',
       ];
       for (final item in items) {
-        final text = [_audited(_name, _hash), 'Findings:', item].join('\n');
+        final text = [_audited(_name, _hash), 'Verdicts:', item].join('\n');
         expect(_reasonForAudit(text), isNull, reason: item);
       }
     });
@@ -883,7 +1137,7 @@ void main() {
     );
 
     _reportTest(
-      'asks a draft whose audit names only its typed name by its DocPath',
+      'judges a draft whose audit part names its DocPath as audited',
       () {
         const shared = JudgedDraft(
           name: _docPath,
@@ -894,7 +1148,62 @@ void main() {
           _audited(_name, _hash),
           'Audited: $_docPath@$_hash',
         ].join('\n');
-        expect(_reasonForAudit(text, draft: shared), _noAuditReason);
+        expect(_reasonForAudit(text, draft: shared), isNull);
+      },
+    );
+
+    _reportTest(
+      'takes the Styled hash of a typed name after an audit by DocPath',
+      () {
+        final sequence = _sequence([
+          [_audited(_docPath, _otherHash), _styled(_name, _hash)].join('\n'),
+        ]);
+        expect(_judge(audit: sequence).reasonFor(_draft), isNull);
+
+        final stale = _sequence([
+          [_audited(_docPath, _hash), _styled(_name, _otherHash)].join('\n'),
+        ]);
+        expect(
+          _judge(audit: stale).reasonFor(_draft),
+          _auditedAt(_otherHash, _hash),
+        );
+      },
+    );
+
+    _reportTest(
+      'takes the later Styled line of a part when both names style the draft',
+      () {
+        final docPathLater = _sequence([
+          [
+            _audited(_name, _otherHash),
+            _styled(_name, _otherHash),
+            _styled(_docPath, _hash),
+          ].join('\n'),
+        ]);
+        expect(_judge(audit: docPathLater).reasonFor(_draft), isNull);
+
+        final typedRestated = _sequence([
+          [
+            _audited(_name, _otherHash),
+            _styled(_name, _otherHash),
+            _styled(_docPath, _thirdHash),
+            _styled(_name, _hash),
+          ].join('\n'),
+        ]);
+        expect(_judge(audit: typedRestated).reasonFor(_draft), isNull);
+      },
+    );
+
+    _reportTest(
+      'skips a style item of a part with a Styled line by DocPath',
+      () {
+        final styled = [
+          _audited(_name, _otherHash),
+          _styled(_docPath, _hash),
+          'Findings:',
+          '- $_name wording [style]',
+        ].join('\n');
+        expect(_reasonForAudit(styled), isNull);
       },
     );
 
@@ -1044,6 +1353,29 @@ void main() {
       final bare = _judge(noAudit: true, authors: [_file('Not landed:')]);
       expect(bare.reasonFor(_draft), _notLandedIn('audit1.md'));
     });
+
+    _reportTest(
+      'reads a Not landed line opening with the word none as no unkeyed line',
+      () {
+        final audit = _sequence([_audited(_name, _hash)]);
+        for (final line in ['Not landed: none.', 'Not landed: none (D2)']) {
+          final judge = _judge(
+            audit: audit,
+            authors: [_file(line, path: 'reports/author1.md')],
+          );
+          expect(judge.reasonFor(_draft), isNull, reason: line);
+        }
+      },
+      crlf: true,
+    );
+
+    _reportTest('reads a Not landed line opening with a longer word that starts with none as unkeyed', () {
+      final judge = _judge(
+        audit: _sequence([_audited(_name, _hash)]),
+        authors: [_file('Not landed: nonetheless', path: 'reports/author1.md')],
+      );
+      expect(judge.reasonFor(_draft), _notLandedIn('author1.md'));
+    }, crlf: true);
 
     group('author decisions', () {
       final audit = _sequence([_audited(_name, _hash)]);
@@ -1233,6 +1565,38 @@ void main() {
           _openDecisions([('D10', 'author1.md')]),
         );
       });
+
+      _reportTest('lands a decision whose line lists section keys after its target and leaves it open on an empty list', () {
+        expect(
+          reasonOf({
+            'author1.md':
+                'Decision: D14 -> feature:setup_migration (summary, #scope)',
+          }),
+          isNull,
+        );
+        expect(
+          reasonOf({
+            'author1.md': 'Decision: D14 -> feature:setup_migration ()',
+          }),
+          _openDecisions([('D14', 'author1.md')]),
+        );
+      }, crlf: true);
+
+      _reportTest('lands a decision on a bare key and leaves it open on free text or a hash-only list', () {
+        expect(
+          reasonOf({
+            'author1.md': 'Decision: D14 -> feature:setup_migration (scope)',
+          }),
+          isNull,
+        );
+        for (final list in ['(not landed yet)', '(see notes)', '(#)']) {
+          expect(
+            reasonOf({'author1.md': 'Decision: D5 -> feature:x $list'}),
+            _openDecisions([('D5', 'author1.md')]),
+            reason: list,
+          );
+        }
+      }, crlf: true);
     });
 
     _reportTest('lets an owner-waiting unconfirmed finding pass', () {
@@ -1832,7 +2196,7 @@ void main() {
     _reportTest('reads a ranked builder check as one section to its end', () {
       final text = builderCheck([
         '- Guess: fr:b#statement: a point',
-        '- Contradiction: fr:b#edge_cases: restates a rule $_name owns',
+        '- Contradiction: fr:b#edge_cases, $_name#edge_cases: restates a rule',
         '- Stale reader: fr:c#statement: a point',
       ]);
       expect(_reasonForAudit(text), _namedIn('Findings', 'audit1.md'));

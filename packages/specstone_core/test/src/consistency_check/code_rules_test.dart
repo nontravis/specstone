@@ -254,6 +254,24 @@ void main() {
     );
   });
 
+  test('a covers entry or code root that matches only by letter case is '
+      'missing', () async {
+    final report = await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(techStack, '  - app/lib/\n', '  - TOOL/build.dart\n'),
+          ...narrow('TOOL/'),
+          'Tool/build.dart': '',
+        },
+      ),
+    );
+
+    expect(spots(report), [
+      '$loginRecord:12: covers_path_missing',
+      '$techStack:4: code_root_missing',
+    ]);
+  });
+
   test(
     'a covers entry ending in a fingerprint names what its prefix names',
     () async {
@@ -942,6 +960,80 @@ void main() {
       expect(_of(report, FindingKind.coversPathMissing), isEmpty);
     },
   );
+
+  test(
+    'a covers entry above its root is covers_path_outside for the Owner',
+    () async {
+      final project = await writeCheckProject(extra: narrow('../other/'));
+      final report = await checkOf(project);
+
+      final line =
+          File('${project.path}/$loginRecord')
+              .readAsLinesSync()
+              .indexOf('covers:') +
+          2;
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.coversPathOutside,
+      );
+      expect(finding.path, loginRecord);
+      expect(finding.line, line);
+      expect(finding.waitsFor, WaitsFor.owner);
+      expect(finding.keys['entry'], '../other/');
+      expect(_of(report, FindingKind.coversPathMissing), isEmpty);
+    },
+  );
+
+  test(
+    'an outside covers entry of a waiting target is still reported',
+    () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            loginRecord: _record(
+              ['email_login:planned'],
+              covers: ['../other/'],
+            ),
+          },
+          unstamped: {loginRecord},
+        ),
+      );
+
+      expect(_of(report, FindingKind.coversPathOutside), [
+        '$loginRecord: ../other/',
+      ]);
+    },
+  );
+
+  test('an outside covers entry takes no code fingerprint', () async {
+    // The entry leaves the code root onto a folder that exists, so only the
+    // outside rule keeps its fingerprint unread.
+    final project = await _outsideRootProject(
+      docs: {
+        loginRecord: _record(
+          [_implemented],
+          covers: ['../example/app/lib/ 9a1c03be55d2'],
+        ),
+      },
+      outside: {
+        'app/lib/login.dart': checkProjectFiles()['app/lib/login.dart']!,
+      },
+    );
+
+    final report = await _run(project);
+
+    expect(_of(report, FindingKind.coversPathOutside), [
+      '$loginRecord: ../example/app/lib/',
+    ]);
+    expect(
+      _kindsAt(report, loginRecord),
+      isNot(
+        anyOf(
+          contains(FindingKind.codeUnconfirmed),
+          contains(FindingKind.codeSuspect),
+        ),
+      ),
+    );
+  });
 
   test('a shared doc whose only covers entry is empty gives '
       'covers_entry_empty alone', () async {

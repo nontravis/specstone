@@ -237,6 +237,71 @@ void main() {
       );
     });
 
+    group('last slug', () {
+      const storyMoves = <PathMove>[
+        PathMove(
+          from: 'prds/features/f01_alpha/us01_login/',
+          to: 'prds/features/f01_alpha/us01_signin/',
+        ),
+      ];
+      final storyRenamed = RenamedNames({
+        const TypedName(typeId: 'user_story', name: 'alpha/login'):
+            'alpha/signin',
+      });
+      const storyDocs = <String, TypedName>{
+        'prds/features/f01_alpha/us01_login/USER_STORY.md': TypedName(
+          typeId: 'user_story',
+          name: 'alpha/login',
+        ),
+      };
+      String? slug(String text) => rewriteDocLinks(
+        text,
+        docPath: 'prds/features/f01_alpha/FEATURE.md',
+        moves: storyMoves,
+        renamed: storyRenamed,
+        renamedDocs: storyDocs,
+      );
+
+      test('a bare and a typed text that are the old last slug of the doc their link reaches take the new slug, the path following', () {
+        expect(
+          slug(
+            '[login](us01_login/USER_STORY.md) '
+            '[user_story:login](us01_login/USER_STORY.md#use_case)\n',
+          ),
+          '[signin](us01_signin/USER_STORY.md) '
+          '[user_story:signin](us01_signin/USER_STORY.md#use_case)\n',
+        );
+      });
+
+      test('the same slug text on a link to another doc stays as written', () {
+        expect(
+          slug('[login](other/USER_STORY.md) [user_story:login](notes.md)\n'),
+          isNull,
+        );
+        expect(
+          slug(
+            '[the login story](us01_login/USER_STORY.md) '
+            '[feature:login](us01_login/USER_STORY.md)\n',
+          ),
+          '[the login story](us01_signin/USER_STORY.md) '
+          '[feature:login](us01_signin/USER_STORY.md)\n',
+        );
+      });
+
+      test(
+        'a last slug text in a code span or a fenced block keeps its bytes',
+        () {
+          expect(
+            slug(
+              '`[login](us01_login/USER_STORY.md)`\n\n'
+              '```\n[login](us01_login/USER_STORY.md)\n```\n',
+            ),
+            isNull,
+          );
+        },
+      );
+    });
+
     test('a bare text that two renamed docs call alike takes the new Name of the doc its link reaches', () {
       final twins = RenamedNames({
         const TypedName(typeId: 'feature', name: 'login'): 'signin',

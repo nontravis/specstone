@@ -526,6 +526,31 @@ void main() {
     );
   });
 
+  test("a plan's new line at a path no doc type matches is argument_invalid naming the DocPath, and the plan changes nothing", () async {
+    final root = await writeGroupedProject(
+      extra: {
+        '.specstone/templates/security.yaml':
+            'path: specs/s{nn}_{slug}/SECURITY.md\n',
+      },
+    );
+    final fault = _refusal(
+      root,
+      'new feature --slug garden/herbs\n'
+      'user_story:kitchen/recipes/add_dish -> feature:garden/herbs\n'
+      'new security --parent kitchen/recipes\n',
+    );
+    expect(
+      fault,
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+          .having(
+            (f) => f.message,
+            'message',
+            'specs/skitchen_01/SECURITY.md matches no doc type',
+          ),
+    );
+  });
+
   test('a new line that new refuses refuses the plan', () async {
     final root = await _project();
     final fault = _refusal(

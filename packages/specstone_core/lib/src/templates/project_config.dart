@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/portable_path.dart';
@@ -23,6 +24,22 @@ const _targetsKey = 'targets';
 const _reservedTargetName = 'refs';
 const _agentFileRootsKey = 'agent_file_roots';
 const _agentFilesVersionKey = 'agent_files_version';
+const _agentFileGroupsKey = 'agent_file_groups';
+const _numberLabelPrefixesKey = 'number_label_prefixes';
+
+/// The names `agent_file_groups:` lists, one per agent folder group.
+///
+/// Held as strings since `templates/` imports nothing from `setup_migration/`;
+/// `AgentFolderGroup.configName` yields the same names, in enum order.
+const agentFileGroupNames = [
+  'claude_code',
+  'shared',
+  'codex_agents',
+  'cursor_agents',
+];
+
+/// One number label prefix: capital letters followed by `-`.
+final _numberLabelPrefix = RegExp(r'^[A-Z]+-$');
 
 /// The config key that turns on `check`'s coverage finding.
 const verificationCoverageKey = 'verification_coverage';
@@ -130,6 +147,8 @@ final class ProjectConfig {
     required this.hasCodeRoot,
     required this.agentFileRoots,
     required this.agentFilesVersion,
+    required this.agentFileGroups,
+    required this.numberLabelPrefixes,
     required this.matrixMode,
     required this.cleanup,
   });
@@ -139,7 +158,8 @@ final class ProjectConfig {
   /// Throws `unknown_value` first when `.specstone` is a link or a file, since
   /// no byte is read through it, then `unknown_key` for a key other than
   /// `packs`, `code_root`, `targets`, `agent_file_roots`,
-  /// `agent_files_version`, `verification_coverage`, and `cleanup`, a `packs`
+  /// `agent_files_version`, `agent_file_groups`, `number_label_prefixes`,
+  /// `verification_coverage`, and `cleanup`, a `packs`
   /// key that is not kebab-case, or a `cleanup` key other than its three
   /// bounds,
   /// `missing_key` when `packs` is absent, `pack_version_invalid` for a bad
@@ -147,18 +167,19 @@ final class ProjectConfig {
   /// `unknown_value` for a `code_root` that is not a string, is empty, is
   /// absolute, or holds a backslash, for an `agent_file_roots` that is not a
   /// list of such strings, for an `agent_files_version` that is not a Version,
-  /// for a `verification_coverage` outside `false`, `true`, `fr`, and
-  /// `edge_case`, for a `cleanup` that
-  /// is not a map or holds a bound that is not a positive integer, and for a
-  /// `targets` that is empty, sits beside `code_root:`, or holds two targets
-  /// on one code folder.
+  /// for an `agent_file_groups` that is no list of the four group names, for a
+  /// `number_label_prefixes` that is no list of capital letters and `-`, for a
+  /// `verification_coverage` outside `false`, `true`, `fr`, and `edge_case`,
+  /// for a `cleanup` that is not a map or holds a bound that is not a positive
+  /// integer, and for a `targets` that is empty, sits beside `code_root:`, or
+  /// holds two targets on one code folder.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
   static ProjectConfig read(Directory root) {
     requireSpecstoneFolder(root);
     final text = decodeYamlBytes(
-      readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
+      readProjectConfigBytes(root),
       file: projectConfigPath,
     );
     final map = readYamlMap(text, file: projectConfigPath);
@@ -170,6 +191,8 @@ final class ProjectConfig {
         _targetsKey,
         _agentFileRootsKey,
         _agentFilesVersionKey,
+        _agentFileGroupsKey,
+        _numberLabelPrefixesKey,
         verificationCoverageKey,
         cleanupKey,
       },
@@ -209,6 +232,8 @@ final class ProjectConfig {
       hasCodeRoot: map.containsKey(_codeRootKey),
       agentFileRoots: _readAgentFileRoots(map),
       agentFilesVersion: _readAgentFilesVersion(map),
+      agentFileGroups: _readAgentFileGroups(map),
+      numberLabelPrefixes: _readNumberLabelPrefixes(map),
       matrixMode: _readMatrixMode(map),
       cleanup: CleanupBounds.fromConfig(map, file: projectConfigPath),
     );
@@ -245,6 +270,14 @@ final class ProjectConfig {
   /// The last Version whose run left the agent files as it writes them; null
   /// when the config has no `agent_files_version`.
   final ReleaseVersion? agentFilesVersion;
+
+  /// The agent groups already offered at the project root, each as written;
+  /// empty when the config has no `agent_file_groups`.
+  final List<String> agentFileGroups;
+
+  /// The project's own number label prefixes, each as written; empty when the
+  /// config has no `number_label_prefixes`.
+  final List<String> numberLabelPrefixes;
 
   /// The Verification matrix mode `verification_coverage:` names;
   /// [MatrixMode.off] when the config has no such key.
@@ -283,14 +316,15 @@ final class AgentFilesStampUnreadable implements AgentFilesStamp {
 /// [root], for commands that load no templates.
 ///
 /// Reads no other key, so a broken `agent_file_roots` or `packs` does not hide
-/// the stamp. Never throws: a fault of any kind is
-/// [AgentFilesStampUnreadable], apart from the readable
+/// the stamp. Never throws: a fault of any kind, the `unknown_value` of
+/// [readProjectConfigBytes] for a linked, irregular, or oversized config
+/// included, is [AgentFilesStampUnreadable], apart from the readable
 /// [AgentFilesStampAbsent].
 AgentFilesStamp readAgentFilesVersion(Directory root) {
   try {
     requireSpecstoneFolder(root);
     final text = decodeYamlBytes(
-      readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
+      readProjectConfigBytes(root),
       file: projectConfigPath,
     );
     final version = _readAgentFilesVersion(
@@ -306,26 +340,67 @@ AgentFilesStamp readAgentFilesVersion(Directory root) {
   }
 }
 
+/// Reads `agent_file_groups` alone from the config under the project [root],
+/// for commands that load no templates.
+///
+/// Reads no other key, so a broken `packs` or an unknown key does not hide the
+/// groups. A value the key refuses, a config that does not parse, and a missing
+/// file or `.specstone` give an empty list, which offers no group. Throws the
+/// `unknown_value` fault of
+/// [readProjectConfigBytes] for a config that is a link, no regular file, or
+/// over 1 MiB.
+List<String> readAgentFileGroups(Directory root) {
+  try {
+    requireSpecstoneFolder(root);
+  } on TemplateFault {
+    return const [];
+  }
+  final Uint8List bytes;
+  try {
+    bytes = readProjectConfigBytes(root);
+  } on FileSystemException {
+    return const [];
+  }
+  try {
+    return _readAgentFileGroups(
+      readYamlMap(
+        decodeYamlBytes(bytes, file: projectConfigPath),
+        file: projectConfigPath,
+      ),
+    );
+  } on TemplateFault {
+    return const [];
+  }
+}
+
 /// Reads `cleanup` alone from the config under the project [root], for
 /// commands that load no templates.
 ///
 /// Reads no other key, so a broken `packs` or an unknown key does not hide the
-/// bounds. Never throws: a config that cannot be read gives
-/// [CleanupBounds.defaults], and each bound that does not read gives its own
-/// default.
+/// bounds. Throws the `unknown_value` fault of [readProjectConfigBytes] for a
+/// config that is a link, no regular file, or over 1 MiB, and never throws for
+/// a bad value or a missing file: those give [CleanupBounds.defaults], and
+/// each bound that does not read gives its own default.
 CleanupBounds readCleanupBounds(Directory root) {
   try {
     requireSpecstoneFolder(root);
-    final text = decodeYamlBytes(
-      readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
-      file: projectConfigPath,
-    );
-    return CleanupBounds.fromConfigLeniently(
-      readYamlMap(text, file: projectConfigPath),
-    );
   } on TemplateFault {
     return CleanupBounds.defaults;
+  }
+  final Uint8List bytes;
+  try {
+    bytes = readProjectConfigBytes(root);
   } on FileSystemException {
+    return CleanupBounds.defaults;
+  }
+  try {
+    return CleanupBounds.fromConfigLeniently(
+      readYamlMap(
+        decodeYamlBytes(bytes, file: projectConfigPath),
+        file: projectConfigPath,
+      ),
+    );
+  } on TemplateFault {
     return CleanupBounds.defaults;
   }
 }
@@ -359,6 +434,71 @@ ReleaseVersion? _readAgentFilesVersion(YamlMap map) {
         file: projectConfigPath,
         key: _agentFilesVersionKey,
       ));
+}
+
+List<String> _readAgentFileGroups(YamlMap map) {
+  final groups = stringList(map, _agentFileGroupsKey, file: projectConfigPath);
+  if (!groups.every(agentFileGroupNames.contains)) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $_agentFileGroupsKey must hold only '
+      '${agentFileGroupNames.join(', ')}',
+      file: projectConfigPath,
+      key: _agentFileGroupsKey,
+    );
+  }
+  return List.unmodifiable(groups);
+}
+
+List<String> _readNumberLabelPrefixes(YamlMap map) {
+  final prefixes = stringList(
+    map,
+    _numberLabelPrefixesKey,
+    file: projectConfigPath,
+  );
+  if (!prefixes.every(_numberLabelPrefix.hasMatch)) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key $_numberLabelPrefixesKey must hold prefixes of capital '
+      'letters followed by -, such as FO-',
+      file: projectConfigPath,
+      key: _numberLabelPrefixesKey,
+    );
+  }
+  return List.unmodifiable(prefixes);
+}
+
+/// The most bytes of `config.yaml` a command reads.
+const projectConfigMaxBytes = 1048576;
+
+/// Reads the bytes of the config under the project [root], refusing a link, no
+/// regular file, or more than [projectConfigMaxBytes] bytes.
+///
+/// Checks `.specstone` and the file's type without following a link before it
+/// opens anything, so no byte is read through a link. A missing file stays a
+/// [FileSystemException], read under the same size bound.
+/// Records the bytes as [readPlanInput] does.
+Uint8List readProjectConfigBytes(Directory root) {
+  requireSpecstoneFolder(root);
+  final file = File.fromUri(root.uri.resolve(projectConfigPath));
+  final type = FileSystemEntity.typeSync(file.path, followLinks: false);
+  if (type != FileSystemEntityType.file &&
+      type != FileSystemEntityType.notFound) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'config.yaml must be a regular file inside .specstone, not a link',
+      file: projectConfigPath,
+    );
+  }
+  final bytes = readPlanInputAtMost(file, projectConfigMaxBytes);
+  if (bytes.length > projectConfigMaxBytes) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'config.yaml holds more than 1 MiB',
+      file: projectConfigPath,
+    );
+  }
+  return bytes;
 }
 
 /// Throws `unknown_value` unless `.specstone` under [root] is absent or a real

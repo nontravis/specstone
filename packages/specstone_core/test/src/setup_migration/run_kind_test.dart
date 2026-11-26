@@ -373,6 +373,29 @@ void main() {
       expect(_choose(root), RunKind.none);
     });
 
+    test('a group the config does not list is an upgrade with files '
+        'current', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(shippedPinsDefaultPacks, [
+          'shared',
+          'codex_agents',
+          'cursor_agents',
+        ]),
+        ...skillFileTexts(),
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('every group listed and every file current is none', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+      });
+
+      expect(_choose(root), RunKind.none);
+    });
+
     test('only a stale settings file is an upgrade', () async {
       final root = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),

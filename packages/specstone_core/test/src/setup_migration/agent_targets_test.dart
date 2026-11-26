@@ -11,6 +11,8 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_drift.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_write.dart';
 import 'package:specstone_core/src/setup_migration/models/code_file.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart'
+    show AgentFolderGroup;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show planSkillAndAgentFiles, skillAndAgentFileDrifts;
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -47,11 +49,13 @@ AgentFileInputs _inputs(
   List<String> code = const [],
   List<String> roots = const [],
   String cliVersion = specstoneVersion,
+  List<AgentFolderGroup> groups = AgentFolderGroup.values,
 }) => AgentFileInputs(
   projectRoot: _at(base, 'proj/'),
   cliVersion: cliVersion,
   codeRootFolders: [for (final folder in code) _at(base, folder)],
   agentFileRoots: roots,
+  agentFileGroups: groups,
 );
 
 String _imports(String prefix) => importBlock(
@@ -603,6 +607,7 @@ void main() {
           ],
         ),
         agentFileRoots: const [],
+        agentFileGroups: AgentFolderGroup.values,
       );
 
       final plan = planAgentWrites(inputs, full: true);
@@ -643,6 +648,7 @@ void main() {
           ],
         ),
         agentFileRoots: const [],
+        agentFileGroups: AgentFolderGroup.values,
       );
 
       final plan = planAgentWrites(inputs, full: true);
@@ -896,6 +902,29 @@ void main() {
       expect(plan.paths, isEmpty);
     });
 
+    test('planAgentWrites adds each unoffered group after the listed '
+        'ones', () async {
+      final base = await _base({'proj/.keep': ''});
+
+      final plan = planAgentWrites(
+        _inputs(base, groups: [AgentFolderGroup.shared]),
+        full: false,
+      );
+
+      expect(plan.addedGroups, [
+        'claude_code',
+        'codex_agents',
+        'cursor_agents',
+      ]);
+      expect(plan.agentFileGroups, [
+        'shared',
+        'claude_code',
+        'codex_agents',
+        'cursor_agents',
+      ]);
+      expect(plan.isEmpty, isFalse);
+    });
+
     test(
       'a project with no GOAL.md or FEATURES.md still gets both lines in its '
       'import block, and check reports the missing docs',
@@ -1115,6 +1144,31 @@ void main() {
           if (!path.startsWith('.cursor/')) path,
       ]);
       expect(plan.skipped, ['.cursor is not a folder; left as it is']);
+    });
+
+    test('a group whose folder is a file or an outside link is skipped and '
+        'never added to the list, the others are', () async {
+      final base = await _base({
+        'proj/.cursor': 'not a folder',
+        'outside/skills/keep.txt': 'x',
+      });
+      Link(_at(base, 'proj/.agents').path)
+          .createSync(_at(base, 'outside').path);
+
+      final plan = planAgentWrites(
+        _inputs(base, groups: const []),
+        full: false,
+      );
+
+      expect(plan.addedGroups, ['claude_code', 'codex_agents']);
+      expect(plan.agentFileGroups, ['claude_code', 'codex_agents']);
+      expect(
+        plan.skipped,
+        containsAll([
+          '.cursor is not a folder; left as it is',
+          '.agents reaches outside the project root; left as it is',
+        ]),
+      );
     });
 
     test('a .cursor rules file differing in frontmatter only is '

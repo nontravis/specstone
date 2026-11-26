@@ -19,6 +19,23 @@ SyncFault _refused(String text) {
 List<SyncLine> _read(String text) => parseSyncFile(_path, text).lines;
 
 void main() {
+  test('a repoint line whose last part holds ":" reads as one RepointLine with that whole new path', () {
+    final lines = _read(
+      'repoint login app/lib/login.dart:signIn app/lib/auth/login.dart:signInPage',
+    );
+
+    expect(
+      lines.single,
+      isA<RepointLine>()
+          .having((l) => l.entry, 'entry', 'app/lib/login.dart:signIn')
+          .having(
+            (l) => l.newPath,
+            'new path',
+            'app/lib/auth/login.dart:signInPage',
+          ),
+    );
+  });
+
   test(
     'each of the eight line kinds reads as its own class with its fields',
     () {

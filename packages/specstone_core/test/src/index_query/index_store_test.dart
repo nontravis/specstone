@@ -1277,18 +1277,35 @@ void main() {
     });
   });
 
-  test('is at layout 38, and rebuilds an index stamped 37, whose fenced '
-      'ranges merge touching blocks', () async {
+  test('is at layout 41, and rebuilds an index stamped 40, whose line facts '
+      'hold bare address link texts', () async {
+    // D9: layout 41 stores only typed address link texts.
     final r = await root();
     final store = IndexStore.open(r);
     addTearDown(store.close);
     const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
     store.write(() => store.reset(stamp));
-    expect(indexLayoutVersion, 38);
+    expect(indexLayoutVersion, 41);
     expect(store.readStamp(), stamp);
     final raw = sqlite3.open(file(r, indexFilePath).path);
     addTearDown(raw.close);
-    for (final layout in [8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 32, 37]) {
+    for (final layout in [
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      20,
+      32,
+      37,
+      38,
+      39,
+      40,
+    ]) {
       raw.execute('UPDATE meta SET layout = $layout');
       expect(store.readStamp(), isNull, reason: 'layout $layout');
     }

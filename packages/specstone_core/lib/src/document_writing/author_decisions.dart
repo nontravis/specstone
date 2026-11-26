@@ -1,13 +1,18 @@
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show holdsSectionAddress;
+    show holdsSectionAddress, targetListsIn;
 import 'package:specstone_core/src/document_writing/report_file.dart';
 
 const _decisionLead = 'Decision:';
 const _notLandedLead = 'Not landed:';
-const _notLandedNone = 'Not landed: none';
 const _notLandedMark = 'NOT LANDED';
+
+/// The word `none` at the start of a line, bounded by no letter, digit, or `_`.
+final _noneWord = RegExp('^none(?![A-Za-z0-9_])');
+
+/// A whole list item that is one section key.
+final _sectionKey = RegExp(r'^[A-Za-z0-9_]+$');
 
 /// A decision key right after a label, ended by a space, `:`, `(`, or the
 /// line end, so `D1` and `D10` stay apart.
@@ -36,7 +41,7 @@ final class AuthorDecisions {
         final key = _decisionKey.firstMatch(rest);
         if (key != null) {
           states[int.parse(key[1]!)] = isNotLanded || !_landsSection(rest);
-        } else if (isNotLanded && line != _notLandedNone) {
+        } else if (isNotLanded && !_opensWithNone(rest)) {
           unkeyed ??= _UnkeyedLine(index, file.name);
         }
       }
@@ -75,7 +80,18 @@ final class AuthorDecisions {
 }
 
 bool _landsSection(String rest) =>
-    !rest.contains(_notLandedMark) && holdsSectionAddress(rest);
+    !rest.contains(_notLandedMark) &&
+    (holdsSectionAddress(rest) || _holdsSectionList(rest));
+
+bool _holdsSectionList(String rest) => targetListsIn(rest).any(
+  (list) => list.split(',').any((key) => _sectionKey.hasMatch(_bareKey(key))),
+);
+
+String _bareKey(String key) => key.replaceAll('#', '').trim();
+
+/// Whether [rest] opens with the word `none`, ended by the line end or by a
+/// character that is no letter, digit, or `_`.
+bool _opensWithNone(String rest) => _noneWord.hasMatch(rest);
 
 final class _OpenDecision implements Comparable<_OpenDecision> {
   const new(this.number, this.fileIndex, this.file);

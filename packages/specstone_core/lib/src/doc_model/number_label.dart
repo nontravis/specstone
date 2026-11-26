@@ -2,7 +2,9 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show blockScan, fenceScan, mermaidInfoWord;
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
+import 'package:specstone_core/src/doc_model/models/label_part.dart';
 import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
+import 'package:specstone_core/src/doc_model/models/prefixed_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 
 /// How a number label names its doc.
@@ -83,23 +85,39 @@ List<NumberLabel> numberLabelsIn(String line) {
   return labels;
 }
 
-/// Returns each label of [numberLabelsInMarkdown] over [lfText] with the
-/// 0-based line of [lfText] it starts on, as it is written.
-List<NumberLabelLine> numberLabelLinesInMarkdown(String lfText) {
-  final labels = <NumberLabelLine>[];
-  var line = 0;
-  var from = 0;
-  for (final label in numberLabelsInMarkdown(lfText)) {
-    for (var i = from; i < label.start; i++) {
-      if (lfText.codeUnitAt(i) == _lineFeed) line++;
-    }
-    from = label.start;
-    labels.add(NumberLabelLine(line: line, written: label.written));
-  }
-  return labels;
+/// The number labels and the capital-prefix label chains of a body, each at
+/// its 0-based line, read in one pass.
+final class MarkdownLabelLines {
+  const new({required this.numbers, required this.prefixed});
+
+  /// The labels of [numberLabelsInMarkdown], as written.
+  final List<NumberLabelLine> numbers;
+
+  /// The chains of parts that hold a prefix outside `F-`, `US-`, and `FR-`.
+  final List<PrefixedLabelLine> prefixed;
 }
 
-const _lineFeed = 0x0A;
+/// Returns the labels of [lfText], LF text without frontmatter, as the index
+/// stores them.
+///
+/// A chain is parts joined by single spaces, a part being `<CAPITALS>-<digits>`
+/// that begins where [numberLabelsIn] lets a label begin. The project's config
+/// says which prefixes count, so each chain keeps every part with the built-in
+/// label it lies in. The text read is the text [numberLabelsInMarkdown] reads.
+MarkdownLabelLines labelLinesInMarkdown(String lfText) {
+  final numbers = <NumberLabelLine>[];
+  final prefixed = <PrefixedLabelLine>[];
+  for (final text in _readableTextsOf(lfText)) {
+    final labels = _labelsOutsideLinks(text.text, 0);
+    numbers.addAll([
+      for (final label in labels)
+        NumberLabelLine(line: text.index, written: label.written),
+    ]);
+    prefixed.addAll(_prefixedChainsIn(text.text, text.index, labels));
+  }
+  return MarkdownLabelLines(numbers: numbers, prefixed: prefixed);
+}
+
 const _spaceUnit = 0x20;
 
 /// The number labels of [lfText], LF text without frontmatter, with offsets
@@ -107,29 +125,45 @@ const _spaceUnit = 0x20;
 ///
 /// Prose and `mermaid` blocks are read; fenced code other than `mermaid`,
 /// code spans, and link destinations are skipped.
-List<NumberLabel> numberLabelsInMarkdown(String lfText) {
+List<NumberLabel> numberLabelsInMarkdown(String lfText) => [
+  for (final line in _readableTextsOf(lfText))
+    ..._labelsOutsideLinks(line.text, line.start),
+];
+
+/// One line [numberLabelsInMarkdown] reads: its 0-based index, its text with
+/// every code span blanked, and the offset it starts at in the whole text.
+final class _ReadableText {
+  const new({required this.index, required this.text, required this.start});
+
+  final int index;
+  final String text;
+  final int start;
+}
+
+List<_ReadableText> _readableTextsOf(String lfText) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
   final blocks = blockScan(lines);
   final continues = blocks.continuesParagraph;
   final spansOfGroup = <int, List<CodeSpan>>{};
-  final labels = <NumberLabel>[];
+  final texts = <_ReadableText>[];
   var lineStart = 0;
   for (var i = 0; i < lines.length; i++) {
     if (readable[i]) {
-      labels.addAll(
-        _labelsOutsideLinks(
+      texts.add(
+        _ReadableText(
+          index: i,
           // A `mermaid` block is fenced: its backticks are no code spans.
-          blocks.fenced[i]
+          text: blocks.fenced[i]
               ? lines[i]
               : _outsideCodeSpans(lines, continues, spansOfGroup, i),
-          lineStart,
+          start: lineStart,
         ),
       );
     }
     lineStart += lines[i].length + 1;
   }
-  return labels;
+  return texts;
 }
 
 /// Returns line [index] of [lines] with every code span of the paragraph it
@@ -180,7 +214,8 @@ String _outsideCodeSpans(
 /// The value a number too long for an int reads as: beyond every doc.
 const _beyondAnyDoc = 9007199254740991;
 
-const _dashPrefixes = ['F-', 'US-', 'FR-'];
+/// The prefixes of the built-in dash labels, by rank: feature, story, FR.
+const builtInLabelPrefixes = ['F-', 'US-', 'FR-'];
 const _featureRank = 0;
 const _storyRank = 1;
 const _frRank = 2;
@@ -248,8 +283,8 @@ NumberLabel? _dashRunAt(String line, int at) {
 }
 
 _Part? _dashPartAt(String line, int at) {
-  for (var rank = 0; rank < _dashPrefixes.length; rank++) {
-    final prefix = _dashPrefixes[rank];
+  for (var rank = 0; rank < builtInLabelPrefixes.length; rank++) {
+    final prefix = builtInLabelPrefixes[rank];
     if (!line.startsWith(prefix, at)) continue;
     final digits = at + prefix.length;
     final end = _digitsEnd(line, digits);
@@ -383,6 +418,95 @@ bool _isLower(int unit) => unit >= 0x61 && unit <= 0x7A;
 bool _isAsciiLetter(int unit) => _isUpper(unit) || _isLower(unit);
 bool _isSlugChar(int unit) => _isLower(unit) || _isDigit(unit) || unit == 0x5F;
 bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
+
+// MARK: - Prefixed label reader
+
+/// One `<CAPITALS>-<digits>` part: its prefix, such as `FO-`, and its span.
+final class _PrefixedPart {
+  const new({required this.prefix, required this.start, required this.end});
+
+  final String prefix;
+  final int start;
+  final int end;
+}
+
+/// Returns the chains of [line] with a part outside the built-in prefixes,
+/// none starting inside a link destination, each part with the label of
+/// [labels], the built-in ones of [line], it lies in.
+List<PrefixedLabelLine> _prefixedChainsIn(
+  String line,
+  int index,
+  List<NumberLabel> labels,
+) {
+  final chains = [
+    for (final chain in _prefixedChainsOf(line))
+      if (chain.any((part) => !builtInLabelPrefixes.contains(part.prefix)))
+        chain,
+  ];
+  if (chains.isEmpty) return const [];
+  final destinations = _destinationsIn(line);
+  return [
+    for (final chain in chains)
+      if (!destinations.any(
+        (d) => chain.first.start >= d.start && chain.first.start < d.end,
+      ))
+        PrefixedLabelLine(
+          line: index,
+          parts: [for (final part in chain) _labelPartOf(line, part, labels)],
+        ),
+  ];
+}
+
+LabelPart _labelPartOf(
+  String line,
+  _PrefixedPart part,
+  List<NumberLabel> labels,
+) {
+  final owner = labels
+      .where((label) => label.start <= part.start && part.end <= label.end)
+      .firstOrNull;
+  return LabelPart(
+    prefix: part.prefix,
+    written: line.substring(part.start, part.end),
+    ownerWritten: owner?.written,
+    ownerStart: owner?.start,
+  );
+}
+
+List<List<_PrefixedPart>> _prefixedChainsOf(String line) {
+  final chains = <List<_PrefixedPart>>[];
+  var at = 0;
+  while (at < line.length) {
+    final first = _isUpper(line.codeUnitAt(at)) && _beginsLabel(line, at)
+        ? _prefixedPartAt(line, at)
+        : null;
+    if (first == null) {
+      at++;
+      continue;
+    }
+    final chain = [first];
+    while (line.startsWith(' ', chain.last.end)) {
+      final next = _prefixedPartAt(line, chain.last.end + 1);
+      if (next == null) break;
+      chain.add(next);
+    }
+    chains.add(chain);
+    at = chain.last.end;
+  }
+  return chains;
+}
+
+_PrefixedPart? _prefixedPartAt(String line, int at) {
+  var dash = at;
+  while (dash < line.length && _isUpper(line.codeUnitAt(dash))) {
+    dash++;
+  }
+  if (dash == at || !line.startsWith('-', dash)) return null;
+  final digits = dash + 1;
+  final end = _digitsEnd(line, digits);
+  if (end == digits) return null;
+  return _PrefixedPart(prefix: line.substring(at, digits), start: at, end: end);
+}
 
 // MARK: - Markdown reader
 

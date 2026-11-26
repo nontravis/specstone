@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/index_query/models/link_place.dart';
 
-/// A doc link or self link whose text reads as an item ID:
-/// the text as written, where the link sits, and what it points at.
+/// A doc link or self link whose text reads as an item ID or as a doc
+/// address: the text as written, where the link sits, and what it points at.
 ///
 /// `column` is the 0-based offset of the link's first character in its line
 /// `line`; `endColumn` the offset after its last character in its line

@@ -25,6 +25,48 @@ final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
 /// Whether all of [text] is shaped like a doc type id: `[a-z][a-z0-9_]*`.
 bool isDocTypeIdShaped(String text) => _docTypeId.hasMatch(text);
 
+final _targetWithList = RegExp(r'[a-z][a-z0-9_]*:[^\s#()]+\s*\(([^)]*)\)');
+
+/// Returns the text inside the parentheses of each `<type>:<name> (<list>)`
+/// target of [text], in order.
+Iterable<String> targetListsIn(String text) =>
+    _targetWithList.allMatches(text).map((match) => match[1]!);
+
+final _cleanNameBody = RegExp(r'^[^\s`@#,;)\]:.]+$');
+
+/// Whether all of [body] is a Name body: no blank, backtick, `@`, `#`, `,`,
+/// `;`, `)`, `]`, `:`, or `.`, and at least one character.
+bool isCleanNameBody(String body) => _cleanNameBody.hasMatch(body);
+
+final _docPathText = RegExp(r'^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$');
+
+/// Whether all of [text] is a DocPath: `/`-joined segments of
+/// `[A-Za-z0-9_.-]`, none empty, ending in `.md`.
+bool isDocPathText(String text) =>
+    text.endsWith('.md') && _docPathText.hasMatch(text);
+
+/// Returns a multi-line search for any of [forms], each escaped, that holds
+/// only where the Names table bounds it.
+///
+/// An [isLeadless] search is for an item that leads with no doc name: `*` and
+/// `,` also bound a form on its left, and `*` on its right.
+RegExp mentionSearchOf(Iterable<String> forms, {bool isLeadless = false}) {
+  final left = isLeadless ? r'[ \t`(\[*,]' : r'[ \t`(\[]';
+  final right = isLeadless ? r'[ \t`@#:,.;)\]*]' : r'[ \t`@#:,.;)\]]';
+  return RegExp(
+    '(?<=^|$left)(?:${forms.map(RegExp.escape).join('|')})(?=\$|$right)',
+    multiLine: true,
+  );
+}
+
+final _leadEnd = RegExp(' — |: ');
+
+/// Returns [itemText] up to its first ` — ` or `: `, else all of it.
+String leadTextOf(String itemText) {
+  final end = itemText.indexOf(_leadEnd);
+  return end < 0 ? itemText : itemText.substring(0, end);
+}
+
 /// The fault message for an `id` that is not [isDocTypeIdShaped].
 const slugIdMessage = 'the key id must be a slug: [a-z][a-z0-9_]*';
 
@@ -48,7 +90,7 @@ DocAddress readDocAddress(String text) {
   );
 }
 
-final _sectionAddress = RegExp(r'[a-z][a-z_]*:[^\s#]+#[A-Za-z0-9_]+');
+final _sectionAddress = RegExp(r'[a-z][a-z0-9_]*:[^\s#]+#[A-Za-z0-9_]+');
 
 /// Whether [text] holds a `<type>:<name>#<key>` section address.
 bool holdsSectionAddress(String text) => _sectionAddress.hasMatch(text);

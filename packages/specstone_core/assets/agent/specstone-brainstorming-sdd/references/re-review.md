@@ -12,9 +12,9 @@ draft's last audit, in 1 pass. Run no `check`, no `check --repeats`, and no lens
 Edit no doc and no change note, and add no doc.
 
 1. **Hashes**: run one `specstone approve <drafts> --dry-run --json --audit <path> …`, one `--audit` for each `audits`
-   path, oldest first, no `--target`: its `base` per draft is the `Audited:` hash, and its `changedSections` per draft
-   is the read set. On `doc_not_found`, drop each name it names and run it again on the rest; a dropped name gets no
-   report line.
+   path, oldest first, no `--target`: its `doc` and `base` per draft are the `Audited:` `<doc>` and hash, and its
+   `changedSections` per draft is the read set. On `doc_not_found`, drop each name it names and run it again on the
+   rest; a dropped name gets no report line.
 2. **Asks**: read `findings`, `audits`, each `fix report` path's `## Round <n>` part, and, in a brainstorm, the
    change note and the Owner's answers.
 3. **Ground**: run one `specstone context <draft> <draft> --for review --out` naming every draft step 1 keeps, and
@@ -37,16 +37,16 @@ Edit no doc and no change note, and add no doc.
 
 ```
 Findings:
-- <Label>: <doc>#<key>: <point>
+- <Label>: <docs>: <point>
   Fix: <type>:<name>#<key>
 Verdicts:
 - ADDRESSED: <item>
 - NOT ADDRESSED: <item>
 Outside the round:
-- <doc whose fix it is>: <gap>
+- <docs whose fix it is>: <gap>
 Notes:
 - <observation>
-Audited: <type>:<name>@<hash>
+Audited: <doc>@<hash>
 ```
 
 - Put each new gap inside the read set under `Findings:` as a builder check item, its label `Guess`,
@@ -60,11 +60,11 @@ Audited: <type>:<name>@<hash>
   beyond the round's findings.
 - With no new gap, `Findings:` reads `nothing important left`.
 - Under `Outside the round:`, put each gap inside the read set whose fix lies in no draft of the round, such as a
-  citer the grep shows the changed text now contradicts, opening with the name of the doc where its fix lies. Restate
-  each `Outside the drafts:` and `Outside the round:` item of `audits` still open. A gap on a draft marked
-  `citer of <type>:<name>` goes under `Outside the round:` too, never `Findings:`, since the second `--auto` call
-  names no citer. Write `none` when there is none.
+  citer the grep shows the changed text now contradicts, opening with every doc its fix lies in, as `audit.md` gives
+  `<docs>`. Restate each `Outside the drafts:` and `Outside the round:` item of `audits` still open. A gap on a draft
+  marked `citer of <type>:<name>` goes under `Outside the round:` too, never `Findings:`, since the second `--auto`
+  call names no citer. Write `none` when there is none.
 - Put each observation outside the read set, or that is no gap, under `Notes:`, which the judge never reads, so it
   never extends the loop, and main relays it to the Owner. Write no `Notes:` heading when there is none.
-- Write one `Audited:` line per draft, its hash the `base` of step 1, so the next `--auto` call judges each draft by
+- Write one `Audited:` line per draft, its `<doc>` and hash from step 1, so the next `--auto` call judges each draft by
   this report.

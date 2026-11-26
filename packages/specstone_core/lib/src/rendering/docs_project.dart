@@ -47,6 +47,7 @@ final class DocsProject {
     required Map<CodeTarget, Directory> codeRoots,
     required Map<CodeTarget, List<String>> nestedRoots,
     required this.matrixMode,
+    required this.numberLabelPrefixes,
     required this.cleanup,
     required this.matcher,
     required this.set,
@@ -105,6 +106,7 @@ final class DocsProject {
         nestedRootsByTarget(codeRoots),
       ),
       matrixMode: config.matrixMode,
+      numberLabelPrefixes: config.numberLabelPrefixes,
       cleanup: config.cleanup,
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
@@ -113,6 +115,10 @@ final class DocsProject {
 
   /// The Verification matrix mode the config names; read once at open.
   final MatrixMode matrixMode;
+
+  /// The project's own number label prefixes, each as written; read once at
+  /// open.
+  final List<String> numberLabelPrefixes;
 
   /// The bounds that keep the saved bundles and reports small; read once at
   /// open.

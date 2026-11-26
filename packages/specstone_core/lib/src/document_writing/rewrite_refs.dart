@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
+import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
@@ -89,7 +90,9 @@ const _encodedCloseParen = '%29';
 /// that doc, which [renamedDocs] names by its DocPath before the moves. Only
 /// the text of an inline link and of a full reference link changes: a shortcut
 /// or collapsed link's text is its label, which a definition names, and an
-/// image description is no link text.
+/// image description is no link text. A text equal to the old last `/` part of
+/// a renamed doc's Name, bare or after its own `<doc type>:` prefix, takes the
+/// new last part, only on a link that reaches that doc.
 String? rewriteDocLinks(
   String lfText, {
   required String docPath,
@@ -330,7 +333,9 @@ String _withEdits(String body, List<_TextEdit> edits) {
 
 /// Returns the edits that set the text of each inline or full reference link
 /// in [body] equal to a renamed doc's old Name, after its `<doc type>:` prefix
-/// or bare on a link that reaches that doc, to the new Name.
+/// or bare on a link that reaches that doc, to the new Name; a text equal to
+/// the old last `/` part of such a doc's Name, on a link that reaches it, takes
+/// the new last part.
 List<_TextEdit> _linkTextEdits(
   String body,
   List<LinkSource> sources,
@@ -365,7 +370,8 @@ TypedName? _reachedDoc(String? href, String docPath, RenamedDocs renamedDocs) {
 /// text is a renamed doc's old Name.
 ///
 /// A bare Name counts only when [reached], the renamed doc the link reaches,
-/// is the doc it names.
+/// is the doc it names. A text that is that doc's old last `/` part, bare or
+/// after its own `<doc type>:` prefix, counts on a link that reaches it.
 _TextEdit? _namedLinkText(
   String body,
   LinkSource source,
@@ -383,17 +389,35 @@ _TextEdit? _namedLinkText(
   final typeId = address.typeId;
   final String? name;
   if (typeId != null) {
-    name = renamed.newNameFor(address);
+    name =
+        renamed.newNameFor(address) ?? _newLastSlug(address, renamed, reached);
   } else {
     final key = reached();
     name = key != null && key.name == address.body
         ? renamed.newNameOf(key.typeId, key.name)
-        : null;
+        : _newLastSlug(address, renamed, reached);
   }
   if (name == null) return null;
   final prefix = typeId == null ? '' : '$typeId:';
   return _TextEdit(start: start, end: textEnd, text: '$prefix$name');
 }
+
+/// Returns the new last `/` part of the renamed doc [reached] gives when
+/// [address] is that doc's old last `/` part, bare or after the doc's own
+/// `<doc type>:` prefix; null otherwise.
+String? _newLastSlug(
+  DocAddress address,
+  RenamedNames renamed,
+  TypedName? Function() reached,
+) {
+  final key = reached();
+  if (key == null || (address.typeId ?? key.typeId) != key.typeId) return null;
+  if (_lastSlug(key.name) != address.body) return null;
+  final newName = renamed.newNameOf(key.typeId, key.name);
+  return newName == null ? null : _lastSlug(newName);
+}
+
+String _lastSlug(String name) => name.substring(name.lastIndexOf('/') + 1);
 
 /// Whether [source], whose text ends at [textEnd], is an inline or full
 /// reference link, so its text is no label.

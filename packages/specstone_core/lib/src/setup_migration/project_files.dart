@@ -2,6 +2,8 @@ import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/release_version.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart'
+    show AgentFolderGroup;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -30,10 +32,12 @@ const _draftOrder = [
 /// `code_root:` line only when [codeRoot] is not `.` or [keepCodeRootKey] is
 /// set, then a `targets:` map only when [targets] is not empty, then an
 /// `agent_file_roots:` list only when [agentFileRoots] is not empty, then an
+/// `agent_file_groups:` list only when [agentFileGroups] is not empty, then an
 /// `agent_files_version:` line only when [agentFilesVersion] is set; each
 /// scalar is quoted when plain YAML would read it as another value. Throws
-/// [ArgumentError] for an agent file root the reader would refuse, an unnamed
-/// target, or [targets] beside a `code_root:` line.
+/// [ArgumentError] for an agent file root the reader would refuse, an unknown
+/// agent file group, an unnamed target, or [targets] beside a `code_root:`
+/// line.
 ///
 /// [keepCodeRootKey] keeps the line of a config that already holds the key,
 /// so an explicit `code_root: .` is not dropped.
@@ -43,6 +47,7 @@ String configText(
   bool keepCodeRootKey = false,
   List<CodeTarget> targets = const [],
   List<String> agentFileRoots = const [],
+  List<String> agentFileGroups = const [],
   ReleaseVersion? agentFilesVersion,
 }) {
   if (targets.isNotEmpty && (codeRoot != '.' || keepCodeRootKey)) {
@@ -62,6 +67,15 @@ String configText(
       );
     }
   }
+  for (final group in agentFileGroups) {
+    if (AgentFolderGroup.ofConfigName(group) == null) {
+      throw ArgumentError.value(
+        group,
+        'agentFileGroups',
+        'must be one of ${agentFileGroupNames.join(', ')}',
+      );
+    }
+  }
   final names = pins.keys.toList()..sort(compareCodePoints);
   final lines = [for (final name in names) '  $name: ${pins[name]}\n'];
   final codeRootLine = codeRoot == '.' && !keepCodeRootKey
@@ -74,11 +88,14 @@ String configText(
   final agentFileRootsLine = agentFileRoots.isEmpty
       ? ''
       : listBlockOf('agent_file_roots', agentFileRoots);
+  final agentFileGroupsLine = agentFileGroups.isEmpty
+      ? ''
+      : listBlockOf('agent_file_groups', agentFileGroups);
   final agentFilesVersionLine = agentFilesVersion == null
       ? ''
       : 'agent_files_version: $agentFilesVersion\n';
   return 'packs:\n${lines.join()}$codeRootLine$targetsLine'
-      '$agentFileRootsLine$agentFilesVersionLine';
+      '$agentFileRootsLine$agentFileGroupsLine$agentFilesVersionLine';
 }
 
 /// Returns the lines of [target] under `targets:`.

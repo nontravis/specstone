@@ -9,7 +9,7 @@ import 'package:specstone_core/src/consistency_check/outside_docs.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show acceptanceSectionId;
+    show acceptanceSectionId, readDocAddress;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathsWrittenIn;
@@ -66,6 +66,7 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   yield* _unresolvedLinks(context, doc);
   yield* _missingAnchors(context, doc);
   yield* _missingItems(context, doc);
+  yield* _staleLinkTexts(context, doc);
   yield* _selfLinks(context, doc);
   yield* _missingFileLinks(context, doc);
   yield* _outsideLinks(context, doc);
@@ -309,6 +310,44 @@ Iterable<Finding> _missingItems(CheckContext context, IndexedDoc doc) sync* {
         'section': cite.sectionKey,
         'targetPath': targetPath,
       },
+    );
+  }
+}
+
+/// Yields a finding per link of [doc] whose typed text reads as an address
+/// that differs from the address of the doc its target resolves to, or that
+/// names a doc type the merged set does not define.
+///
+/// A bare text, of any slug count, takes none (D9). A typed text of the
+/// target's own type passes with the target's Name or its last slug, the form
+/// `rename` writes. The fix is the target's `<doc type>:<Name>`, any
+/// `#<section key>` kept. A link that resolves to no doc, that leaves the docs,
+/// or whose target is untyped, so has no address, gives none here.
+Iterable<Finding> _staleLinkTexts(CheckContext context, IndexedDoc doc) sync* {
+  final facts = context.contentOf(doc).lineFacts;
+  for (final link in facts.addressLinkTexts) {
+    final target = context.index.at(link.target);
+    final targetType = target?.docTypeId;
+    if (target == null || targetType == null) continue;
+    if (_isOutsideDocLink(context, link.target)) continue;
+    final address = readDocAddress(link.text);
+    final typeId = address.typeId;
+    if (typeId == null) continue;
+    final isOwnName =
+        address.body == target.name ||
+        address.body == target.name.split('/').last;
+    if (typeId == targetType && isOwnName) continue;
+    final targetAddress = '$targetType:${target.name}';
+    final key = address.sectionKey;
+    final fix = key == null ? targetAddress : '$targetAddress#$key';
+    yield context.finding(
+      doc,
+      FindingKind.linkTextStale,
+      line: link.line,
+      message:
+          'link text ${link.text} names another address than the doc it '
+          'links; write it as $fix',
+      keys: {'value': link.text, 'fix': fix},
     );
   }
 }

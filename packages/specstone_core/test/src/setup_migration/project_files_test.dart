@@ -24,7 +24,7 @@ void main() {
         for (final entry in manifests.entries) entry.key: entry.value.version,
       });
 
-      expect(text, shippedPinsConfig());
+      expect(text, shippedPinsConfig(shippedPinsDefaultPacks, const []));
     });
 
     group('configText code_root', () {
@@ -122,6 +122,41 @@ void main() {
           expect(ProjectConfig.read(root).agentFileRoots, roots);
         });
       }
+    });
+
+    group('configText agent_file_groups', () {
+      final pins = {
+        'prd-core': PackVersion.parse('1.0.0', file: 'f', key: 'k'),
+      };
+
+      test('configText writes agent_file_groups between the roots and the '
+          'stamp', () {
+        expect(
+          configText(
+            pins,
+            agentFileRoots: const ['vendor'],
+            agentFileGroups: const [
+              'claude_code',
+              'shared',
+              'codex_agents',
+              'cursor_agents',
+            ],
+            agentFilesVersion: ReleaseVersion.tryParse('2.0.0'),
+          ),
+          'packs:\n  prd-core: 1.0.0\n'
+          'agent_file_roots:\n  - vendor\n'
+          'agent_file_groups:\n  - claude_code\n  - shared\n'
+          '  - codex_agents\n  - cursor_agents\n'
+          'agent_files_version: 2.0.0\n',
+        );
+      });
+
+      test('configText refuses an unknown group name', () {
+        expect(
+          () => configText(pins, agentFileGroups: const ['claude']),
+          throwsArgumentError,
+        );
+      });
     });
 
     group('configText agent_files_version', () {

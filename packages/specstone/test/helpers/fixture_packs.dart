@@ -6,6 +6,13 @@ import 'temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
 
+/// The `agent_file_groups:` block of a project `init` wrote, listing all four
+/// groups, so a fixture config that starts with it prints no stale-project
+/// line.
+const fixtureAgentGroups =
+    'agent_file_groups:\n  - claude_code\n  - shared\n  - codex_agents\n'
+    '  - cursor_agents\n';
+
 Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
 
 const _context = '''
@@ -77,5 +84,7 @@ Map<String, Uint8List> fixturePackFiles({
 ///
 /// A [files] entry named `.specstone/config.yaml` replaces the generated
 /// config.
-Future<Directory> fixtureProject(Map<String, String> files) =>
-    writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n', ...files});
+Future<Directory> fixtureProject(Map<String, String> files) => writeTree({
+  _configPath: '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n',
+  ...files,
+});

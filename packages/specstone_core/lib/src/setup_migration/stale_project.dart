@@ -2,21 +2,24 @@ import 'dart:io';
 
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    show AgentFileInputs, agentFileDrifts;
+    show AgentFileInputs, agentFileDrifts, agentFileGroupsOf;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
-    show skillAndAgentFileDrifts;
+    show skillAndAgentFileDrifts, unofferedGroupsOf;
 import 'package:specstone_core/src/templates/project_config.dart'
     show
         AgentFilesStampUnreadable,
         AgentFilesStampVersion,
+        readAgentFileGroups,
         readAgentFilesVersion;
 
 /// Returns the one line that names the fix when the agent files at
 /// [projectRoot] differ from what the binary writes, else null.
 ///
 /// Judges the project root alone, with no code root and so no repository top,
-/// and reads only `agent_files_version` from the config. A stamp that does not
-/// read gives no line. [runningVersion] is the Version the line names.
+/// and reads only `agent_files_version` and `agent_file_groups` from the
+/// config; a group the config does not list is a cause for the line. A stamp
+/// that does not read gives no line. [runningVersion] is the Version the line
+/// names.
 String? staleProjectLine(
   Directory projectRoot, {
   required String runningVersion,
@@ -28,9 +31,11 @@ String? staleProjectLine(
     cliVersion: runningVersion,
     codeRootFolders: const [],
     agentFileRoots: const [],
+    agentFileGroups: agentFileGroupsOf(readAgentFileGroups(projectRoot)),
   );
   if (agentFileDrifts(inputs).isEmpty &&
-      skillAndAgentFileDrifts(inputs).isEmpty) {
+      skillAndAgentFileDrifts(inputs).isEmpty &&
+      unofferedGroupsOf(inputs).isEmpty) {
     return null;
   }
   final version = switch (stamp) {

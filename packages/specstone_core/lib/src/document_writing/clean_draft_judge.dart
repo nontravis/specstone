@@ -27,7 +27,7 @@ const _notAddressedLead = 'NOT ADDRESSED:';
 final _roundHeading = RegExp(r'^## Round [0-9]+[ \t]*$');
 
 /// `Audited:` and `Styled:` lines, each naming one draft at one hash; the
-/// grammar reads the name, which must be typed.
+/// grammar reads the name, which is typed or a DocPath.
 final _draftLine = RegExp(r'^(Audited|Styled): ([^\s@]+)@([0-9a-f]{12})$');
 
 /// A `Findings:`, `Outside the drafts:`, or `Outside the round:` line, with an
@@ -48,8 +48,33 @@ final _atxHeading = RegExp(r'^#{1,6}(?:[ \t]|$)');
 /// A `Queued:` line; the text after it is read by [leadNameOf].
 final _queuedLine = RegExp(r'^Queued: (.+)$');
 
-/// The leading labels of an item, dropped before its lead name is read.
+/// The labels of `report_draft_gaps`, one of which can lead an item.
+const _gapLabels = [
+  'Guess',
+  'Contradiction',
+  'Stale reader',
+  'Not carried',
+  'Misplaced',
+];
+
+/// The leading labels of an item, dropped before its lead names are read.
 final _itemLabels = RegExp('^(?:NOT ADDRESSED: )?(?:check: )?`?');
+
+/// Returns [itemText] without its leading `NOT ADDRESSED: `, `check: `, one
+/// `report_draft_gaps` label, and a backtick.
+String _withoutLabels(String itemText) {
+  final bare = itemText.replaceFirst(_itemLabels, '');
+  for (final label in _gapLabels) {
+    final lead = '$label: ';
+    if (!bare.startsWith(lead)) continue;
+    final rest = bare.substring(lead.length);
+    return rest.startsWith('`') ? rest.substring(1) : rest;
+  }
+  return bare;
+}
+
+/// The punctuation that can close a lead name at the end of an item.
+final _trailingMarks = RegExp(r'[.;)]+$');
 
 /// The characters that end an item's lead name, `:` and `.` aside.
 const _leadStops = ' \t\n`@#,;)]';
@@ -153,19 +178,19 @@ final class AuditSequence {
   /// Every `Queued:` name of every part.
   final Set<String> queued;
 
-  /// The index of the last part whose `Audited:` line names [address].
-  int? _auditPartOf(String address) {
+  /// The index of the last part whose `Audited:` line names any of [names].
+  int? _auditPartOf(Set<String> names) {
     for (var i = _parts.length - 1; i >= 0; i--) {
-      if (_parts[i].audited.containsKey(address)) return i;
+      if (names.any(_parts[i].audited.containsKey)) return i;
     }
     return null;
   }
 
-  /// Returns the `Audited:` hash of the last part that names [address], or
-  /// null when no part does.
-  String? auditedHashOf(String address) {
-    final part = _auditPartOf(address);
-    return part == null ? null : _parts[part].audited[address];
+  /// Returns the `Audited:` hash of the last part that names any of [names],
+  /// or null when no part does.
+  String? auditedHashOf(Set<String> names) {
+    final part = _auditPartOf(names);
+    return part == null ? null : _hashIn(_parts[part].audited, names);
   }
 
   /// Returns the fix lines in force for a draft whose names are [addresses]:
@@ -185,39 +210,40 @@ final class AuditSequence {
     return inForce.values.toList();
   }
 
-  /// The hash of the last `Styled:` line for [address] from part [from] on,
-  /// else the hash of its `Audited:` line in part [from].
-  String _judgedHash(String address, {required int from}) {
+  /// The hash of the last `Styled:` line for any of [names] from part [from]
+  /// on, else the hash of its `Audited:` line in part [from].
+  String _judgedHash(Set<String> names, {required int from}) {
     for (var i = _parts.length - 1; i >= from; i--) {
-      final styled = _parts[i].styled[address];
+      final styled = _hashIn(_parts[i].styled, names);
       if (styled != null) return styled;
     }
-    return _parts[from].audited[address]!;
+    return _hashIn(_parts[from].audited, names)!;
   }
 
   /// Returns the reason for the first counted item from part [from] on that
   /// [name] matches, else null.
   ///
-  /// A `NOT ADDRESSED` item whose lead name is in [handedOn] is not
-  /// counted. Nor is a `Findings:` item with fix lines that all satisfy
-  /// [isApplied]. An outside item matches only when its lead
-  /// name is in [leadNames]; any other item matches on [name] anywhere.
+  /// A `Findings:` item with fix lines that all satisfy [isApplied] is not
+  /// counted. A `Verdicts:` item matches on [name] anywhere; any other item
+  /// matches only when one of its lead names is in [draftNames], or, with no
+  /// lead name, when [leadless] finds a mention (D4). A lead name in
+  /// [handedOn] clears an item only for itself.
   String? _namedIn(
     RegExp name,
-    String address, {
-    required Set<String> leadNames,
+    RegExp leadless,
+    Set<String> names, {
+    required Set<String> draftNames,
     required int from,
     required Set<String> handedOn,
     required bool Function(FixLine fix) isApplied,
   }) {
     for (final part in _parts.skip(from)) {
-      final styleItemsSkipped = part.styled.containsKey(address);
+      final styleItemsSkipped = names.any(part.styled.containsKey);
       for (final item in part.items) {
         if (styleItemsSkipped && item.isStyle) continue;
         if (item.isAddressed || item.isCleared) continue;
-        if (item.isHandedOn(handedOn)) continue;
         if (item.fixes.isNotEmpty && item.fixes.every(isApplied)) continue;
-        if (item.names(name, leadNames)) {
+        if (item.names(name, leadless, draftNames, handedOn)) {
           return 'named in ${item.section.label} of ${part.fileName}';
         }
       }
@@ -259,22 +285,39 @@ final class _Item {
 
   bool get isStyle => text.contains(_styleToken);
 
-  bool get _isOutside =>
-      section == _Section.outsideTheDrafts ||
-      section == _Section.outsideTheRound;
-
-  /// Whether the item names a draft: an outside item by its lead name in
-  /// [leadNames], any other by [name] anywhere in its text.
-  bool names(RegExp name, Set<String> leadNames) =>
-      _isOutside ? leadNames.contains(leadNameOf(text)) : name.hasMatch(text);
-
-  /// Whether the item is a `NOT ADDRESSED` verdict whose lead name is in
-  /// [queued]; no other item is one a `Queued:` line clears.
-  bool isHandedOn(Set<String> queued) {
-    final isClearable =
-        section == _Section.verdicts && text.startsWith(_notAddressedLead);
-    final lead = isClearable ? leadNameOf(text) : null;
-    return lead != null && queued.contains(lead);
+  /// Whether the item names a draft of [draftNames]: a `Verdicts:` item by
+  /// [name] anywhere in its text, any other by its lead names alone.
+  ///
+  /// An item with no lead name (D4) is read by [leadless] over its whole text
+  /// instead, and no `Queued:` name clears it.
+  ///
+  /// A queued lead name in [handedOn] clears a `NOT ADDRESSED` verdict or an
+  /// `Outside the drafts:` item for that name alone; a draft that is another
+  /// of its lead names is still named.
+  bool names(
+    RegExp name,
+    RegExp leadless,
+    Set<String> draftNames,
+    Set<String> handedOn,
+  ) {
+    final leads = leadNamesOf(firstLine);
+    if (leads == null && section != _Section.verdicts) {
+      return leadless.hasMatch(text);
+    }
+    final lead = leads ?? const <String>[];
+    final isLed = lead.any(
+      (n) => draftNames.contains(n) && !handedOn.contains(n),
+    );
+    return switch (section) {
+      _Section.verdicts =>
+        name.hasMatch(text) &&
+            (isLed ||
+                !text.startsWith(_notAddressedLead) ||
+                !lead.any(handedOn.contains)),
+      _Section.outsideTheDrafts => isLed,
+      _Section.findings ||
+      _Section.outsideTheRound => lead.any(draftNames.contains),
+    };
   }
 }
 
@@ -305,12 +348,52 @@ void _clearAddressedItems(List<_Part> parts) {
   }
 }
 
+/// Returns the lead names of an item's [itemText], each a `<type>:<name>` or a
+/// DocPath without its `#<key>`, or null when its lead reads no name (D4).
+///
+/// Drops a leading `NOT ADDRESSED: `, `check: `, and a `report_draft_gaps`
+/// label, then reads the lead up to the first ` — ` or `: `. A lead holding a
+/// `,` is a list: each of its `, `-joined pieces must be a name, else the item
+/// has none. Any other lead yields its own name, else [leadNameOf].
+List<String>? leadNamesOf(String itemText) {
+  final lead = leadTextOf(_withoutLabels(itemText));
+  if (lead.contains(',')) {
+    final names = [for (final piece in lead.split(', ')) _leadNameIn(piece)];
+    return names.contains(null) ? null : [...names.nonNulls];
+  }
+  final name = _leadNameIn(lead) ?? _realNameOf(leadNameOf(itemText));
+  return name == null ? null : [name];
+}
+
+/// Returns [name] when it is a `<type>:<name>` with a clean body or a DocPath,
+/// else null: [leadNameOf] also takes a name with a mark before it, such as
+/// `(prds/a.md`.
+String? _realNameOf(String? name) {
+  if (name == null) return null;
+  final address = readDocAddress(name);
+  final isReal = address.typeId == null
+      ? isDocPathText(address.body)
+      : isCleanNameBody(address.body);
+  return isReal ? name : null;
+}
+
+/// Returns [piece] as a `<type>:<name>` or a DocPath, backticks, `#<key>`, and
+/// a trailing `.`, `;`, or `)` dropped, else null.
+String? _leadNameIn(String piece) {
+  final written = piece.replaceAll('`', '').replaceFirst(_trailingMarks, '');
+  final address = readDocAddress(written);
+  if (address.typeId case final typeId?) {
+    return isCleanNameBody(address.body) ? '$typeId:${address.body}' : null;
+  }
+  return isDocPathText(address.body) ? address.body : null;
+}
+
 /// Returns the name that opens an item's [itemText], a `<type>:<name>` or a
 /// DocPath, else null.
 ///
 /// Drops a leading `NOT ADDRESSED: `, then `check: `, then a backtick.
 String? leadNameOf(String itemText) {
-  final bare = itemText.replaceFirst(_itemLabels, '');
+  final bare = _withoutLabels(itemText);
   final token = _upTo(bare, _leadStops);
   final address = readDocAddress(token);
   if (address.typeId case final typeId?) {
@@ -353,12 +436,24 @@ List<_Part> _partsOf(ReportFile file) {
 }
 
 /// Returns the match of [line] when it is an `Audited:` or `Styled:` line
-/// that names a typed draft, else null.
+/// that names a typed draft or a DocPath, else null.
 Match? _draftLineOf(String line) {
   final match = _draftLine.firstMatch(line);
   if (match == null) return null;
-  final typeId = readDocAddress(match[2]!).typeId;
-  return typeId != null && match[2]!.length > typeId.length + 1 ? match : null;
+  final name = match[2]!;
+  if (name.endsWith('.md')) return match;
+  final typeId = readDocAddress(name).typeId;
+  return typeId != null && name.length > typeId.length + 1 ? match : null;
+}
+
+/// Returns the hash of the last line in [hashes] that names any of [names],
+/// else null.
+String? _hashIn(Map<String, String> hashes, Set<String> names) {
+  String? last;
+  for (final MapEntry(:key, :value) in hashes.entries) {
+    if (names.contains(key)) last = value;
+  }
+  return last;
 }
 
 bool _isNonBlank(String line) => trimmedReportLine(line).isNotEmpty;
@@ -456,7 +551,10 @@ _Part _readPart(String fileName, List<String> lines) {
       last = null;
     } else if (_draftLineOf(line) case final match?) {
       final into = match[1] == 'Audited' ? part.audited : part.styled;
-      into[match[2]!] = match[3]!;
+      final name = match[2]!;
+      into
+        ..remove(name)
+        ..[name] = match[3]!;
       open = null;
       last = null;
     } else if (_sectionLine.firstMatch(line) case final match?) {
@@ -763,11 +861,11 @@ final class CleanDraftJudge {
 
   DraftAsk? _auditAsk(JudgedDraft draft) {
     final audit = _audit;
-    final from = audit?._auditPartOf(draft.name);
-    if (audit == null || from == null) return const DraftAsk(_noAuditReason);
     final addresses = {draft.name, draft.docPath};
+    final from = audit?._auditPartOf(addresses);
+    if (audit == null || from == null) return const DraftAsk(_noAuditReason);
     final inForce = audit.fixesInForceOf(addresses, from: from);
-    final judged = audit._judgedHash(draft.name, from: from);
+    final judged = audit._judgedHash(addresses, from: from);
     if (judged != draft.currentHash) {
       final delta = draftDeltaOf(
         draft.currentLf,
@@ -787,8 +885,9 @@ final class CleanDraftJudge {
     return _asked(
       audit._namedIn(
         _nameIn(draft),
-        draft.name,
-        leadNames: {draft.name, draft.docPath},
+        _leadlessNameIn(draft),
+        addresses,
+        draftNames: {draft.name, draft.docPath},
         from: from,
         handedOn: _handedOn,
         isApplied: (fix) => _isInForce(draft, addresses, inForce, fix),
@@ -845,10 +944,9 @@ final class CleanDraftJudge {
 DraftAsk? _asked(String? reason) => reason == null ? null : DraftAsk(reason);
 
 /// One bounded search for the draft's `name` or its `docPath`.
-RegExp _nameIn(JudgedDraft draft) {
-  final forms = {draft.name, draft.docPath}.map(RegExp.escape).join('|');
-  return RegExp(
-    '${r'(?<=^|[ \t`(\[])'}(?:$forms)${r'(?=$|[ \t`@#:,.;)\]])'}',
-    multiLine: true,
-  );
-}
+RegExp _nameIn(JudgedDraft draft) =>
+    mentionSearchOf({draft.name, draft.docPath});
+
+/// [_nameIn] with the wider bounds an item led by no doc name is read by (D4).
+RegExp _leadlessNameIn(JudgedDraft draft) =>
+    mentionSearchOf({draft.name, draft.docPath}, isLeadless: true);

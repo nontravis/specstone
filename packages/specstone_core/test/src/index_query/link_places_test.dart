@@ -318,6 +318,34 @@ void main() {
       expect(agreeOn(body, parsed: '[a](a.md)\n'), isFalse);
     });
 
+    test('a typed link text is kept with its target, a bare one is not', () {
+      // D9: a bare text, one slug or more, is never stored as an address text.
+      final places = linkPlacesOf(
+        '[domain:login](specs/f01_login/ARCHITECTURE.md) '
+        '[the login rules](a.md) [login](b.md) [login/email](c.md#rules) '
+        '[domain:login#rules](d.md#rules) [E02](#edge-cases) '
+        '![domain:x](i.png)\n',
+        docPath: 'x.md',
+        firstLine: 1,
+      )!;
+
+      expect(
+        [
+          for (final text in places.addressTexts)
+            (text.text, text.target, text.shown),
+        ],
+        [
+          (
+            'domain:login',
+            'specs/f01_login/ARCHITECTURE.md',
+            'specs/f01_login/ARCHITECTURE.md',
+          ),
+          ('domain:login#rules', 'd.md', 'd.md#rules'),
+        ],
+      );
+      expect([for (final text in places.texts) text.text], ['E02']);
+    });
+
     test('each link class carries its '
         'line, shown text, and decoded anchor', () {
       final places = linkPlacesOf(

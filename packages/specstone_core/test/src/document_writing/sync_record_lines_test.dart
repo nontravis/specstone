@@ -276,6 +276,49 @@ void main() {
     );
   });
 
+  test('a tests minus line removes every entry of its item and file, a named one included, and keeps other items and other files', () {
+    const file = 'app/test/login_test.dart';
+    const kept = [
+      'email_login:$file',
+      '$_fr.more:$file',
+      '$_fr:$file.bak',
+      '$_fr:app/test/sign_in_test.dart:a name',
+    ];
+    final held = _recordText(
+      tests: const [
+        '$_fr:$file',
+        '$_fr:$file:refuses an empty password',
+        ...kept,
+      ],
+    );
+
+    final removed = _tests(held, 'tests $_record $_fr: -$file');
+
+    expect(removed, _recordText(tests: kept));
+    expect(_tests(removed, 'tests $_record $_fr: -$file'), removed);
+  });
+
+  test('a tests minus line naming a space-free test drops that entry alone, a second run changing nothing', () {
+    const file = 'app/test/login_test.dart';
+    const kept = [
+      '$_fr:$file',
+      '$_fr:$file:other_name',
+      '$_fr:$file:refuses an empty password',
+      'email_login:$file:refuses_empty',
+    ];
+    final held = _recordText(
+      tests: const ['$_fr:$file:refuses_empty', ...kept],
+    );
+
+    final removed = _tests(held, 'tests $_record $_fr: -$file:refuses_empty');
+
+    expect(removed, _recordText(tests: kept));
+    expect(
+      _tests(removed, 'tests $_record $_fr: -$file:refuses_empty'),
+      removed,
+    );
+  });
+
   test(
     'a tests line on a doc type with no tests field throws argument_invalid',
     () {

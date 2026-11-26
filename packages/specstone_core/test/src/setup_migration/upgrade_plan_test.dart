@@ -1467,10 +1467,40 @@ List<String> _stampRewrites(RunPlan plan) => [
   for (final rewrite in plan.rewrites)
     if (rewrite.path == '.specstone/config.yaml') rewrite.text,
 ];
+
+/// The path of every skill, agent, and hook file of the Claude Code group.
+List<String> _claudePaths() => [
+  for (final path in skillPaths())
+    if (path.startsWith('.claude/')) path,
+];
+
+/// A project whose config lists every group but `claude_code`, holding every
+/// shipped file outside `.claude/`.
+Future<Directory> _unlistedClaudeProject() => writeTree({
+  '.specstone/config.yaml':
+      '${shippedPinsConfig(shippedPinsDefaultPacks, const ['shared', 'codex_agents', 'cursor_agents'])}'
+      '$_stamp',
+  for (final MapEntry(:key, :value) in skillFileTexts().entries)
+    if (!key.startsWith('.claude/')) key: value,
+});
 const _staleBlock = '$_begin\nold rules\n<!-- END specstone -->\n';
 
-/// Pins older than the shipped versions.
-const _oldPins = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
+/// The `agent_file_groups:` block of a project the root already offered every
+/// group.
+const _groupsBlock =
+    'agent_file_groups:\n'
+    '  - claude_code\n'
+    '  - shared\n'
+    '  - codex_agents\n'
+    '  - cursor_agents\n';
+
+/// [_groupsBlock] with CRLF line endings.
+final String _groupsCrlf = _groupsBlock.replaceAll('\n', '\r\n');
+
+/// Pins older than the shipped versions, over a project that lists every
+/// agent folder group.
+const _oldPins =
+    '${_groupsBlock}packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
 
 Directory _canonical(Directory directory) =>
     Directory(directory.resolveSymbolicLinksSync());
@@ -1730,6 +1760,33 @@ void _agentFilesTests() {
         ),
       );
     });
+
+    for (final hookPath in [settingsFilePath, codexHooksFilePath]) {
+      test(
+        'a legacy config with no agent_file_groups and an unmergeable '
+        '$hookPath refuses agent_block_malformed, pin bump included',
+        () async {
+          final project = await writeTree({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
+            hookPath: '{"hooks": []}',
+          });
+
+          expect(
+            () => _planAt(project),
+            throwsA(
+              isA<MigrateFault>()
+                  .having(
+                    (f) => f.code,
+                    'code',
+                    MigrateFaultCode.agentBlockMalformed,
+                  )
+                  .having((f) => f.file, 'file', hookPath),
+            ),
+          );
+        },
+      );
+    }
 
     test('an agent_file_roots entry outside the project root is never '
         'written, whatever the pins', () async {
@@ -1993,6 +2050,169 @@ void _agentFilesTests() {
         '${shippedPinsConfig()}code_root: code\n'
         'agent_file_roots:\n  - other\n  - code\n$_stamp',
       );
+    });
+
+    test('an unlisted group adds its name to the config in commit 2', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig(shippedPinsDefaultPacks, const ['shared', 'codex_agents', 'cursor_agents'])}'
+            '$_stamp',
+        ...skillFileTexts(),
+      });
+
+      final plan = _planAt(project);
+
+      final rewrite = _rewriteAt(plan, '.specstone/config.yaml');
+      expect(
+        rewrite.text,
+        '${shippedPinsConfig(shippedPinsDefaultPacks, const ['shared', 'codex_agents', 'cursor_agents', 'claude_code'])}'
+        '$_stamp',
+      );
+      expect(rewrite.changes, contains('agent_file_groups'));
+    });
+
+    test('a config with no agent_file_groups key gains all four', () async {
+      final config =
+          '${shippedPinsConfig(shippedPinsDefaultPacks, const [])}$_stamp';
+      final project = await writeTree({
+        '.specstone/config.yaml': config,
+        ...skillFileTexts(),
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        _rewriteAt(plan, '.specstone/config.yaml').text,
+        '${config}agent_file_groups:\n  - claude_code\n  - shared\n'
+        '  - codex_agents\n  - cursor_agents\n',
+      );
+    });
+
+    test('a config line names the groups commit 2 adds when pins are unchanged '
+        'and every agent file is current', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig(shippedPinsDefaultPacks, const [])}$_stamp',
+        ...skillFileTexts(),
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, agent files only\n'
+        'commit 2, rewrites:\n'
+        '  .specstone/config.yaml: agent_file_groups claude_code, shared, '
+        'codex_agents, cursor_agents (added)\n',
+      );
+    });
+
+    test('a refused group is left out of the config rewrite', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig(shippedPinsDefaultPacks, const ['claude_code', 'shared', 'codex_agents'])}$_stamp',
+        for (final MapEntry(:key, :value) in skillFileTexts().entries)
+          if (!key.startsWith('.cursor/')) key: value,
+        '.cursor': 'not a folder',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.skipped, [
+        '.cursor is not a folder; left as it is',
+      ]);
+      expect(plan.agentFiles!.addedGroups, isEmpty);
+      expect(plan.rewrites, isEmpty);
+    });
+
+    test('an unlisted group alone plans its files, hook, and name (E002)', () async {
+      final project = await _unlistedClaudeProject();
+
+      final plan = _planAt(project);
+
+      final claudePaths = _claudePaths();
+      final agents = plan.agentFiles!;
+      expect(agents.paths, unorderedEquals(claudePaths));
+      expect(claudePaths, contains(settingsFilePath));
+      expect(agents.line, 'agent files: ${claudePaths.length} files');
+      final rewrite = _rewriteAt(plan, '.specstone/config.yaml');
+      expect(
+        rewrite.text,
+        '${shippedPinsConfig(shippedPinsDefaultPacks, const ['shared', 'codex_agents', 'cursor_agents', 'claude_code'])}'
+        '$_stamp',
+      );
+      expect(rewrite.changes, contains('agent_file_groups'));
+    });
+
+    test(
+      'a listed group holding no entry stays out on every upgrade',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml': '${shippedPinsConfig()}$_stamp',
+          codexHooksFilePath:
+              '{"hooks":{"SessionStart":[{"hooks":[{"type":"command",'
+              '"command":"specstone","args":["hook","session-start"]}]}]}}',
+        });
+
+        final plan = _planAt(project);
+
+        final agents = plan.agentFiles!;
+        expect([
+          ...agents.paths,
+          ...agents.trashFiles,
+        ], isNot(anyElement(startsWith('.codex/'))));
+        expect(agents.isEmpty, isTrue);
+      },
+    );
+
+    test(
+      'a group once written and listed takes no second full write',
+      () async {
+        final project = await _unlistedClaudeProject();
+        final first = _planAt(project);
+        for (final write in first.agentFiles!.rootWrites) {
+          File('${project.path}/${write.path}')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(write.text);
+        }
+        File('${project.path}/.specstone/config.yaml')
+            .writeAsStringSync('${shippedPinsConfig()}$_stamp');
+        for (final folder in ['.claude/skills', '.claude/agents']) {
+          for (final entry in Directory('${project.path}/$folder').listSync()) {
+            if (entry.uri.pathSegments
+                .where((s) => s.isNotEmpty)
+                .last
+                .startsWith('specstone-')) {
+              entry.deleteSync(recursive: true);
+            }
+          }
+        }
+
+        final plan = _planAt(project);
+
+        final agents = plan.agentFiles!;
+        expect([
+          ...agents.paths,
+          ...agents.trashFiles,
+        ], isNot(anyElement(startsWith('.claude/'))));
+        expect(agents.isEmpty, isTrue);
+      },
+    );
+
+    test('every group listed writes no agent_file_groups change', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${shippedPinsConfig()}$_stamp',
+        ...skillFileTexts(),
+      });
+
+      final plan = _planAt(project);
+
+      expect([
+        for (final rewrite in plan.rewrites)
+          if (rewrite.path == '.specstone/config.yaml' &&
+              rewrite.changes.contains('agent_file_groups'))
+            rewrite,
+      ], isEmpty);
     });
 
     test('the config rewrite replaces a listed agent_file_roots '
@@ -3628,6 +3848,7 @@ void _floorPinsTests() {
       'versions with the prd-core regenerate step and the two spec-scope '
       'mark_retrim steps', () async {
     String pins(Map<String, Object> versions) => [
+      _groupsBlock,
       'packs:\n',
       for (final pack in PackFloors.shipped.byPack.keys)
         '  $pack: ${versions[pack]}\n',
@@ -3730,7 +3951,7 @@ void _addedPinsTests() {
       );
       expect(
         _configWrittenBy(plan),
-        'packs:\n'
+        '${_groupsBlock}packs:\n'
         '  prd-core: $core\n'
         '  software-tech: $tech\n'
         '  agent-skills: $skills\n'
@@ -3753,35 +3974,40 @@ void _addedPinsTests() {
       for (final (:label, :config, :expected) in [
         (
           label: 'a trailing comment on the last entry',
-          config: 'packs:\n  prd-core: $core\n  software-tech: $tech # keep\n',
+          config:
+              '${_groupsBlock}packs:\n  prd-core: $core\n'
+              '  software-tech: $tech # keep\n',
           expected:
-              'packs:\n  prd-core: $core\n  software-tech: $tech # keep\n'
-              '  agent-skills: $skills\n',
+              '${_groupsBlock}packs:\n  prd-core: $core\n'
+              '  software-tech: $tech # keep\n  agent-skills: $skills\n',
         ),
         (
           label: 'blank lines then another key',
           config:
-              'packs:\n  prd-core: $core\n  software-tech: $tech\n\n\n'
-              'verification_coverage: false\n',
+              '${_groupsBlock}packs:\n  prd-core: $core\n  software-tech: $tech'
+              '\n\n\nverification_coverage: false\n',
           expected:
-              'packs:\n  prd-core: $core\n  software-tech: $tech\n'
-              '  agent-skills: $skills\n\n\nverification_coverage: false\n',
+              '${_groupsBlock}packs:\n  prd-core: $core\n  software-tech: $tech'
+              '\n  agent-skills: $skills\n\n\nverification_coverage: false\n',
         ),
         (
           label: 'a four-space indent',
-          config: 'packs:\n    prd-core: $core\n    software-tech: $tech\n',
+          config:
+              '${_groupsBlock}packs:\n    prd-core: $core\n'
+              '    software-tech: $tech\n',
           expected:
-              'packs:\n    prd-core: $core\n    software-tech: $tech\n'
-              '    agent-skills: $skills\n',
+              '${_groupsBlock}packs:\n    prd-core: $core\n'
+              '    software-tech: $tech\n    agent-skills: $skills\n',
         ),
         (
           label: 'CRLF line endings',
           config:
-              'packs:\r\n  prd-core: $core\r\n  software-tech: $tech\r\n'
-              'verification_coverage: false\r\n',
+              '${_groupsCrlf}packs:\r\n  prd-core: $core\r\n'
+              '  software-tech: $tech\r\nverification_coverage: false\r\n',
           expected:
-              'packs:\r\n  prd-core: $core\r\n  software-tech: $tech\r\n'
-              '  agent-skills: $skills\r\nverification_coverage: false\r\n',
+              '${_groupsCrlf}packs:\r\n  prd-core: $core\r\n'
+              '  software-tech: $tech\r\n  agent-skills: $skills\r\n'
+              'verification_coverage: false\r\n',
         ),
       ]) {
         test(label, () async {
@@ -3798,13 +4024,16 @@ void _addedPinsTests() {
       for (final (:label, :config, :expected) in [
         (
           label: 'with no inner space',
-          config: 'packs: {prd-core: $core}\n',
-          expected: 'packs: {prd-core: $core, agent-skills: $skills}\n',
+          config: '${_groupsBlock}packs: {prd-core: $core}\n',
+          expected:
+              '${_groupsBlock}packs: {prd-core: $core, agent-skills: $skills}\n',
         ),
         (
           label: 'with a space inside the braces',
-          config: 'packs: { prd-core: $core }\n',
-          expected: 'packs: { prd-core: $core, agent-skills: $skills }\n',
+          config: '${_groupsBlock}packs: { prd-core: $core }\n',
+          expected:
+              '${_groupsBlock}packs: { prd-core: $core, agent-skills: $skills }'
+              '\n',
         ),
       ]) {
         test(label, () async {
@@ -4357,6 +4586,39 @@ migrations:
               to: procedure
 ''';
 
+/// A pack whose first entry folds `playbook` into `guide` and whose second
+/// folds `guide` into `runbook`.
+const _chainPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "prds/runbooks/{slug}/PLAYBOOK.md"}
+          to: guide
+          sections:
+            - from: {id: moves, header: Moves}
+              to: steps
+  - from: 1.1.0
+    steps:
+      - merge_doc:
+          from: {id: guide, path: "prds/runbooks/{slug}/GUIDE.md"}
+          to: runbook
+          sections:
+            - from: {id: steps, header: Steps}
+              to: procedure
+''';
+
+const _guideType = '''
+id: guide
+description: A guide.
+path: prds/runbooks/{slug}/GUIDE.md
+sections:
+  - {id: steps, header: Steps}
+''';
+
 /// [_mergePackYaml] with a `relink_merged_docs` entry after its fold.
 const _relinkPackYaml =
     '''
@@ -4635,6 +4897,94 @@ void _mergeDocTests() {
         expect(plan.creates, isEmpty);
       },
     );
+
+    test('a merge_doc chain across two entries lands the first from doc in '
+        'the last to doc', () async {
+      final fixture = await _mergeFixture(
+        packYaml: _chainPackYaml,
+        runbookType: '$_mergeType---\n$_guideType',
+      );
+      File('${fixture.home.path}/.specstone/packs/acme/frozen/guide.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_guideType);
+
+      final plan = _planMerge(fixture);
+
+      expect(
+        _rewriteAt(plan, 'docs/$_mergeToPath').text,
+        contains('## Procedure\n\nRun it.\n'),
+      );
+      expect(plan.trashedDocs, ['docs/$_mergeFromPath']);
+      expect(
+        plan.creates.where((create) => create.path.endsWith('GUIDE.md')),
+        isEmpty,
+      );
+      expect(
+        plan.rewrites.where((rewrite) => rewrite.path.endsWith('GUIDE.md')),
+        isEmpty,
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'merge_doc playbook -> guide',
+          'paths': <String>[],
+        },
+        {
+          'from': '1.1.0',
+          'step': 'merge_doc guide -> runbook',
+          'paths': [_mergeToPath],
+        },
+      ]);
+    });
+
+    test('a doc a step of one pack creates is no from doc of a fold in '
+        'another pack, which plans with no throw', () async {
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml':
+            'name: acme\nversion: 1.2.0\nextends: software-tech\n'
+            'migrations:\n  - from: 1.0.0\n    steps:\n'
+            '      - merge_doc:\n'
+            '          from: {id: playbook, path: '
+            '"prds/runbooks/{slug}/PLAYBOOK.md"}\n'
+            '          to: guide\n'
+            '          sections:\n'
+            '            - from: {id: moves, header: Moves}\n'
+            '              to: steps\n',
+        '.specstone/packs/acme/runbook.yaml': _mergeType,
+        '.specstone/packs/acme/guide.yaml': _guideType,
+        '.specstone/packs/zeta/pack.yaml':
+            'name: zeta\nversion: 1.1.0\nextends: acme\n'
+            'migrations:\n  - from: 1.0.0\n    steps:\n'
+            '      - merge_doc:\n'
+            '          from: {id: guide, path: '
+            '"prds/runbooks/{slug}/GUIDE.md"}\n'
+            '          to: runbook\n'
+            '          sections:\n'
+            '            - from: {id: steps, header: Steps}\n'
+            '              to: procedure\n',
+      });
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}  acme: 1.0.0\n  zeta: 1.0.0\n',
+        'docs/$_mergeToPath': _mergeToDoc,
+        'docs/$_mergeFromPath': _mergeFromDoc,
+      });
+
+      final plan = planUpgradeRun(
+        project,
+        templates: TemplateResolver(),
+        homeDirectory: home,
+        generators: shippedGenerators(),
+      );
+
+      expect(
+        plan.creates
+            .singleWhere((create) => create.path.endsWith('GUIDE.md'))
+            .text,
+        contains('## Steps\n\nRun it.\n'),
+      );
+      expect(plan.trashedDocs, ['docs/$_mergeFromPath']);
+    });
 
     test('a to doc the project lacks is created as a draft holding the '
         'sections and entries', () async {
@@ -6456,6 +6806,57 @@ void _groupedStepPatternTests() {
       expect(
         _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text,
         contains('## Playbook moves\n\nRun it.\n'),
+      );
+    });
+
+    // upgrade_pack_pins/chain_migration_steps: a doc a step creates is a from
+    // doc of a later step of the same pack, at the grouped path it was created.
+    test('a merge_doc chain across two entries reads the grouped doc the first '
+        'entry creates', () async {
+      const guideType =
+          'id: guide\ndescription: A guide.\nparent: feature\n'
+          'path: specs/f{nn}_{slug}/GUIDE.md\n'
+          'sections:\n  - {id: steps, header: Steps}\n';
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: '''
+  - from: 1.0.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "specs/f{nn}_{slug}/PLAYBOOK.md"}
+          to: guide
+          sections:
+            - from: {id: moves, header: Moves}
+              to: steps
+  - from: 1.1.0
+    steps:
+      - merge_doc:
+          from: {id: guide, path: "specs/f{nn}_{slug}/GUIDE.md"}
+          to: api
+          sections:
+            - from: {id: steps, header: Steps}
+              to: playbook_moves
+''',
+          packFiles: {
+            ..._apiMergeLayerFiles,
+            '.specstone/packs/acme/guide.yaml': guideType,
+            '.specstone/packs/acme/frozen/guide.yaml': guideType,
+          },
+          docs: const {
+            'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text,
+        contains('## Playbook moves\n\nRun it.\n'),
+      );
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/PLAYBOOK.md']);
+      expect(
+        plan.creates.where((create) => create.path.endsWith('GUIDE.md')),
+        isEmpty,
       );
     });
 

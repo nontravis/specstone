@@ -603,4 +603,39 @@ void main() {
     expect(jaspr, contains('$_jasprApiDoc error_code_unraised'));
     expect(jaspr.where((f) => f.contains('flutter')), isEmpty);
   });
+
+  test('a table without the code column gives no catalog row', () async {
+    final report = await _check({
+      'docs/$_apiDoc':
+          '${_api('Login', ['bad_password'])}\n'
+          '| Role | Allowed |\n|---|---|\n'
+          '| `ADMIN` | yes |\n| `MEMBER` | no |\n',
+      'docs/$loginFr': _frCase('an empty password → `bad_password` is refused'),
+    });
+
+    expect(_found(report), isEmpty);
+  });
+
+  test(
+    'each catalog table reads the code column its own header names',
+    () async {
+      final report = await _check({
+        'docs/$_apiDoc':
+            '---\n---\n# Login\n\n## Operations\n\n- sign in\n\n'
+            '## Errors\n\n'
+            '| Role | Allowed |\n|---|---|\n| `ADMIN` | yes |\n\n'
+            '| Group | Code | Status or exit | Condition | Client action | Retryable |\n'
+            '|---|---|---|---|---|---|\n'
+            '| auth | `bad_password` | 400 | wrong | again | no |\n'
+            '| auth | `account_locked` | 423 | locked | wait | no |\n',
+        'docs/$loginFr': _frCase(
+          'an empty password → `bad_password` is refused',
+        ),
+      });
+
+      expect(_found(report), [
+        '18 error_code_unraised no requirement of login names account_locked',
+      ]);
+    },
+  );
 }

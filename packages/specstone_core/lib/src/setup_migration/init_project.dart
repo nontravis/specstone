@@ -13,6 +13,8 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/models/rendered_file.dart'
+    show AgentFolderGroup;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show codexTrustLine, holdsCodexHooks, skillFolderOf;
@@ -120,6 +122,7 @@ int _scaffold(Directory root, InitRequest request) {
     configText(
       pins,
       agentFileRoots: agentPlan.agentFileRoots,
+      agentFileGroups: agentPlan.agentFileGroups,
       agentFilesVersion: stamp,
     ),
     shown: projectConfigPath,
@@ -145,6 +148,7 @@ AgentFileInputs _agentInputsOf(Directory root, MergedSet set) {
       targets: const [CodeTarget(null, codeRoot: '.')],
     ),
     agentFileRoots: const [],
+    agentFileGroups: AgentFolderGroup.values,
   );
 }
 

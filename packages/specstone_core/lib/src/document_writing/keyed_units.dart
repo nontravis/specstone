@@ -233,6 +233,7 @@ final class KeyedLanding {
     required this.to,
     required this.sectionKey,
     required this.key,
+    this.landedKey,
   });
 
   /// The doc the units leave and the doc they land in.
@@ -240,10 +241,19 @@ final class KeyedLanding {
   final IndexedDoc to;
 
   final String sectionKey;
+
+  /// The key the plan line writes; the units are found in [from] by it.
   final String key;
+
+  /// The key the units hold in [to] when it differs from [key]: an `fr_trace`
+  /// row's FR cell, rebased to the feature of [to]. Null otherwise.
+  final String? landedKey;
 
   /// `<section key>/<key>`, as a plan line names the units.
   String get address => '$sectionKey/$key';
+
+  /// `<section key>/<key>` as [to] holds the units.
+  String get landedAddress => '$sectionKey/${landedKey ?? key}';
 
   /// Whether [unit] is one of the units this landing moves.
   bool takes(KeyedUnit unit) => unit.address == address;
@@ -284,7 +294,7 @@ void requireKeyedRoom(
   DocContent content,
   List<KeyedUnit> units,
 ) {
-  final KeyedLanding(:to, :sectionKey, :address) = landing;
+  final KeyedLanding(:to, :sectionKey, :address, :landedAddress) = landing;
   if (type == null || !type.sections.any((s) => s.id == sectionKey)) {
     throw _roomFault('${to.docPath} has no $sectionKey section for $address');
   }
@@ -299,8 +309,8 @@ void requireKeyedRoom(
       'so it takes no row $address',
     );
   }
-  if (section.units.any((unit) => unit.address == address)) {
-    throw _roomFault('${to.docPath} already holds $address');
+  if (section.units.any((unit) => unit.address == landedAddress)) {
+    throw _roomFault('${to.docPath} already holds $landedAddress');
   }
 }
 

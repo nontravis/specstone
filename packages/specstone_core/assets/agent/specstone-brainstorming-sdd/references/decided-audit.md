@@ -26,17 +26,17 @@ of a Decided change once its work is built, in 1 pass, and reports only `Contrad
 
 ```
 Findings:
-- Contradiction: <doc>#<key>: <point>
+- Contradiction: <docs>: <point>
   Fix: <type>:<name>#<key>
-- Stale reader: <doc>#<key>: <point>
-- Not carried: <doc>#<key>: <point>
+- Stale reader: <docs>: <point>
+- Not carried: <docs>: <point>
 Notes:
 - <observation>
-Audited: <type>:<name>@<hash>
+Audited: <doc>@<hash>
 ```
 
 - List every line under one `Findings:` line, ranked by importance across the three labels, with no label or count
-  line inside it; `<doc>` is the full `<type>:<name>` or the DocPath.
+  line inside it. Each item opens with its docs as `audit.md` gives `<docs>`.
 - Under an item whose fix you can state, write its `Fix:` lines as `audit.md` gives them, each after the **Dry run** of
   `audit.md` on its section. State a fix only as `Fix:` lines, never in prose; a question only the Owner settles gets
   no `Fix:` line.
@@ -45,4 +45,4 @@ Audited: <type>:<name>@<hash>
 - With no point, `Findings:` reads `nothing important left`.
 - Put each observation that is no gap under `Notes:`, which the judge never reads and main relays to the Owner. Write
   no `Notes:` heading when there is none.
-- Write one `Audited:` line per draft, its hash the `base` of step 1.
+- Write one `Audited:` line per draft, its `<doc>` and hash from step 1.

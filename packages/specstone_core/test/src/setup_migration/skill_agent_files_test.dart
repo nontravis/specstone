@@ -73,11 +73,13 @@ AgentFileInputs _inputs(
   Directory base, {
   List<String> code = const [],
   List<String> roots = const [],
+  List<AgentFolderGroup> groups = AgentFolderGroup.values,
 }) => AgentFileInputs(
   projectRoot: _at(base, 'proj/'),
   cliVersion: specstoneVersion,
   codeRootFolders: [for (final folder in code) _at(base, folder)],
   agentFileRoots: roots,
+  agentFileGroups: groups,
 );
 
 Map<String, String> _under(String folder, Map<String, String> files) => {
@@ -899,6 +901,112 @@ void main() {
       expect(plan.skipped, [
         '../other reaches outside the project root; left as it is',
       ]);
+    });
+  });
+
+  group('agent_file_groups', () {
+    test('an unlisted root group plans every file without full', () async {
+      final base = await _base({'proj/keep.txt': ''});
+
+      final plan = planSkillAndAgentFiles(
+        _inputs(
+          base,
+          groups: [
+            AgentFolderGroup.shared,
+            AgentFolderGroup.codexAgents,
+            AgentFolderGroup.cursorAgents,
+          ],
+        ),
+        full: false,
+      );
+
+      expect(
+        _writtenPaths(plan),
+        _renderedIn(AgentFolderGroup.claudeCode.folders).keys.toSet(),
+      );
+      expect(_writtenPaths(plan), contains(settingsFilePath));
+    });
+
+    test('a listed group with no entry plans nothing', () async {
+      final base = await _base({'proj/keep.txt': ''});
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.writes, isEmpty);
+    });
+
+    test('the drifts leave out an unoffered group, which unofferedGroupsOf '
+        'names', () async {
+      final base = await _base({'proj/keep.txt': ''});
+      final inputs = _inputs(
+        base,
+        groups: [
+          AgentFolderGroup.shared,
+          AgentFolderGroup.codexAgents,
+          AgentFolderGroup.cursorAgents,
+        ],
+      );
+
+      expect(skillAndAgentFileDrifts(inputs), isEmpty);
+      expect(unofferedGroupsOf(inputs), [AgentFolderGroup.claudeCode]);
+    });
+
+    // D16
+    test(
+      'a group whose root folder is a file or leaves the project is unlisted, '
+      'never unoffered',
+      () async {
+        final base = await _base({
+          'outside/keep.txt': 'x\n',
+          'proj/.cursor': 'not a folder\n',
+        });
+        Link(_at(base, 'proj/.agents').path)
+            .createSync(_at(base, 'outside').path);
+        final inputs = _inputs(base, groups: const []);
+
+        expect(unlistedGroupsOf(inputs), AgentFolderGroup.values);
+        expect(unofferedGroupsOf(inputs), [
+          AgentFolderGroup.claudeCode,
+          AgentFolderGroup.codexAgents,
+        ]);
+      },
+      skip: Platform.isWindows ? 'symbolic links need a privilege' : null,
+    );
+
+    // D16
+    test('a group with one refused folder and one usable folder is '
+        'unlisted, never unoffered', () async {
+      final base = await _base({'proj/.claude/agents': 'not a folder\n'});
+      final inputs = _inputs(base, groups: const []);
+
+      expect(unlistedGroupsOf(inputs), AgentFolderGroup.values);
+      expect(unofferedGroupsOf(inputs), [
+        AgentFolderGroup.shared,
+        AgentFolderGroup.codexAgents,
+        AgentFolderGroup.cursorAgents,
+      ]);
+    });
+
+    test('a repository top keeps its own rule whatever the root '
+        'lists', () async {
+      final base = await _base({
+        'proj/keep.txt': '',
+        'proj/vendor/.git/HEAD': 'ref\n',
+        'proj/vendor/lib/a': '',
+      });
+
+      final plan = planSkillAndAgentFiles(
+        _inputs(
+          base,
+          code: ['proj/vendor/lib/'],
+          roots: ['vendor'],
+          groups: const [],
+        ),
+        full: false,
+      );
+
+      expect(plan.writes.where((write) => write.isAtTop), isEmpty);
+      expect(_writtenPaths(plan), _allRendered.keys.toSet());
     });
   });
 

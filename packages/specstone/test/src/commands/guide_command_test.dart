@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/shared_lines.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/built_cli.dart';
+import '../../helpers/fixture_packs.dart' show fixtureAgentGroups;
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
 
@@ -58,7 +59,8 @@ sections:
 };
 
 const _cycleConfig =
-    'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n  nont-b: 1.0.0\n';
+    '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n'
+    '  nont-b: 1.0.0\n';
 
 /// A home folder whose personal packs `nont-a` and `nont-b` extend each other.
 Future<Directory> _cycleHome() => writeTree({
@@ -68,7 +70,8 @@ Future<Directory> _cycleHome() => writeTree({
       'name: nont-b\nversion: 1.0.0\nextends: nont-a\n',
 });
 
-const _patternConfig = 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n';
+const _patternConfig =
+    '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n';
 
 /// The shipped fixture plus a `software-tech` pack that holds three feature
 /// patterns, `signup` extending `auth`.
@@ -131,8 +134,10 @@ void main() {
       );
     }
 
-    Future<Directory> projectWith(Map<String, String> files) =>
-        writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n', ...files});
+    Future<Directory> projectWith(Map<String, String> files) => writeTree({
+      _configPath: '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n',
+      ...files,
+    });
 
     test('lists one doc type id per line', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -574,7 +579,9 @@ void main() {
       err.clear();
       final packRunner = runnerWithHome(
         await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n',
+          _configPath:
+              '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n'
+              '  nont-a: 1.0.0\n',
         }),
         await writeTree({'.specstone/packs/nont-a/pack.yaml': 'name: [\n'}),
       );
@@ -615,7 +622,9 @@ void main() {
       err.clear();
       final packRunner = runnerWithHome(
         await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n',
+          _configPath:
+              '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n'
+              '  nont-a: 1.0.0\n',
         }),
         await writeTree({'.specstone/packs/nont-a/pack.yaml': 'name: [\n'}),
       );
@@ -1130,7 +1139,7 @@ void main() {
     /// [sharedLines].
     Future<void> guideBoth(String sharedLines) async {
       final project = await writeTree({
-        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        _configPath: '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n',
       });
       final runner = SpecstoneCommandRunner(
         console: FakeConsole(),
@@ -1745,7 +1754,7 @@ items:
     test('guide --file-format prints the format and exits 0 in a '
         'project', () async {
       final folder = await writeTree({
-        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        _configPath: '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n',
       });
       final runner = await runnerIn(folder);
 
@@ -1771,7 +1780,7 @@ items:
     test('guide --file-format prints the format over a broken layer and a '
         'pin mismatch', () async {
       final folder = await writeTree({
-        _configPath: 'packs:\n  prd-core: 9.9.9\n',
+        _configPath: '${fixtureAgentGroups}packs:\n  prd-core: 9.9.9\n',
         '.specstone/templates/feature.yaml': 'prefixId: X\n',
       });
       final runner = await runnerIn(folder);
@@ -1788,8 +1797,9 @@ items:
         ? noAncestorConfig
         : false;
 
-    Future<Directory> project() =>
-        writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n'});
+    Future<Directory> project() => writeTree({
+      _configPath: '${fixtureAgentGroups}packs:\n  prd-core: 1.1.0\n',
+    });
 
     String reportOf(Directory project, String name) =>
         File('${project.path}/.specstone/reports/$name').readAsStringSync();

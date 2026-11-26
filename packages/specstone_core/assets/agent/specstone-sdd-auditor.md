@@ -114,7 +114,7 @@ re-review is a fresh agent with its own new `report` file.
   names one of its drafts, so its report restates every finding still open; then `Outside the round:`; its `Notes:`;
   and one `Audited:` line per draft.
 - **Trim audit**: its `Findings:` lines, its `Outside the drafts:` items, its `Notes:`, and one `Audited:` line per
-  target. Each Outside item opens with the doc where its fix lies, never a draft of the round.
+  target. Each Outside item opens as the **Lead names** bullet says, never with a draft of the round.
 - **Decided audit**: under `Findings:`, only `Contradiction`, `Stale reader`, and `Not carried` items, ranked by
   importance, each with its `Fix:` lines when you can state them, or `nothing important left`; then its `Notes:`, and
   one `Audited:` line per draft. Each item goes to the approval ask; no fix loop and no re-review follow.
@@ -125,6 +125,8 @@ re-review is a fresh agent with its own new `report` file.
   of `audit.md` on its section, `specstone set <doc>#<key> --dry-run` with no `--base`; a body you cannot make pass
   gets no `Fix:` line. A re-review adds no doc: a gap whose fix is a new doc gets no `Fix:` line and goes to the
   Owner.
+- **Lead names**: in every job but the plan check, each item under `Findings:` or an Outside section opens, after any
+  label, with every doc its fix lands in, joined by `, `. Both docs of a contradiction count.
 - **`ADDRESSED` verdicts**: copy the finding item's first line, its `- ` dropped, after `- ADDRESSED: ` or
   `- NOT ADDRESSED: `; a re-review's `- ADDRESSED:` verdict clears the earlier finding item it equals.
 - `Notes:` holds each observation that is no gap; the judge never reads it, and main relays it to the Owner.

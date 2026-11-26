@@ -97,6 +97,7 @@ enum FindingKind {
   docCitedInCode('doc_cited_in_code'),
   coversPathMissing('covers_path_missing'),
   coversEntryEmpty('covers_entry_empty'),
+  coversPathOutside('covers_path_outside'),
   codeRootMissing('code_root_missing'),
   docRefUnresolved('doc_ref_unresolved'),
   docRefDuplicate('doc_ref_duplicate'),
@@ -109,6 +110,7 @@ enum FindingKind {
   referenceMalformed('reference_malformed'),
   linkTargetMissing('link_target_missing'),
   linkOutsideDocs('link_outside_docs'),
+  linkTextStale('link_text_stale'),
   markdownUnparsed('markdown_unparsed'),
   docNameUnresolved('doc_name_unresolved'),
   perTargetReference('per_target_reference'),
@@ -193,6 +195,7 @@ enum FindingKind {
     bundleOverLimit ||
     charsOverLimit ||
     coversEntryEmpty ||
+    coversPathOutside ||
     itemOverLimit ||
     layerDocTypeDropped ||
     linesOverLimit ||

@@ -6,10 +6,13 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
+import 'package:specstone_core/src/doc_model/models/label_part.dart';
 import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/tbr_marker_line.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/doc_model/number_label.dart'
+    show labelLinesInMarkdown;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
@@ -23,6 +26,7 @@ import 'package:specstone_core/src/index_query/models/link_place.dart';
 import 'package:specstone_core/src/index_query/models/link_places.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/index_query/models/mermaid_block.dart';
+import 'package:specstone_core/src/index_query/models/prefixed_label_place.dart';
 import 'package:specstone_core/src/index_query/models/section_counts.dart';
 import 'package:specstone_core/src/index_query/models/tbr_marker_place.dart';
 
@@ -76,14 +80,13 @@ List<String> lfLinesOf(String lfText) {
 /// [lfText] is the file text with LF line ends; every line number comes from
 /// it, while `lineCount` and `charCount` measure [countedText].
 /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
-/// frontmatter. [bodyNumberLabels] are the number labels of the body, by
-/// 0-based body line, and [bodyTbrMarkers] its TBR markers, by the same
-/// line; [citeCandidates], [bareItemIds], and [mermaidBlocks] are those of a
-/// typed doc, none for an untyped one. A body whose parse fails has no links
-/// and an unknown anchor set; [markdownUnparsedWarning] joins [warnings] only
-/// when the body holds link syntax, as at base — a body with no link syntax
-/// is never parsed for links, so it never warns. [linkWarningOf] gives the
-/// warning.
+/// frontmatter. [bodyTbrMarkers] are the TBR markers of the body, by 0-based
+/// body line; [citeCandidates], [bareItemIds], and [mermaidBlocks] are those
+/// of a typed doc, none for an untyped one. A body whose parse fails has no
+/// links and an unknown anchor set; [markdownUnparsedWarning] joins
+/// [warnings] only when the body holds link syntax, as at base — a body with
+/// no link syntax is never parsed for links, so it never warns.
+/// [linkWarningOf] gives the warning.
 LineFacts lineFactsOf({
   required String lfText,
   required String countedText,
@@ -91,7 +94,6 @@ LineFacts lineFactsOf({
   required Doc doc,
   required List<SectionCounts> sectionCounts,
   required int? frontmatterErrorLine,
-  required List<NumberLabelLine> bodyNumberLabels,
   required List<TbrMarkerLine> bodyTbrMarkers,
   required List<CiteCandidate> citeCandidates,
   required List<BareItemId> bareItemIds,
@@ -120,15 +122,24 @@ LineFacts lineFactsOf({
   }
   final anchors = tree == null ? null : anchorsOf(tree.nodes);
   final fenced = _fencedRanges(doc.afterFrontmatter, bodyStart);
+  final labels = labelLinesInMarkdown(body);
   return LineFacts(
     links: links?.docLinks ?? const [],
     fileLinks: links?.fileLinks ?? const [],
     selfLinks: links?.selfLinks ?? const [],
     linkTexts: links?.texts ?? const [],
+    addressLinkTexts: links?.addressTexts ?? const [],
     nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
     numberLabels: [
-      for (final NumberLabelLine(:line, :written) in bodyNumberLabels)
+      for (final NumberLabelLine(:line, :written) in labels.numbers)
         LabelPlace(line: bodyStart + line + 1, written: written),
+    ],
+    prefixedLabels: [
+      for (final chain in labels.prefixed)
+        PrefixedLabelPlace(
+          line: bodyStart + chain.line + 1,
+          parts: chain.parts,
+        ),
     ],
     tbrMarkers: [
       for (final TbrMarkerLine(:line, :rest) in bodyTbrMarkers)
@@ -165,8 +176,10 @@ LineFacts lineStructureOf({required String lfText, required Doc doc}) {
     fileLinks: const [],
     selfLinks: const [],
     linkTexts: const [],
+    addressLinkTexts: const [],
     nameMentions: const [],
     numberLabels: const [],
+    prefixedLabels: const [],
     tbrMarkers: const [],
     citeCandidates: const [],
     bareItemIds: const [],
@@ -196,11 +209,29 @@ LineFacts lineFactsFromJson(
     fileLinks: _placesOfJson(json['file_links']!),
     selfLinks: _placesOfJson(json['self_links']!),
     linkTexts: _linkTextsOfJson(json['link_texts']!),
+    addressLinkTexts: _linkTextsOfJson(json['address_link_texts']!),
     nameMentions: _mentionsOfJson(json['name_mentions']!),
     numberLabels: [
       for (final label
           in (json['number_labels']! as List<Object?>).cast<List<Object?>>())
         LabelPlace(line: label[0]! as int, written: label[1]! as String),
+    ],
+    prefixedLabels: [
+      for (final chain
+          in (json['prefixed_labels']! as List<Object?>).cast<List<Object?>>())
+        PrefixedLabelPlace(
+          line: chain[0]! as int,
+          parts: [
+            for (final part
+                in (chain[1]! as List<Object?>).cast<List<Object?>>())
+              LabelPart(
+                prefix: part[0]! as String,
+                written: part[1]! as String,
+                ownerWritten: part[2] as String?,
+                ownerStart: part[3] as int?,
+              ),
+          ],
+        ),
     ],
     tbrMarkers: [
       for (final marker

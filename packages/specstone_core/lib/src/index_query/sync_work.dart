@@ -290,6 +290,7 @@ Iterable<CodeLink> _linksOf(
     projectRoot: context.projectRoot,
     codeRootOf: context.codeRootOf,
     linesOf: () => context.linesOf(doc),
+    exactPaths: context.exactPaths,
   );
 }
 

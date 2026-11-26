@@ -328,6 +328,48 @@ void main() {
     ]);
   });
 
+  test(
+    'an implements path that matches only by letter case is unresolved',
+    () async {
+      final root = await _project(
+        _record(code: ['$_fr:TOOL/build.dart']),
+        extra: {'Tool/build.dart': 'void build() {}\n'},
+      );
+
+      expect(_spots(await _run(root)), [
+        '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
+      ]);
+    },
+  );
+
+  test('an implements path that matches only by letter case takes no code '
+      'fingerprint', () async {
+    final root = await _project(
+      _record(code: ['$_fr:TOOL/build.dart']),
+      extra: {'Tool/build.dart': 'void build() {}\n'},
+    );
+
+    final report = await _run(root);
+
+    expect(
+      report.findings.where((f) => f.kind == FindingKind.codeUnconfirmed),
+      isEmpty,
+    );
+  });
+
+  test(
+    'a folder that can be searched but not listed still resolves its files',
+    () async {
+      final root = await _project(_record(code: ['$_fr:$login']));
+      final folder = '${root.path}/app/lib';
+      Process.runSync('chmod', ['311', folder]);
+      addTearDown(() => Process.runSync('chmod', ['755', folder]));
+
+      expect(_spots(await _run(root)), isEmpty);
+    },
+    skip: unreadablePathSkipReason(),
+  );
+
   test('a pointer with no Symbol reads no file', () async {
     final session = openSession(await _project(_record(code: ['$_fr:$login'])));
     addTearDown(session.close);
