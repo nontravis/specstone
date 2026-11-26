@@ -1,6 +1,12 @@
 name: software-tech
-version: 1.26.0
+version: 1.27.0
 extends: prd-core
+migrations:
+  - from: 1.26.0
+    steps:
+      - mark_retrim:
+          doc_types: [api, architecture, decision, integration, project_api, project_architecture, project_security, security, tech_stack]
+          sections: [source_of_truth, fr_trace, operations, errors, compatibility, technical_diagram, components, data, deployment, rollout, observability, risks, open_questions, context, drivers, options, outcome, consequences, confirmation, external_systems, contract_per_system, translation, events, surfaces, conventions, error_model, crosscutting_concepts, system_model, threats, out_of_scope, enforcement, audit, stack, constraints, naming, avoid]
 shared_lines:
   - id: cite_spec_docs
     text: Link to the item of a project or ancestor-feature spec doc's rule; never restate it.
