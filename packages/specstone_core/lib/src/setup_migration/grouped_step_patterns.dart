@@ -1,26 +1,33 @@
 import 'package:specstone_core/src/setup_migration/models/pack_step.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
-import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/feature_group_paths.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
+/// The `path:` and `parent:` a kept project layer file writes, each null when
+/// the file writes none or a value that is no string.
+final class KeptLayerKeys {
+  const new({this.path, this.parent});
+
+  final String? path;
+  final String? parent;
+}
+
 /// The doc types a run's steps read their group levels from.
 ///
 /// A type of the merged set at the new pins reads from that set. A type it
 /// lacks, such as one a `merge_doc` step folds, reads from its frozen copy
-/// with its project layer merged over it, grouped as the merge at the
-/// project's current pins groups it.
+/// with its project layer's `path:` and `parent:` over it, grouped as the
+/// merge at the project's current pins groups it.
 final class StepDocTypes {
-  /// [layers] holds project layers; each one of a frozen type [_set] lacks
-  /// merges over that type.
+  /// [keptLayerOf] returns the keys the project layer file of a doc type id
+  /// writes, or null when no such file parses.
   new(
     this._set, {
     required Map<String, MergedDocType> frozen,
-    required List<DocTypeLayer> layers,
-  }) : _beforeRun = _groupedBeforeRun(_set, frozen, layers);
+    required KeptLayerKeys? Function(String id) keptLayerOf,
+  }) : _beforeRun = _groupedBeforeRun(_set, frozen, keptLayerOf);
 
   final MergedSet _set;
 
@@ -34,15 +41,13 @@ final class StepDocTypes {
 Map<String, MergedDocType> _groupedBeforeRun(
   MergedSet set,
   Map<String, MergedDocType> frozen,
-  List<DocTypeLayer> layers,
+  KeptLayerKeys? Function(String id) keptLayerOf,
 ) {
-  final layerOf = {for (final layer in layers) layer.docTypeId: layer};
-  const merger = DocTypeMerger();
   final absent = [
     for (final MapEntry(key: id, value: type) in frozen.entries)
       if (set.lookup(id) == null)
-        switch (layerOf[id]) {
-          final layer? => merger.apply(type, layer),
+        switch (keptLayerOf(id)) {
+          final keys? => type.copyWith(path: keys.path, parent: keys.parent),
           null => type,
         },
   ];

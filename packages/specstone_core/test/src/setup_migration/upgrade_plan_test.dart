@@ -6659,6 +6659,30 @@ void _groupedStepPatternTests() {
       expect(plan.trashedDocs, ['docs/specs/ui/f01_button/PLAYBOOK.md']);
     });
 
+    test('a kept from layer with a stale entry still lays its path over the '
+        'frozen copy', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: {
+            ..._apiMergeLayerFiles,
+            '.specstone/packs/acme/frozen/playbook.yaml': _frozenChildPlaybook,
+          },
+          projectFiles: const {
+            '.specstone/templates/playbook.yaml':
+                'path: specs/f{nn}_{slug}/old/PLAYBOOK.md\n'
+                'sections:\n  - {id: gone}\n',
+          },
+          docs: const {
+            'specs/ui/f01_button/old/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/old/PLAYBOOK.md']);
+    });
+
     test('a move_file step on a type a later merge_doc folds moves its '
         'grouped docs', () async {
       final plan = _planGroupedStep(

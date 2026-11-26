@@ -242,14 +242,7 @@ RunPlan _upgradeRunOf(
   final stepTypes = StepDocTypes(
     finalSet,
     frozen: frozen,
-    // The layers `overrides` skipped: those of the types the new pins fold
-    // or drop.
-    layers: frozen.isEmpty
-        ? const []
-        : loadProjectTemplates(
-            root,
-            skippedIds: {for (final layer in overrides) layer.docTypeId},
-          ),
+    keptLayerOf: (id) => _keptLayerOf(root, id),
   );
   refuseUnequalStepPlaceholders(steps, stepTypes);
 
@@ -1180,7 +1173,7 @@ _Folds _foldsOf(
         // The from docs sit where the project's current pins put them; a pack
         // that ships no frozen copy leaves the `to` type's group levels.
         fromPattern: groupedStepPattern(
-          _layerPathOf(root, step.fromId) ?? step.fromPath,
+          _keptLayerOf(root, step.fromId)?.path ?? step.fromPath,
           stepTypes.lookup(step.fromId) ?? toType,
         ),
       ))
@@ -1306,21 +1299,29 @@ RelinkTargets _relinkTargetsOf(List<_DocWork> works) => RelinkTargets({
         ),
 });
 
-/// Returns the `path:` of the project layer file of doc type [id], or null
-/// when the file is absent, holds no string `path:`, or is not valid YAML.
+/// Returns the `path:` and `parent:` of the project layer file of doc type
+/// [id], or null when the file is absent, not valid YAML, or no map.
 ///
 /// A folded type's layer file halts no command, so a fault in it is no fault
 /// of the plan.
-String? _layerPathOf(Directory root, String id) {
+KeptLayerKeys? _keptLayerOf(Directory root, String id) {
   final file = File.fromUri(
     root.uri.resolve('$projectTemplatesFolder/$id.yaml'),
   );
   if (!file.existsSync()) return null;
   try {
     final layer = loadYaml(utf8.decode(readPlanInput(file)));
-    return layer is YamlMap && layer['path'] is String
-        ? layer['path'] as String
-        : null;
+    if (layer is! YamlMap) return null;
+    return KeptLayerKeys(
+      path: switch (layer['path']) {
+        final String path => path,
+        _ => null,
+      },
+      parent: switch (layer['parent']) {
+        final String parent => parent,
+        _ => null,
+      },
+    );
   } on YamlException {
     return null;
   } on FormatException {
