@@ -22,7 +22,9 @@ final class MergedSet {
     Set<String> orphanedDocTypes = const {},
     List<LeftoverHome> leftoverHomes = const [],
   }) : docTypes = List.unmodifiable(
-         withNestedPaths(withFeatureGroupPaths(_sortedCopy(docTypes))),
+         withNestedPaths(
+           withGroupLevels(withFeatureGroupPaths(_sortedCopy(docTypes))),
+         ),
        ),
        featurePatterns = List.unmodifiable(
          List<FeaturePattern>.of(featurePatterns)

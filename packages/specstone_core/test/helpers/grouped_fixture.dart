@@ -16,6 +16,17 @@ const kitchenAddDish =
 /// The DocPath of the architecture doc of `kitchen/recipes`.
 const kitchenRecipesArchitecture = 'specs/kitchen/f01_recipes/ARCHITECTURE.md';
 
+/// The DocPath of the story `kitchen/recipes/add_dish`'s requirement `plate`.
+const kitchenAddDishPlate =
+    'prds/features/kitchen/f01_recipes/us01_add_dish/fr01_plate.md';
+
+/// The DocPath of the API doc of `kitchen/recipes`.
+const kitchenRecipesApi = 'specs/kitchen/f01_recipes/API.md';
+
+/// The DocPath of the implementation record of `kitchen/recipes`.
+const kitchenRecipesImplementation =
+    '.specstone/records/kitchen/f01_recipes/IMPLEMENTATION.md';
+
 /// The doc types the stratum-ui project puts under a group folder: the PRD
 /// ones on `prds/features/{slug}/f{nn}_{slug}/…`, the spec ones on
 /// `specs/{slug}/f{nn}_{slug}/<FILE>.md`.
@@ -49,3 +60,24 @@ Map<String, String> groupedFiles() => {
 /// A key in [extra] replaces or adds a file.
 Future<Directory> writeGroupedProject({Map<String, String> extra = const {}}) =>
     writeTree({...groupedFiles(), ...extra});
+
+/// Returns the docs of the feature-only grouped project, keyed by path from
+/// the project root: only `feature` holds the group level, and every doc type
+/// under it follows with no override of its own.
+Map<String, String> featureGroupedFiles() => {
+  '.specstone/config.yaml': shippedPinsConfig(),
+  '.specstone/templates/feature.yaml': 'path: ${_groupedPaths['feature']}\n',
+  'docs/$kitchenRecipes': '# Recipes\n',
+  'docs/$kitchenMenus': '# Menus\n',
+  'docs/$kitchenAddDish': '# Add a dish\n',
+  'docs/$kitchenAddDishPlate': '# Plate\n',
+  'docs/$kitchenRecipesApi': '# Recipes API\n',
+  kitchenRecipesImplementation: '# Recipes implementation\n',
+};
+
+/// Writes the feature-only grouped project under a new temp folder.
+///
+/// A key in [extra] replaces or adds a file.
+Future<Directory> writeFeatureGroupedProject({
+  Map<String, String> extra = const {},
+}) => writeTree({...featureGroupedFiles(), ...extra});

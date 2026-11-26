@@ -105,7 +105,9 @@ MergedDocType _nestedCopy(
   Map<String, MergedDocType> byId,
 ) {
   final path = docType.path;
-  if (path == null || !_reaches(docType, nesting.id, byId)) return docType;
+  if (path == null || !parentChainReaches(docType, nesting.id, byId)) {
+    return docType;
+  }
   final segment = nestingSegmentOf(path, nesting);
   if (segment == null) return docType;
   return docType.copyWith(
@@ -114,7 +116,7 @@ MergedDocType _nestedCopy(
 }
 
 /// Whether [start] or one of its `parent` ancestors has the id [targetId].
-bool _reaches(
+bool parentChainReaches(
   MergedDocType start,
   String targetId,
   Map<String, MergedDocType> byId,

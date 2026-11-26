@@ -4,6 +4,8 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/grouped_fixture.dart';
+import '../../helpers/write_fixture.dart' show openProject;
 
 const _zeta = '''
 id: zeta
@@ -191,6 +193,37 @@ void main() {
       );
       final bare = noTargets.match('specs/f01_login/ARCHITECTURE.md');
       expect((bare as MatchedDocType).docType.id, 'architecture');
+    });
+
+    test('grouped per-target types match '
+        'with the target before the group folder', () async {
+      final matcher = DocTypeMatcher(
+        openProject(await writeFeatureGroupedProject()).set,
+        targetNames: const ['flutter_stratum_ui', 'jaspr'],
+      );
+
+      for (final (docPath, id, target) in [
+        (
+          '.specstone/records/flutter_stratum_ui/kitchen/f01_recipes/IMPLEMENTATION.md',
+          'implementation',
+          'flutter_stratum_ui',
+        ),
+        (
+          'specs/flutter_stratum_ui/kitchen/f01_recipes/API.md',
+          'api',
+          'flutter_stratum_ui',
+        ),
+        (
+          'specs/jaspr/kitchen/f01_recipes/ARCHITECTURE.md',
+          'architecture',
+          'jaspr',
+        ),
+      ]) {
+        final match = matcher.match(docPath);
+        expect(match, isA<MatchedDocType>(), reason: docPath);
+        expect((match as MatchedDocType).docType.id, id, reason: docPath);
+        expect(match.target, target, reason: docPath);
+      }
     });
   });
 

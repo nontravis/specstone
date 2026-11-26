@@ -1275,6 +1275,61 @@ items:
       return jsonDecode(out.toString()) as Map<String, Object?>;
     }
 
+    test('guide api --json in a grouped project '
+        'prints the group level before the feature folder', () async {
+      final runner = await runnerFor(
+        working: await writeTree({
+          _configPath: shippedPinsConfig(),
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+        }),
+      );
+
+      expect(
+        (await schemaOf(runner, 'api'))['path'],
+        'specs/{slug}/f{nn}_{slug}/API.md',
+      );
+    });
+
+    test('guide api --json prints a grouped override path unchanged', () async {
+      final runner = await runnerFor(
+        working: await writeTree({
+          _configPath: shippedPinsConfig(),
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          '.specstone/templates/api.yaml':
+              'path: specs/{slug}/f{nn}_{slug}/API.md\n',
+        }),
+      );
+
+      expect(
+        (await schemaOf(runner, 'api'))['path'],
+        'specs/{slug}/f{nn}_{slug}/API.md',
+      );
+    });
+
+    test('guide refuses an api override with two group folders under a '
+        'one-level feature path', () async {
+      final runner = await runnerFor(
+        working: await writeTree({
+          _configPath: shippedPinsConfig(),
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          '.specstone/templates/api.yaml':
+              'path: specs/{slug}/{slug}/f{nn}_{slug}/API.md\n',
+        }),
+      );
+
+      expect(await runner.run(['guide']), 78);
+      expect(
+        err.toString(),
+        contains(
+          '.specstone/templates/api.yaml: path: path holds 2 group levels '
+          'before f{nn}_{slug}; the feature path holds 1',
+        ),
+      );
+    });
+
     test('lists each doc type with the pack that owns it', () async {
       final runner = await runnerFor();
 

@@ -754,6 +754,24 @@ void main() {
     );
   });
 
+  for (final (docTypeId, path) in [
+    (
+      'implementation',
+      '.specstone/records/kitchen/f02_menus/IMPLEMENTATION.md',
+    ),
+    ('api', 'docs/specs/kitchen/f02_menus/API.md'),
+  ]) {
+    test('a $docTypeId doc of a feature-only grouped project is written '
+        'under the group folder', () async {
+      final root = await writeFeatureGroupedProject();
+      writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: docTypeId, parent: 'kitchen/menus'),
+      );
+      expect(File('${root.path}/$path').existsSync(), isTrue);
+    });
+  }
+
   group('sub-feature: nested docs', () {
     String pathOf(Directory root, String type, String parent, String slug) =>
         docOf(

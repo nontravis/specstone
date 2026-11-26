@@ -88,7 +88,9 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// with an enabled matrix section. Runs after every merge:
 /// two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
-/// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
+/// (`unknown_value`) and its links form no cycle (`parent_cycle`), a child of
+/// `feature` holds no group level count above 0 other than the `feature`
+/// path's (`unknown_value`), every
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
 /// (`unknown_value`), every field `lint` sits on a string field with no
 /// `list: true` (`unknown_key`), every `lint.required_field_groups` entry
@@ -114,6 +116,7 @@ void checkMergedSet(
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
   _checkNesting(sorted, layerLists, loadIndex);
   _checkPathFrom(sorted, layerLists);
+  _checkGroupLevels(sorted, byId, layerLists);
   _checkPaths(sorted, layerLists, loadIndex);
   _checkGroupCatalogHolders(sorted, layerLists, loadIndex);
   _checkRecordPaths(sorted, layerLists);
@@ -203,6 +206,40 @@ bool _lastFolderHoldsSlug(String? path) {
       segments[segments.length - 2].contains('{slug}');
 }
 
+/// Throws `unknown_value` at `path` for a child of `feature` whose group level
+/// count is above 0 and differs from the `feature` path's.
+///
+/// A child is a doc type whose `parent` chain reaches `feature`. With no group
+/// level in the `feature` path, nothing is refused. `file` holds the top-most
+/// layer that wrote the child's `path`.
+void _checkGroupLevels(
+  List<MergedDocType> docTypes,
+  Map<String, MergedDocType> byId,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  final featurePath = byId[featureTypeId]?.path;
+  if (featurePath == null) return;
+  final expected = featureGroupLevelCount(featurePath);
+  if (expected == 0) return;
+  for (final docType in docTypes) {
+    final path = docType.path;
+    if (path == null ||
+        docType.id == featureTypeId ||
+        !parentChainReaches(docType, featureTypeId, byId)) {
+      continue;
+    }
+    final found = childGroupLevelCount(path) ?? 0;
+    if (found == 0 || found == expected) continue;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'path holds $found group levels before f{nn}_{slug}; '
+      'the feature path holds $expected',
+      file: _writerOf(docType.id, _wrotePath, layerLists),
+      key: 'path',
+    );
+  }
+}
+
 /// Throws `doc_type_path_conflict` for a path pattern two doc types share.
 ///
 /// A `path_from` type's derived patterns count as patterns, so two `path_from`
@@ -211,13 +248,18 @@ bool _lastFolderHoldsSlug(String? path) {
 /// holders' writers, ascending. The message names the holders in that same
 /// load order; `key` is `file` when the last writer holds a derived pattern,
 /// else `path`.
+///
+/// Scans the chain `MergedSet` builds, in its order, so a grouped child pattern
+/// counts; the set does not exist yet when this throws.
 void _checkPaths(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
 ) {
   final byPath = <String, List<MergedDocType>>{};
-  for (final docType in withNestedPaths(withFeatureGroupPaths(docTypes))) {
+  for (final docType in withNestedPaths(
+    withGroupLevels(withFeatureGroupPaths(docTypes)),
+  )) {
     for (final path in docType.paths) {
       byPath.putIfAbsent(path, () => []).add(docType);
     }
