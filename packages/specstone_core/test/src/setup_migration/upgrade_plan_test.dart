@@ -3605,7 +3605,7 @@ PackVersion _version(String text) =>
 
 void _floorPinsTests() {
   test('a project pinned at every shipped floor upgrades to the carried '
-      'versions with no step', () async {
+      'versions with only the software-tech mark_retrim step', () async {
     String pins(Map<String, Object> versions) => [
       'packs:\n',
       for (final pack in PackFloors.shipped.byPack.keys)
@@ -3621,7 +3621,9 @@ void _floorPinsTests() {
       homeDirectory: null,
     );
 
-    expect(plan.lists.steps, isEmpty);
+    expect(plan.lists.toJson()['steps'], [
+      {'from': '1.26.0', 'step': 'mark_retrim', 'paths': <String>[]},
+    ]);
     expect(plan.moves, isEmpty);
     expect(_configWrittenBy(plan), pins(shippedPackVersions()));
   });

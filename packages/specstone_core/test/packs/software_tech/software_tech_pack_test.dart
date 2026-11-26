@@ -4,9 +4,11 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -200,7 +202,7 @@ const _builtIns = [
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.26.0 and extends prd-core', () {
+    test('software-tech ships at 1.27.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -208,14 +210,60 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.26.0');
+      expect(manifest.version.toString(), '1.27.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
-    test('software-tech ships no migration entry and no migrations key', () {
-      expect(_softwareTechManifest().migrations, isEmpty);
-      final text = utf8.decode(shippedPackFiles['software-tech/pack.yaml']!);
-      expect(text, isNot(contains('migrations:')));
+    test('software-tech ships one mark_retrim entry from 1.26.0 on every section of the spec-scope doc types', () async {
+      final migrations = _softwareTechManifest().migrations;
+      expect(migrations.map((m) => m.from.toString()), ['1.26.0']);
+      final mark = migrations.single.steps.single as MarkRetrim;
+      final types = [
+        'api',
+        'architecture',
+        'decision',
+        'integration',
+        'project_api',
+        'project_architecture',
+        'project_security',
+        'security',
+        'tech_stack',
+      ];
+      expect(mark.docTypes, types);
+      final set = await resolveSoftwareTech();
+      expect(mark.sections.toSet(), {
+        for (final type in types)
+          for (final section in prdCoreDocType(set, type).sections) section.id,
+      });
+
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n'
+            '  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.26.0\n',
+        'docs/specs/API.md':
+            '# Project API\n\n## Surfaces\n\n'
+            '- **API-S1** The CLI is the one surface.\n',
+      });
+      final plan = planUpgradeRun(
+        project,
+        templates: TemplateResolver(),
+        homeDirectory: await writeTree({}),
+      );
+
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.26.0',
+          'step': 'mark_retrim',
+          'paths': ['specs/API.md'],
+        },
+      ]);
+      expect(
+        plan.rewrites
+            .singleWhere((rewrite) => rewrite.path == 'docs/specs/API.md')
+            .text,
+        startsWith('---\nretrim:\n  - surfaces\n---\n'),
+      );
     });
 
     test(
