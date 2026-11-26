@@ -25,10 +25,23 @@ Before your first write, run the reader step of `../../specstone-brainstorming-s
 - Write the drafts before procedure step 3. Judge the link's line `match` against them; `specstone set --sync` lists it
   under `Waiting:` until their approval.
 
+## Decided-only run
+
+A brief with `decided` and no group file; it runs in place of `procedure.md`.
+
+- Draft each `decided` id's decision from its decided line alone; no judged link, work list, or Owner pick.
+- Run the reader step of `## 2. Find the readers` once for each id, before your first write.
+- Ground each doc a decided line or a reader reaches: one `specstone context <doc> … --for design --out` per
+  `specstone-read-sdd`, before your first write, so each write has its `--base` hash.
+- Write the drafts by the first two bullets of `## 3. Draft`, from the decided line alone; read code only where a doc's own link names it.
+- Write no pointer, record line, or fingerprint, and run no `context --for sync`.
+- Report one `Decision:` or `Not landed:` line per id by `## Report`; a `Not landed:` line names the fact the decided
+  line lacks.
+
 ## Report
 
 Add these lines, each in the form `../../specstone-brainstorming-sdd/references/author-report.md` gives:
 
 - One `Decision: D<n> -> <type>:<name>#<key>, …` line per decided line you draft, naming each section that took it.
-- One `Not landed: D<n>: <why no draft took it>` line per decided line your group's work holds that no draft took.
+- One `Not landed: D<n>: <why no draft took it>` line per decided line your group's work holds, and per `decided` id, that no draft took.
 - The `Readers:` lines of section 2.

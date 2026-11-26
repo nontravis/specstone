@@ -48,17 +48,21 @@ your drafts approved, and every audit goes to `specstone-sdd-auditor`, a fresh r
   was tried before its first write.
 - **`check`** (bootstrap, optional): main's latest check file, never a `--repeats` one, passed with no doc write
   since; take `batch`'s lines from it and run no gate; absent, run your gate (Workflow step 1).
-- **`group file`** (sync, required): `group file: <path>`, the file the sync's first call printed for your group,
-  under the reports folder; it is your work list and your gate, so run no gate `check`.
-- **`feature`** (sync; this or `scope` required): the feature name the Owner gave, never sent with `scope`; your group
+- **`group file`** (sync, required bar a decided-only run, which takes `decided` in its place): `group file: <path>`,
+  the file the sync's first call printed for your group, under the reports folder; it is your work list and your gate,
+  so run no gate `check`.
+- **`feature`** (sync; this or `scope` required, bar a decided-only run): the feature name the Owner gave, never sent with `scope`; your group
   file holds every code link of the feature.
-- **`scope`** (sync; this or `feature` required): one group of a sync with no feature named, `feature:<name>` or
+- **`scope`** (sync; this or `feature` required, bar a decided-only run): one group of a sync with no feature named, `feature:<name>` or
   `<type>:<name>`; you write only that scope's docs, so other groups' engineers run beside you.
 - **`picks`** (sync, optional): each Owner pick on a `Mismatches:` point. A fix-the-spec pick's fix lands in a spec
   doc. A change-the-PRD pick is a handed behavior: you write no doc for it and list it under your handed behaviors,
   for `specstone-brainstorming-sdd`.
-- **`change note`** (sync, optional): at a plan's last sync and its reruns, the path of the change note whose
-  `(decided)` decisions are the decided lines your drafts take, each drafted with no Owner pick.
+- **`change note`** (sync, optional; required with `decided`): at a plan's last sync and its reruns, the path of the change
+  note whose `(decided)` decisions are the decided lines your drafts take, each drafted with no Owner pick.
+- **`decided`** (sync, a decided-only run, required there): `decided: <D<n>, …>`, the ids of the `(decided)`
+  decisions of your `change note` that no engineer report named. It comes with `change note`, required there, and with
+  no `scope`, `feature`, or `group file`; `decided` with a `group file` is a brief error, so write `OPEN QUESTIONS:`; you draft each id from its decided line alone.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, each leftover to the home its finding's `fix`
   names, and
   `item_over_limit` when the Owner named it for the run and a `batch` path holds one, and each line a trim round
@@ -134,7 +138,7 @@ new sentence counts and one sentence on why it changed, never their text, then e
   `.agents/skills/specstone-brainstorming-sdd/references/author-report.md`.
 - **Sync with a change note**: also one `Decision:` line per decided line you draft, a `Not landed:` line per
   decided line your group's work holds that no draft took, in the forms of that file, and each decided draft's
-  `Readers:` lines.
+  `Readers:` lines. A decided-only run gives one `Decision:` or `Not landed:` line per `decided` id, and no pointers.
 - **Fix round**, in author or bootstrap mode: the `## Round <n>` part names each section you changed, one
   `Changed: <type>:<name>#<key>` line each. It holds a `Check:` line naming the saved file of a bare `check` run after
   your last write, and the drafts from one `specstone approve --dry-run --json` after that write. The `Findings:` line

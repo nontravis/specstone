@@ -517,6 +517,54 @@ void _syncRouteTests() {
     expect(_pluginText(_syncSkill), isNot(contains('`last`')));
   });
 
+  test('an empty work list goes on only for a decided decision no report '
+      'names', () {
+    final skill = _pluginText(_syncSkill);
+    final first = _sectionOf(skill, _syncFirstStep);
+    expect(
+      _hasSentenceWith(first, [
+        'no code changed',
+        'stop',
+        'no dispatch',
+        'unless',
+      ]),
+      isTrue,
+    );
+    expect(_hasSentenceWith(first, ['(decided)', 'specstone folder']), isTrue);
+    final noSubagent = skill
+        .split('\n')
+        .singleWhere((line) => line.startsWith('- No subagent:'));
+    expect(
+      noSubagent,
+      allOf(
+        contains('Decided-only run'),
+        contains('`change note`'),
+        contains("main's own"),
+      ),
+    );
+  });
+
+  test('after the last group report one engineer takes each decided decision '
+      'no report names', () {
+    final after = _sectionOf(_pluginText(_syncSkill), '## 3. After the report');
+    expect(
+      _hasSentenceWith(after, ['rerun', '`report:` file', '`Decision: D`']),
+      isTrue,
+    );
+    expect(after, isNot(contains('*.sync.*.md')));
+    expect(_hasSentenceWith(after, ['`decided:`', '`change note:`']), isTrue);
+    expect(
+      _hasSentenceWith(after, ['`specstone-sdd-auditor`', 'decided-only']),
+      isTrue,
+    );
+    expect(
+      _sentencesOf(after)
+          .where((sentence) => sentence.contains('`decided:`'))
+          .any((sentence) => sentence.contains('`scope: feature:<name>`')),
+      isFalse,
+    );
+  });
+
   test('no later sync step runs a second context --for sync call', () {
     final files = [
       _syncSkill,
@@ -711,6 +759,49 @@ void _syncEngineerTests() {
       );
     },
   );
+
+  test('the sync engineer takes decided ids in place of a group file', () {
+    final bullets = _sectionOf(
+      _pluginText(_engineer),
+      '## Input Contract',
+    ).split(RegExp(r'(?= - \*\*`)'));
+    final decided = bullets.singleWhere(
+      (bullet) => bullet.contains('**`decided`**'),
+    );
+    final groupFile = bullets.singleWhere(
+      (bullet) => bullet.contains('**`group file`**'),
+    );
+    expect(decided, allOf(contains('`change note`'), contains('`group file`')));
+    expect(groupFile, contains('`decided`'));
+  });
+
+  test('a decided-only sync engineer drafts and writes no pointer or '
+      'fingerprint', () {
+    final section = _sectionOf(
+      _pluginText(_syncDecided),
+      '## Decided-only run',
+    );
+    expect(section, isNotEmpty);
+    expect(section, allOf(contains('Decision:'), contains('Not landed:')));
+    expect(section, isNot(contains('set --sync')));
+    expect(_hasSentenceWith(section, ['pointer', 'fingerprint']), isTrue);
+    expect(
+      _hasSentenceWith(section, ['`specstone context', '--for design']),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(_pluginText(_syncEntry), [
+        'decided-only run has no group file',
+        'no gate',
+        'no `Check:` line',
+      ]),
+      isTrue,
+    );
+    expect(
+      _pluginText(_syncEntry),
+      allOf(contains('`decided`'), contains('## Decided-only run')),
+    );
+  });
 }
 
 // MARK: - token budget
