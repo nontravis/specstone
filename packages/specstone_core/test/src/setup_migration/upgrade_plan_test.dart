@@ -164,6 +164,7 @@ void main() {
   _dropDocTypeTests();
   _relinkTests();
   _regenerateTests();
+  _groupedStepPatternTests();
 
   test('the --dry-run --json plans of an add over twin targets and of a '
       'merge_doc step hold only the keys api:setup_migration/upgrade_packs '
@@ -6162,3 +6163,600 @@ migrations:
     });
   });
 }
+
+const _groupedApiLayer = 'path: specs/f{nn}_{slug}/api/API.md\n';
+const _groupedFeaturePath =
+    'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n';
+const _groupedStepYaml = '''
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: api, from: "specs/f{nn}_{slug}/API.md", to: "specs/f{nn}_{slug}/api/API.md"}
+''';
+const Map<String, String> _apiPackFiles = {
+  '.specstone/packs/acme/api.yaml': _groupedApiLayer,
+};
+
+const _groupedMergeYaml = '''
+  - from: 1.0.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "specs/f{nn}_{slug}/PLAYBOOK.md"}
+          to: api
+          sections:
+            - from: {id: moves, header: Moves}
+              to: playbook_moves
+''';
+const Map<String, String> _apiMergeLayerFiles = {
+  '.specstone/packs/acme/api.yaml':
+      'sections:\n  - {id: playbook_moves, header: Playbook moves}\n',
+};
+const _groupedFromDoc = '# Button playbook\n\n## Moves\n\nRun it.\n';
+const _groupedToDoc = '# Button\n';
+
+/// A project folder and the personal pack home it pins `acme` in.
+final class _GroupedStepFixture {
+  const new(this.project, this.home);
+
+  final Directory project;
+  final Directory home;
+}
+
+/// A home holding the pack `acme` at 1.2.0 with [migrations], and a project
+/// pinned to `acme` at 1.0.0 with [docs]; the `feature` path holds one group
+/// folder when [grouped].
+Future<_GroupedStepFixture> _groupedStepFixture({
+  required String migrations,
+  Map<String, String> packFiles = const {},
+  Map<String, String> docs = const {},
+  Map<String, String> projectFiles = const {},
+  String? config,
+  bool grouped = true,
+}) async {
+  final home = await writeTree({
+    '.specstone/packs/acme/pack.yaml':
+        'name: acme\nversion: 1.2.0\nextends: software-tech\n'
+        'migrations:\n$migrations',
+    ...packFiles,
+  });
+  final project = await writeTree({
+    '.specstone/config.yaml': config ?? '${shippedPinsConfig()}  acme: 1.0.0\n',
+    if (grouped) '.specstone/templates/feature.yaml': _groupedFeaturePath,
+    ...projectFiles,
+    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+  });
+  return _GroupedStepFixture(project, home);
+}
+
+RunPlan _planGroupedStep(_GroupedStepFixture fixture) => planUpgradeRun(
+  fixture.project,
+  templates: TemplateResolver(),
+  homeDirectory: fixture.home,
+  generators: shippedGenerators(),
+);
+
+void _groupedStepPatternTests() {
+  group('step patterns in a grouped project', () {
+    test('a move_file step on a child type moves the grouped docs of a '
+        'project with no child override', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          docs: const {'specs/ui/f01_button/API.md': '# Button\n'},
+        ),
+      );
+
+      expect(plan.moves, [
+        const PathMove(
+          from: 'specs/ui/f01_button/API.md',
+          to: 'specs/ui/f01_button/api/API.md',
+        ),
+      ]);
+    });
+
+    test('a move_file step moves a grouped sub-feature doc at its own '
+        'depth', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          docs: const {
+            'specs/ui/f01_button/API.md': '# Button\n',
+            'specs/ui/f01_button/f01_icon/API.md': '# Icon\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.moves,
+        unorderedEquals(const [
+          PathMove(
+            from: 'specs/ui/f01_button/API.md',
+            to: 'specs/ui/f01_button/api/API.md',
+          ),
+          PathMove(
+            from: 'specs/ui/f01_button/f01_icon/API.md',
+            to: 'specs/ui/f01_button/f01_icon/api/API.md',
+          ),
+        ]),
+      );
+    });
+
+    test('a move_file step moves each target folder of a grouped '
+        'project', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          config:
+              '${shippedPinsConfig()}  acme: 1.0.0\ntargets:\n  flutter:\n'
+              '    code_root: flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n',
+          docs: const {
+            'specs/flutter/ui/f01_button/API.md': '# Button\n',
+            'specs/jaspr/ui/f01_button/API.md': '# Button\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.moves,
+        unorderedEquals(const [
+          PathMove(
+            from: 'specs/flutter/ui/f01_button/API.md',
+            to: 'specs/flutter/ui/f01_button/api/API.md',
+          ),
+          PathMove(
+            from: 'specs/jaspr/ui/f01_button/API.md',
+            to: 'specs/jaspr/ui/f01_button/api/API.md',
+          ),
+        ]),
+      );
+    });
+
+    test('a two-level feature path puts two group folders into each step '
+        'pattern once', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          projectFiles: const {
+            '.specstone/templates/feature.yaml':
+                'path: prds/features/{slug}/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          },
+          docs: const {'specs/ui/kit/f01_button/API.md': '# Button\n'},
+        ),
+      );
+
+      expect(plan.moves, [
+        const PathMove(
+          from: 'specs/ui/kit/f01_button/API.md',
+          to: 'specs/ui/kit/f01_button/api/API.md',
+        ),
+      ]);
+    });
+
+    test('a child override that holds the group levels keeps its docs where '
+        'the override puts them', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          projectFiles: const {
+            '.specstone/templates/api.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/API.md\n',
+          },
+          docs: const {'specs/ui/f01_button/API.md': '# Button\n'},
+        ),
+      );
+
+      expect(plan.moves, isEmpty);
+      expect(plan.toText(), contains(': 0 docs'));
+    });
+
+    test('a step pattern with no feature folder or with group folders '
+        'already is read as written', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: '''
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: api, from: "specs/apis/{slug}/API.md", to: "specs/apis/{slug}/v2/API.md"}
+      - move_file: {doc_type: api, from: "specs/{slug}/f{nn}_{slug}/API.md", to: "specs/{slug}/f{nn}_{slug}/api/API.md"}
+''',
+          packFiles: _apiPackFiles,
+          docs: const {
+            'specs/apis/login/API.md': '# Login\n',
+            'specs/ui/f01_button/API.md': '# Button\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.moves,
+        unorderedEquals(const [
+          PathMove(
+            from: 'specs/apis/login/API.md',
+            to: 'specs/apis/login/v2/API.md',
+          ),
+          PathMove(
+            from: 'specs/ui/f01_button/API.md',
+            to: 'specs/ui/f01_button/api/API.md',
+          ),
+        ]),
+      );
+    });
+
+    test('an ungrouped project moves its docs by the step patterns as '
+        'written', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          grouped: false,
+          docs: const {'specs/f01_button/API.md': '# Button\n'},
+        ),
+      );
+
+      expect(plan.moves, [
+        const PathMove(
+          from: 'specs/f01_button/API.md',
+          to: 'specs/f01_button/api/API.md',
+        ),
+      ]);
+      expect(
+        plan.toText(),
+        'pack upgrade: acme 1.0.0 -> 1.2.0\n'
+        'commit 1, moves:\n'
+        '  specs/f01_button/API.md -> specs/f01_button/api/API.md\n'
+        'commit 2, rewrites:\n'
+        '  from 1.0.0: move_file api specs/f{nn}_{slug}/API.md -> '
+        'specs/f{nn}_{slug}/api/API.md: 1 docs\n'
+        '  .specstone/config.yaml: acme 1.2.0\n',
+      );
+    });
+
+    test('a merge_doc step folds the grouped from docs of a project with no '
+        'from layer', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          docs: const {
+            'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/PLAYBOOK.md']);
+      expect(
+        _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text,
+        contains('## Playbook moves\n\nRun it.\n'),
+      );
+    });
+
+    test('a merge_doc step folds a grouped sub-feature from doc at its own '
+        'depth', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          docs: const {
+            'specs/ui/f01_button/PLAYBOOK.md':
+                '# Button playbook\n\n## Moves\n\nButton moves.\n',
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+            'specs/ui/f01_button/f01_icon/PLAYBOOK.md':
+                '# Icon playbook\n\n## Moves\n\nIcon moves.\n',
+            'specs/ui/f01_button/f01_icon/API.md': '# Icon\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.trashedDocs,
+        unorderedEquals(const [
+          'docs/specs/ui/f01_button/PLAYBOOK.md',
+          'docs/specs/ui/f01_button/f01_icon/PLAYBOOK.md',
+        ]),
+      );
+      final button = _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text;
+      final icon = _rewriteAt(
+        plan,
+        'docs/specs/ui/f01_button/f01_icon/API.md',
+      ).text;
+      expect(button, contains('Button moves.'));
+      expect(button, isNot(contains('Icon moves.')));
+      expect(icon, contains('## Playbook moves\n\nIcon moves.\n'));
+      expect(icon, isNot(contains('Button moves.')));
+    });
+
+    test('a merge_doc step folds each target folder of a grouped '
+        'project', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          config:
+              '${shippedPinsConfig()}  acme: 1.0.0\ntargets:\n  flutter:\n'
+              '    code_root: flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n',
+          docs: const {
+            'specs/flutter/ui/f01_button/PLAYBOOK.md':
+                '# Button playbook\n\n## Moves\n\nFlutter moves.\n',
+            'specs/flutter/ui/f01_button/API.md': _groupedToDoc,
+            'specs/jaspr/ui/f01_button/PLAYBOOK.md':
+                '# Button playbook\n\n## Moves\n\nJaspr moves.\n',
+            'specs/jaspr/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(
+        plan.trashedDocs,
+        unorderedEquals(const [
+          'docs/specs/flutter/ui/f01_button/PLAYBOOK.md',
+          'docs/specs/jaspr/ui/f01_button/PLAYBOOK.md',
+        ]),
+      );
+      final flutter = _rewriteAt(
+        plan,
+        'docs/specs/flutter/ui/f01_button/API.md',
+      ).text;
+      final jaspr = _rewriteAt(
+        plan,
+        'docs/specs/jaspr/ui/f01_button/API.md',
+      ).text;
+      expect(flutter, contains('## Playbook moves\n\nFlutter moves.\n'));
+      expect(flutter, isNot(contains('Jaspr moves.')));
+      expect(jaspr, contains('## Playbook moves\n\nJaspr moves.\n'));
+      expect(jaspr, isNot(contains('Flutter moves.')));
+    });
+
+    test('an earlier step on the from type reads the grouped from docs the '
+        'fold reads', () async {
+      final fixture = await _groupedStepFixture(
+        migrations: '''
+  - from: 1.0.0
+    steps:
+      - bullet_lines: {doc_type: playbook, section: moves, prefixes: [A]}
+      - merge_doc:
+          from: {id: playbook, path: "specs/f{nn}_{slug}/PLAYBOOK.md"}
+          to: api
+          sections:
+            - from: {id: moves, header: Moves}
+              to: playbook_moves
+''',
+        packFiles: {
+          ..._apiMergeLayerFiles,
+          '.specstone/packs/acme/frozen/playbook.yaml':
+              'id: playbook\ndescription: A playbook.\n'
+              'path: specs/f{nn}_{slug}/PLAYBOOK.md\n'
+              'sections:\n  - {id: moves, header: Moves}\n',
+        },
+        docs: const {
+          'specs/ui/f01_button/PLAYBOOK.md':
+              '# Button playbook\n\n## Moves\n\nA step.\n',
+          'specs/ui/f01_button/API.md': _groupedToDoc,
+        },
+      );
+
+      final plan = _planGroupedStep(fixture);
+
+      expect(
+        _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text,
+        contains('- A step.'),
+      );
+    });
+
+    test('a from layer path in a grouped project is read as written', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          projectFiles: const {
+            '.specstone/templates/playbook.yaml':
+                'path: specs/{slug}/f{nn}_{slug}/old/PLAYBOOK.md\n',
+          },
+          docs: const {
+            'specs/ui/f01_button/old/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/old/PLAYBOOK.md']);
+    });
+
+    test('a from layer path without a group folder in a grouped project is '
+        'never grouped', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          projectFiles: const {
+            '.specstone/templates/playbook.yaml':
+                'path: specs/f{nn}_{slug}/old/PLAYBOOK.md\n',
+          },
+          docs: const {
+            'specs/f01_button/old/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/old/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      // The layer path takes two values and the grouped `to` path three, so
+      // the ungrouped doc pairs with nothing; grouping the layer path would
+      // fold the grouped doc.
+      expect(plan.trashedDocs, isEmpty);
+    });
+
+    test('a merge_doc from pattern that already holds a group folder is read '
+        'as written', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml.replaceFirst(
+            'specs/f{nn}_{slug}/PLAYBOOK.md',
+            'specs/{slug}/f{nn}_{slug}/PLAYBOOK.md',
+          ),
+          packFiles: _apiMergeLayerFiles,
+          docs: const {
+            'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/PLAYBOOK.md']);
+      expect(
+        _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text,
+        contains('## Playbook moves\n\nRun it.\n'),
+      );
+    });
+
+    test('an ungrouped project folds its from docs by the step pattern as '
+        'written', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          grouped: false,
+          docs: const {
+            'specs/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/f01_button/PLAYBOOK.md']);
+      expect(
+        plan.toText(),
+        'pack upgrade: acme 1.0.0 -> 1.2.0\n'
+        'commit 2, rewrites:\n'
+        '  from 1.0.0: merge_doc playbook -> api: 1 docs\n'
+        '  .specstone/config.yaml: acme 1.2.0\n',
+      );
+    });
+
+    group('a move_file whose grouped patterns hold unequal placeholder '
+        'counts refuses at its step key', () {
+      for (final UnequalStepCase(:name, :from, :to, :doc, :fromCount, :toCount)
+          in _unequalStepCases) {
+        test(name, () async {
+          final fixture = await _groupedStepFixture(
+            migrations: _unequalStepMigrations(from, to),
+            docs: {doc: '# Button\n'},
+          );
+
+          expect(
+            () => _planGroupedStep(fixture),
+            throwsA(
+              isA<TemplateFault>()
+                  .having((f) => f.code, 'code', FaultCode.unknownValue)
+                  .having(
+                    (f) => f.key,
+                    'key',
+                    'migrations[1].steps[1].move_file.to',
+                  )
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move_file of api holds $fromCount placeholders in from and '
+                        "$toCount in to once the feature path's group levels "
+                        'are read in',
+                  )
+                  .having(
+                    (f) => f.file,
+                    'file',
+                    '~/.specstone/packs/acme/pack.yaml',
+                  ),
+            ),
+          );
+        });
+      }
+    });
+
+    test('the same move_file plans in an ungrouped project and under a child '
+        'override that holds the group levels', () async {
+      final crossing = _unequalStepMigrations(
+        'specs/f{nn}_{slug}/API.md',
+        'specs/apis/a{nn}_{slug}/API.md',
+      );
+
+      final ungrouped = await _groupedStepFixture(
+        migrations: crossing,
+        grouped: false,
+        docs: const {'specs/f01_button/API.md': '# Button\n'},
+      );
+      final overridden = await _groupedStepFixture(
+        migrations: crossing,
+        projectFiles: const {
+          '.specstone/templates/api.yaml':
+              'path: specs/{slug}/f{nn}_{slug}/API.md\n',
+        },
+        docs: const {'specs/ui/f01_button/API.md': '# Button\n'},
+      );
+
+      expect(() => _planGroupedStep(ungrouped), returnsNormally);
+      expect(() => _planGroupedStep(overridden), returnsNormally);
+    });
+  });
+}
+
+final class UnequalStepCase {
+  const new({
+    required this.name,
+    required this.from,
+    required this.to,
+    required this.doc,
+    required this.fromCount,
+    required this.toCount,
+  });
+
+  final String name;
+  final String from;
+  final String to;
+  final String doc;
+  final int fromCount;
+  final int toCount;
+}
+
+const List<UnequalStepCase> _unequalStepCases = [
+  UnequalStepCase(
+    name: 'crossing the feature folder',
+    from: 'specs/f{nn}_{slug}/API.md',
+    to: 'specs/apis/a{nn}_{slug}/API.md',
+    doc: 'specs/ui/f01_button/API.md',
+    fromCount: 3,
+    toCount: 2,
+  ),
+  UnequalStepCase(
+    name: 'a kept side with another group count',
+    from: 'specs/{slug}/{slug}/f{nn}_{slug}/API.md',
+    to: 'specs/{slug}/{slug}/apis/f{nn}_{slug}/API.md',
+    doc: 'specs/ui/kit/f01_button/API.md',
+    fromCount: 4,
+    toCount: 5,
+  ),
+  UnequalStepCase(
+    name: 'a slug folder apart from the feature folder',
+    from: 'specs/{slug}/f{nn}_{slug}/API.md',
+    to: 'specs/{slug}/apis/f{nn}_{slug}/API.md',
+    doc: 'specs/ui/f01_button/API.md',
+    fromCount: 3,
+    toCount: 4,
+  ),
+];
+
+/// A pack whose entry 1 holds the unrefused step of entry 0 and then the
+/// `api` move from [from] to [to].
+String _unequalStepMigrations(String from, String to) =>
+    '''
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: api, from: "specs/apis/{slug}/API.md", to: "specs/apis/{slug}/v2/API.md"}
+  - from: 1.1.0
+    steps:
+      - move_file: {doc_type: api, from: "specs/apis/{slug}/API.md", to: "specs/apis/{slug}/v2/API.md"}
+      - move_file: {doc_type: api, from: "$from", to: "$to"}
+''';

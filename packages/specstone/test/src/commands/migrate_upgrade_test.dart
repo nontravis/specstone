@@ -2498,4 +2498,135 @@ agent_file_roots:
       expect(_bytesUnder(project), before);
     });
   });
+  group('step patterns in a grouped project', () {
+    test('a move_file that crosses the feature folder stops --dry-run and '
+        'bare migrate with exit 78 and writes nothing', () async {
+      final home = await _home(
+        migrations: '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: api, from: "specs/f{nn}_{slug}/API.md", to: "specs/apis/a{nn}_{slug}/API.md"}
+''',
+      );
+      final root = await _project(
+        files: {
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          'docs/specs/ui/f01_button/API.md': '# Button\n',
+        },
+      );
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: args.join(' '));
+        expect(result.err, contains('migrations[0].steps[0].move_file.to'));
+        expect(result.out, isEmpty, reason: args.join(' '));
+      }
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    });
+
+    test('the plan prints a grouped move_file step as the pack wrote it and '
+        'counts the grouped docs', () async {
+      final home = await _home(
+        migrations: '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: api, from: "specs/f{nn}_{slug}/API.md", to: "specs/f{nn}_{slug}/api/API.md"}
+''',
+        typeFile: 'api',
+        type: 'path: specs/f{nn}_{slug}/api/API.md\n',
+      );
+      final root = await _project(
+        files: {
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          'docs/specs/ui/f01_button/API.md': '# Button\n',
+          'docs/specs/ui/f02_field/API.md': '# Field\n',
+        },
+      );
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(
+        dry.out,
+        contains(
+          '  from 1.0.0: move_file api specs/f{nn}_{slug}/API.md -> '
+          'specs/f{nn}_{slug}/api/API.md: 2 docs\n',
+        ),
+      );
+      final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+      final steps =
+          (jsonDecode(json.out) as Map<String, Object?>)['steps']!
+              as List<Object?>;
+      expect(steps, [
+        {
+          'from': '1.0.0',
+          'step':
+              'move_file api specs/f{nn}_{slug}/API.md -> '
+              'specs/f{nn}_{slug}/api/API.md',
+          'paths': [
+            'specs/ui/f01_button/api/API.md',
+            'specs/ui/f02_field/api/API.md',
+          ],
+        },
+      ]);
+    });
+
+    test('the plan prints a grouped merge_doc step as the pack wrote it and '
+        'counts the grouped docs', () async {
+      final home = await _home(
+        migrations: '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "specs/f{nn}_{slug}/PLAYBOOK.md"}
+          to: api
+          sections:
+            - from: {id: moves, header: Moves}
+              to: playbook_moves
+''',
+        typeFile: 'api',
+        type: 'sections:\n  - {id: playbook_moves, header: Playbook moves}\n',
+      );
+      final root = await _project(
+        files: {
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          'docs/specs/ui/f01_button/PLAYBOOK.md':
+              '# Button playbook\n\n## Moves\n\nRun it.\n',
+          'docs/specs/ui/f01_button/API.md': '# Button\n',
+        },
+      );
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(
+        dry.out,
+        contains('  from 1.0.0: merge_doc playbook -> api: 1 docs\n'),
+      );
+      final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+      final steps =
+          (jsonDecode(json.out) as Map<String, Object?>)['steps']!
+              as List<Object?>;
+      expect(steps, [
+        {
+          'from': '1.0.0',
+          'step': 'merge_doc playbook -> api',
+          'paths': ['specs/ui/f01_button/API.md'],
+        },
+      ]);
+    });
+  });
 }

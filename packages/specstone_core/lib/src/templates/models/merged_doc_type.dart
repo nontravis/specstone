@@ -23,6 +23,7 @@ final class MergedDocType {
     this.maxDepth,
     this.isPerTarget = false,
     this.fixedNumbers = false,
+    this.insertedGroupLevels = 0,
     this.nestedPaths,
     this.derivedPaths,
     this.bundle,
@@ -112,6 +113,10 @@ final class MergedDocType {
   /// Whether a doc's number never changes, so `reorder` refuses the type.
   final bool fixedNumbers;
 
+  /// How many group levels the template merge inserted into [path]; 0 when
+  /// the path is as a layer wrote it.
+  final int insertedGroupLevels;
+
   /// Whether the doc type's own folder segment may repeat.
   bool get nests => (maxDepth ?? 0) > 0;
 
@@ -199,6 +204,7 @@ final class MergedDocType {
     int? maxDepth,
     bool? isPerTarget,
     bool? fixedNumbers,
+    int? insertedGroupLevels,
     List<String>? nestedPaths,
     List<String>? derivedPaths,
     List<String>? bundle,
@@ -227,6 +233,7 @@ final class MergedDocType {
     maxDepth: maxDepth ?? this.maxDepth,
     isPerTarget: isPerTarget ?? this.isPerTarget,
     fixedNumbers: fixedNumbers ?? this.fixedNumbers,
+    insertedGroupLevels: insertedGroupLevels ?? this.insertedGroupLevels,
     nestedPaths:
         nestedPaths ??
         (path == null && parent == null && maxDepth == null

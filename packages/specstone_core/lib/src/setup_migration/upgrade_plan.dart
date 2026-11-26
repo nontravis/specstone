@@ -43,6 +43,7 @@ import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/doc_file_text.dart';
 import 'package:specstone_core/src/setup_migration/drop_section_step.dart';
 import 'package:specstone_core/src/setup_migration/followed_links.dart';
+import 'package:specstone_core/src/setup_migration/grouped_step_patterns.dart';
 import 'package:specstone_core/src/setup_migration/heading_ledger.dart';
 import 'package:specstone_core/src/setup_migration/mark_retrim_step.dart';
 import 'package:specstone_core/src/setup_migration/matrix_fold_pass.dart';
@@ -232,6 +233,7 @@ RunPlan _upgradeRunOf(
     projectLayers: projectLayers,
     projectSharedLines: projectSharedLines,
   );
+  refuseUnequalStepPlaceholders(steps, finalSet);
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = docPathsOf(docsRoot, root)..sort(compareCodePoints);
@@ -1161,7 +1163,9 @@ _Folds _foldsOf(
         docPaths: docPaths,
         set: set,
         twinNames: twinNames,
-        fromPattern: _layerPathOf(root, step.fromId),
+        fromPattern:
+            _layerPathOf(root, step.fromId) ??
+            groupedStepPattern(step.fromPath, toType),
       ))
         if (originals[source.fromPath] != null &&
             source.fromPath != source.toPath)
@@ -1862,14 +1866,18 @@ String _withKeyBlock(String text, String key, String block) {
 bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
     firstTarget != null && (set.lookup(step.docType)?.isPerTarget ?? false);
 
-/// Returns the patterns [step] moves by: its `from` and `to`, repeated once per
+/// Returns the patterns [step] moves by: its `from` and `to` with the group
+/// levels the merge inserted into its doc type's path, repeated once per
 /// nesting depth when its doc type nests in [set].
 List<PatternMove> _movePatternsOf(MoveFile step, MergedSet set) {
+  final type = set.lookup(step.docType);
+  final from = groupedStepPattern(step.from, type);
+  final to = groupedStepPattern(step.to, type);
   final nesting = set.nestingType;
-  if (nesting == null || set.lookup(step.docType)?.nestedPaths == null) {
-    return [PatternMove(from: step.from, to: step.to)];
+  if (nesting == null || type?.nestedPaths == null) {
+    return [PatternMove(from: from, to: to)];
   }
-  return movePatternsAtEveryDepth(step.from, step.to, nesting);
+  return movePatternsAtEveryDepth(from, to, nesting);
 }
 
 /// The final path of each doc, the paths each move step's docs end at, the last

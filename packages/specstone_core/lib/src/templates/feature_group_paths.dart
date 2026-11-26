@@ -77,12 +77,25 @@ MergedDocType _grouped(
       !parentChainReaches(docType, featureTypeId, byId)) {
     return docType;
   }
-  final segments = path.split('/');
+  return docType.copyWith(
+    path: insertGroupLevels(path, levels),
+    insertedGroupLevels: levels,
+  );
+}
+
+/// Returns [pattern] with [levels] `{slug}` segments right before its first
+/// `f{nn}_{slug}` segment.
+///
+/// A [pattern] with no feature folder or with group levels already, or a
+/// [levels] of 0, comes back as written.
+String insertGroupLevels(String pattern, int levels) {
+  if (levels == 0 || childGroupLevelCount(pattern) != 0) return pattern;
+  final segments = pattern.split('/');
   segments.insertAll(
     segments.indexOf(_featureFolderSegment),
     List.filled(levels, _slugSegment),
   );
-  return docType.copyWith(path: segments.join('/'));
+  return segments.join('/');
 }
 
 /// Returns [docTypes] with the derived patterns of each `path_from` type.

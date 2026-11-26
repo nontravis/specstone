@@ -80,10 +80,13 @@ List<PackStep> _stepsBetween(
     if (manifest.migrations[index] case final migration
         when migration.from.compareTo(pin) >= 0 &&
             migration.from.compareTo(target) < 0)
-      for (final step in migration.steps)
+      for (final (stepIndex, step) in migration.steps.indexed)
         PackStep(
           from: migration.from,
           step: step,
+          file: manifest.file,
+          entryIndex: index,
+          stepIndex: stepIndex,
           relinkRules: step is RelinkMergedDocs
               ? _relinkRulesBelow(manifest, migration.from)
               : null,
