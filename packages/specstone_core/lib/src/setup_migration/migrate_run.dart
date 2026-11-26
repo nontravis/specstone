@@ -464,9 +464,13 @@ void _preflight(
 }
 
 /// Names on [request]'s warnings each agent file [plan] leaves because its
-/// real path lies outside the project root, one line per file.
+/// real path lies outside the project root, then each of the plan's own
+/// warnings, one line each.
 void _nameSkipped(MigrateRequest request, RunPlan plan) {
   for (final line in plan.agentFiles?.skipped ?? const <String>[]) {
+    _warn(request, line);
+  }
+  for (final line in plan.warnings) {
     _warn(request, line);
   }
 }

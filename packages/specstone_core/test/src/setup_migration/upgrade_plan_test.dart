@@ -5935,8 +5935,8 @@ void _regenerateTests() {
       );
     });
 
-    test('an unclosed area_catalog marker in one group doc refuses the run '
-        'as an upgrade_collision naming the doc and the open block', () async {
+    test('an unclosed area_catalog marker in one group doc leaves its group '
+        'as it was and warns naming the doc and the open block', () async {
       final fixture = await _regenFixture(
         docs: _kitchenDocs({
           _regenFeaturesPath: _regenFeaturesDoc('old'),
@@ -5945,41 +5945,46 @@ void _regenerateTests() {
         }),
       );
 
-      final fault = _refusedWith(
-        () => _planRegen(fixture, generators: _regenRegistry()),
-      );
+      final plan = _planRegen(fixture, generators: _regenRegistry());
 
-      expect(fault.code, MigrateFaultCode.upgradeCollision);
-      expect(fault.file, _kitchenAreaPath);
       expect(
-        fault.message,
-        'regenerate cannot write docs/$_kitchenAreaPath: open generated '
-        'block area_catalog; make the doc one format accepts, then run '
-        'specstone migrate again',
+        plan.warnings.single,
+        'docs/$_kitchenAreaPath cannot be written by regenerate: open '
+        'generated block area_catalog; left as it was',
       );
-      expect(fault.more, isEmpty);
+      expect(plan.lists.steps.single.paths, [_regenNotePath]);
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: regenerate: feature_catalog, area_catalog: 1 docs\n',
+        ),
+      );
+      expect(plan.creates, isEmpty);
     });
 
-    test('a features doc with an owner-added header refuses the run as an '
-        'upgrade_collision naming the doc and the header', () async {
+    test('a features doc with an owner-added header leaves its group as it '
+        'was and warns naming the doc and the header', () async {
       final fixture = await _regenFixture(
         docs: _kitchenDocs({
           _regenFeaturesPath: '${_regenFeaturesDoc('old')}\n## Notes\n\nmine\n',
         }),
       );
 
-      final fault = _refusedWith(
-        () => _planRegen(fixture, generators: _regenRegistry()),
-      );
+      final plan = _planRegen(fixture, generators: _regenRegistry());
 
-      expect(fault.code, MigrateFaultCode.upgradeCollision);
-      expect(fault.file, _regenFeaturesPath);
       expect(
-        fault.message,
-        'regenerate cannot write docs/$_regenFeaturesPath: unknown header '
-        '"## Notes"; make the doc one format accepts, then run specstone '
-        'migrate again',
+        plan.warnings.single,
+        'docs/$_regenFeaturesPath cannot be written by regenerate: unknown '
+        'header "## Notes"; left as it was',
       );
+      expect(plan.lists.steps.single.paths, isEmpty);
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: regenerate: feature_catalog, area_catalog: 0 docs\n',
+        ),
+      );
+      expect(plan.creates, isEmpty);
     });
 
     test('a refused doc whose type lists no kind of the step leaves the plan '

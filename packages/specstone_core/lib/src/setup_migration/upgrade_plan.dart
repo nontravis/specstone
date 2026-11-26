@@ -125,10 +125,10 @@ const _matrixRowsChange = 'fold matrix rows';
 /// index file, and a catalog cell lags a doc an earlier step of the same run
 /// reshapes. A group doc the step creates or deletes joins the run's creates
 /// or trashed docs. A doc the write cannot lay out, whether a features doc, a
-/// group doc, or a companion path no doc holds, refuses the run as an
-/// `upgrade_collision` naming the doc and why, so no pin moves with a stale
-/// catalog. Throws a `StateError` when a `regenerate` step names a kind
-/// [generators] lacks.
+/// group doc, or a companion path no doc holds, stays as it was with its whole
+/// group, and the plan's [RunPlan.warnings] name the doc and why; the run goes
+/// on and the pins move. Throws a `StateError` when a `regenerate` step names a
+/// kind [generators] lacks.
 ///
 /// [regenerationIndex] holds that index across plans: a run that shows a plan
 /// and plans again before it applies passes one, so it builds the index once,
@@ -309,6 +309,8 @@ RunPlan _upgradeRunOf(
   final keptLayers = _keptLayersOf(root, stepKinds);
   // Each `regenerate` step's write, planned once the docs can be stepped.
   final regenerations = <int, _Regeneration>{};
+  // The warnings of those writes, each once.
+  final regenerationWarnings = <String>{};
   // Whether `stepped` reads a doc only, recording no change, ledger entry, or
   // collision.
   var isProbing = false;
@@ -549,7 +551,7 @@ RunPlan _upgradeRunOf(
     };
     isProbing = false;
     final regeneration = planner.plan(step, texts);
-    regeneration.refusals.forEach(refuse);
+    regenerationWarnings.addAll(regeneration.warnings);
     regenerations[index] = regeneration;
     (changedAt[index] ??= []).addAll([
       ...regeneration.creates.keys,
@@ -912,6 +914,7 @@ RunPlan _upgradeRunOf(
       }.toList()..sort(compareCodePoints))
         projectPathOfDocPath(planned[path] ?? path),
     ],
+    warnings: [...regenerationWarnings],
     lists: PlanLists(
       formatLayout: [...laidOutPaths]..sort(compareCodePoints),
       agentFiles: agentFiles.listed,
@@ -959,7 +962,7 @@ final class _Regeneration {
     required this.rewrites,
     required this.creates,
     required this.deletes,
-    required this.refusals,
+    required this.warnings,
   });
 
   /// The generators the step lists.
@@ -968,8 +971,9 @@ final class _Regeneration {
   /// The in-memory read of the docs the generators read from.
   final ReadSession session;
 
-  /// One `upgrade_collision` per doc the write cannot lay out.
-  final List<MigrateFault> refusals;
+  /// One line per doc the write leaves as it was, then the warnings of the
+  /// docs it reads.
+  final List<String> warnings;
 
   /// The DocPath of each doc the write changes.
   final Set<String> rewrites;
@@ -1074,16 +1078,16 @@ final class _RegenerationPlanner {
       },
       creates: creates,
       deletes: deletes,
-      refusals: [for (final result in plan.blocked) _refusalOf(result)],
+      warnings: [
+        for (final result in plan.blocked) _leftLineOf(result),
+        ...plan.warnings,
+      ],
     );
   }
 
-  static MigrateFault _refusalOf(FileResult result) => MigrateFault(
-    MigrateFaultCode.upgradeCollision,
-    'regenerate cannot write ${result.path}: ${result.reasons}; make the doc '
-    'one format accepts, then run specstone migrate again',
-    file: docPathOfProjectPath(result.path) ?? result.path,
-  );
+  static String _leftLineOf(FileResult result) =>
+      '${result.path} cannot be written by regenerate: ${result.reasons}; '
+      'left as it was';
 
   /// Returns [read] holding its text from [lfByDocPath], in its line ending,
   /// or [read] itself when it holds none.

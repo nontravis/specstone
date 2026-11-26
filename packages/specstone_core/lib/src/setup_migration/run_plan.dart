@@ -223,6 +223,7 @@ final class RunPlan {
     this.rewriteLines,
     this.agentFiles,
     this.trashedDocs = const [],
+    this.warnings = const [],
     this.lists = const PlanLists(),
   });
 
@@ -270,6 +271,10 @@ final class RunPlan {
   /// `merge_doc` step folded into others, and the group features docs a
   /// `regenerate` step deletes.
   final List<String> trashedDocs;
+
+  /// The warning lines of the run, such as a doc a `regenerate` step's format
+  /// write left as it was.
+  final List<String> warnings;
 
   /// The path lists the count lines of [rewriteLines] print as numbers.
   final PlanLists lists;

@@ -515,6 +515,32 @@ migrations:
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
 
+    test('a features doc the write refuses stays as it was, the plan prints '
+        '0 docs and warns naming the doc', () async {
+      final home = await _home(version: '1.1.0', migrations: migrations);
+      final refused = '${featuresDoc('old')}\n## Notes\n\nmine\n';
+      final root = await _project(
+        files: {featuresPath: refused, featurePath: '# Recipes\n'},
+      );
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        contains('  from 1.0.0: regenerate: feature_catalog: 0 docs\n'),
+      );
+      expect(
+        result.err,
+        contains(
+          'WARNING: $featuresPath cannot be written by regenerate: unknown '
+          'header "## Notes"; left as it was',
+        ),
+      );
+      expect(_read(root, featuresPath), refused);
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
     test('a prd-core 1.31.0 pin in a grouped project regenerates the catalog '
         'and creates the group features doc approved', () async {
       const catalogLine =
