@@ -6636,6 +6636,29 @@ void _groupedStepPatternTests() {
       expect(plan.trashedDocs, ['docs/specs/ui/f01_button/old/PLAYBOOK.md']);
     });
 
+    test('a from layer parent over a frozen copy with none groups the from '
+        'docs', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: {
+            ..._apiMergeLayerFiles,
+            '.specstone/packs/acme/frozen/playbook.yaml': _frozenChildPlaybook
+                .replaceFirst('parent: feature\n', ''),
+          },
+          projectFiles: const {
+            '.specstone/templates/playbook.yaml': 'parent: feature\n',
+          },
+          docs: const {
+            'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/PLAYBOOK.md']);
+    });
+
     test('a move_file step on a type a later merge_doc folds moves its '
         'grouped docs', () async {
       final plan = _planGroupedStep(

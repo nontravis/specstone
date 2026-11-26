@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/setup_migration/models/pack_step.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/feature_group_paths.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -9,16 +11,16 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 ///
 /// A type of the merged set at the new pins reads from that set. A type it
 /// lacks, such as one a `merge_doc` step folds, reads from its frozen copy
-/// with the project layer `path:` over it, grouped as the merge at the
+/// with its project layer merged over it, grouped as the merge at the
 /// project's current pins groups it.
 final class StepDocTypes {
-  /// [layerPathOf] returns the project layer `path:` of a doc type id, or
-  /// null when the project writes none.
+  /// [layers] holds project layers; each one of a frozen type [_set] lacks
+  /// merges over that type.
   new(
     this._set, {
     required Map<String, MergedDocType> frozen,
-    required String? Function(String id) layerPathOf,
-  }) : _beforeRun = _groupedBeforeRun(_set, frozen, layerPathOf);
+    required List<DocTypeLayer> layers,
+  }) : _beforeRun = _groupedBeforeRun(_set, frozen, layers);
 
   final MergedSet _set;
 
@@ -32,13 +34,15 @@ final class StepDocTypes {
 Map<String, MergedDocType> _groupedBeforeRun(
   MergedSet set,
   Map<String, MergedDocType> frozen,
-  String? Function(String id) layerPathOf,
+  List<DocTypeLayer> layers,
 ) {
+  final layerOf = {for (final layer in layers) layer.docTypeId: layer};
+  const merger = DocTypeMerger();
   final absent = [
     for (final MapEntry(key: id, value: type) in frozen.entries)
       if (set.lookup(id) == null)
-        switch (layerPathOf(id)) {
-          final path? => type.copyWith(path: path),
+        switch (layerOf[id]) {
+          final layer? => merger.apply(type, layer),
           null => type,
         },
   ];

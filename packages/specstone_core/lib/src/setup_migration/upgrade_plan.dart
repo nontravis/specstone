@@ -242,7 +242,14 @@ RunPlan _upgradeRunOf(
   final stepTypes = StepDocTypes(
     finalSet,
     frozen: frozen,
-    layerPathOf: (id) => _layerPathOf(root, id),
+    // The layers `overrides` skipped: those of the types the new pins fold
+    // or drop.
+    layers: frozen.isEmpty
+        ? const []
+        : loadProjectTemplates(
+            root,
+            skippedIds: {for (final layer in overrides) layer.docTypeId},
+          ),
   );
   refuseUnequalStepPlaceholders(steps, stepTypes);
 
