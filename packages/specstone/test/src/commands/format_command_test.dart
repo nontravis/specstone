@@ -5,6 +5,7 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/grouped_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/software_design_system.dart'
     show softwareDesignSystemConfig;
@@ -595,13 +596,14 @@ sections:
       expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
-    test('the default runner registers journey_flow, scenario_copy, '
-        'feature_catalog, and component_catalog', () {
+    test('the default runner registers the journey kinds and the three '
+        'catalog kinds', () {
       expect(SpecstoneCommandRunner(console: FakeConsole()).generators.kinds, {
         'journey_flow',
         'scenario_copy',
         'feature_catalog',
         'component_catalog',
+        'group_feature_catalog',
       });
     });
 
@@ -791,6 +793,227 @@ sections:
       expect(second, isNot(contains('edited by hand')));
       expect(second, contains(approvedStamp));
       expect(second, isNot(contains('draft: true')));
+    });
+  });
+
+  group('the group features doc on the shipped prd-core', () {
+    const featuresDoc = 'docs/prds/FEATURES.md';
+    const groupDoc = 'docs/prds/features/kitchen/FEATURES.md';
+    const pantryDoc = 'docs/prds/features/pantry/FEATURES.md';
+    const groupJson = 'prds/features/kitchen/FEATURES.md';
+    const topFeatures =
+        '# Feature map\n\n## Features\n\n## System interaction diagram\n\n'
+        '```mermaid\nflowchart LR\n  Owner --> Shop\n```\n\n'
+        '## Systems\n\n| System | Description |\n|---|---|\n'
+        '| Shop | Sells goods. |\n';
+
+    Future<Directory> groupedProject() =>
+        writeGroupedProject(extra: {featuresDoc: topFeatures});
+
+    String read(Directory project, String path) =>
+        File.fromUri(project.uri.resolve(path)).readAsStringSync();
+
+    test(
+      'format creates the group doc and a second run prints nothing',
+      () async {
+        final project = await groupedProject();
+        final first = writeRunner(project);
+
+        expect(await first.runner.run(['format']), 0, reason: '${first.err}');
+        expect(first.out.toString(), contains('$groupDoc: created\n'));
+        expect(read(project, groupDoc), contains('Recipes'));
+
+        final second = writeRunner(project);
+        expect(await second.runner.run(['format']), 0);
+        expect(second.out.toString(), isEmpty);
+        expect(second.err.toString(), isEmpty);
+      },
+    );
+
+    test(
+      'format --json lists the created group doc from the docs root',
+      () async {
+        final project = await groupedProject();
+        final json = writeRunner(project);
+
+        expect(await json.runner.run(['format', '--json']), 0);
+
+        final files =
+            (jsonDecode(json.out.toString()) as Map<String, Object?>)['files']!
+                as List<Object?>;
+        expect(
+          files,
+          contains(
+            isA<Map<String, Object?>>()
+                .having((file) => file['path'], 'path', groupJson)
+                .having((file) => file['status'], 'status', 'created'),
+          ),
+        );
+      },
+    );
+
+    test('format --check lists the features doc after a hand edit in the '
+        'group doc block, exits 1, and writes nothing', () async {
+      final project = await groupedProject();
+      expect(await writeRunner(project).runner.run(['format']), 0);
+      final edited = read(project, groupDoc).replaceFirst('Recipes', 'edited');
+      File.fromUri(project.uri.resolve(groupDoc)).writeAsStringSync(edited);
+      final featuresBefore = read(project, featuresDoc);
+      final check = writeRunner(project);
+
+      expect(await check.runner.run(['format', '--check']), 1);
+
+      expect(check.out.toString(), '$featuresDoc\n$groupDoc\n');
+      expect(read(project, groupDoc), edited);
+      expect(read(project, featuresDoc), featuresBefore);
+
+      File.fromUri(project.uri.resolve(groupDoc))
+          .writeAsStringSync(edited.replaceFirst('edited', 'Recipes'));
+      final clean = writeRunner(project);
+      expect(await clean.runner.run(['format', '--check']), 0);
+      expect(clean.out.toString(), isEmpty);
+    });
+
+    test('format --check lists a group doc whose folder holds no top '
+        'feature and leaves it on disk', () async {
+      final project = await groupedProject();
+      expect(await writeRunner(project).runner.run(['format']), 0);
+      File.fromUri(project.uri.resolve(pantryDoc))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('# pantry features\n\n## Features\n');
+      final check = writeRunner(project);
+
+      expect(await check.runner.run(['format', '--check']), 1);
+
+      expect(check.out.toString(), '$featuresDoc\n$pantryDoc\n');
+      expect(File.fromUri(project.uri.resolve(pantryDoc)).existsSync(), isTrue);
+    });
+
+    test(
+      'format on a top feature folder leaves the group doc unwritten',
+      () async {
+        final project = await writeGroupedProject(
+          extra: {
+            featuresDoc: topFeatures,
+            'docs/$kitchenRecipes': '# Recipes\nbody   \n',
+          },
+        );
+        final target = writeRunner(project);
+
+        expect(
+          await target.runner.run([
+            'format',
+            'docs/prds/features/kitchen/f01_recipes',
+          ]),
+          0,
+          reason: '${target.err}',
+        );
+
+        expect(read(project, 'docs/$kitchenRecipes'), '# Recipes\n\nbody\n');
+        expect(
+          File.fromUri(project.uri.resolve(groupDoc)).existsSync(),
+          isFalse,
+        );
+      },
+    );
+  });
+
+  group('two group levels on the shipped prd-core', () {
+    const featuresDoc = 'docs/prds/FEATURES.md';
+    const formDoc = 'docs/prds/features/form/FEATURES.md';
+    const inputDoc = 'docs/prds/features/form/input/FEATURES.md';
+    const layoutDoc = 'docs/prds/features/form/layout/FEATURES.md';
+    const layoutFolder = 'docs/prds/features/form/layout';
+
+    Future<Directory> twoLevelProject() => writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      '.specstone/templates/feature.yaml':
+          'path: prds/features/{slug}/{slug}/f{nn}_{slug}/FEATURE.md\n',
+      featuresDoc:
+          '# Feature map\n\n## Features\n\n## System interaction diagram\n\n'
+          '```mermaid\nflowchart LR\n  Owner --> Shop\n```\n\n'
+          '## Systems\n\n| System | Description |\n|---|---|\n'
+          '| Shop | Sells goods. |\n',
+      'docs/prds/features/form/input/f01_text/FEATURE.md': '# Text\n',
+      'docs/prds/features/form/input/f02_select/FEATURE.md': '# Select\n',
+      '$layoutFolder/f01_grid/FEATURE.md': '# Grid\n',
+    });
+
+    String read(Directory project, String path) =>
+        File.fromUri(project.uri.resolve(path)).readAsStringSync();
+
+    test('format creates the docs of both levels approved, links each row '
+        'to its doc, and a second run prints nothing', () async {
+      final project = await twoLevelProject();
+      final first = writeRunner(project);
+
+      expect(await first.runner.run(['format']), 0, reason: '${first.err}');
+
+      expect(
+        first.out.toString(),
+        '$featuresDoc: formatted\n'
+        '$formDoc: created\n'
+        '$inputDoc: created\n'
+        '$layoutDoc: created\n',
+      );
+      for (final path in [formDoc, inputDoc, layoutDoc]) {
+        final text = read(project, path);
+        expect(text, contains('approved: "'), reason: path);
+        expect(text, isNot(contains('draft: true')), reason: path);
+      }
+      expect(
+        read(project, featuresDoc),
+        contains('| [form](features/form/FEATURES.md) | 3 | 3 planned | 0/0 |'),
+      );
+      final form = read(project, formDoc);
+      expect(
+        form,
+        contains('| [input](input/FEATURES.md) | 2 | 2 planned | 0/0 |'),
+      );
+      expect(
+        form,
+        contains('| [layout](layout/FEATURES.md) | 1 | 1 planned | 0/0 |'),
+      );
+      final input = read(project, inputDoc);
+      expect(
+        input,
+        contains(
+          '| [Text](f01_text/FEATURE.md) | — | planned | 0/0 | — |\n'
+          '| [Select](f02_select/FEATURE.md) | — | planned | 0/0 | — |',
+        ),
+      );
+      expect(
+        read(project, layoutDoc),
+        contains('| [Grid](f01_grid/FEATURE.md) | — | planned | 0/0 | — |'),
+      );
+
+      final second = writeRunner(project);
+      expect(await second.runner.run(['format']), 0);
+      expect(second.out.toString(), isEmpty);
+      expect(second.err.toString(), isEmpty);
+    });
+
+    test('format deletes the doc of a level-2 folder that holds no top '
+        'feature and prunes its folder', () async {
+      final project = await twoLevelProject();
+      expect(await writeRunner(project).runner.run(['format']), 0);
+      Directory.fromUri(project.uri.resolve('$layoutFolder/f01_grid'))
+          .deleteSync(recursive: true);
+      final check = writeRunner(project);
+
+      expect(await check.runner.run(['format', '--check']), 1);
+      expect(check.out.toString(), contains('$layoutDoc\n'));
+
+      final fix = writeRunner(project);
+      expect(await fix.runner.run(['format']), 0, reason: '${fix.err}');
+
+      expect(fix.out.toString(), contains('$layoutDoc: deleted\n'));
+      expect(
+        Directory.fromUri(project.uri.resolve(layoutFolder)).existsSync(),
+        isFalse,
+      );
+      expect(File.fromUri(project.uri.resolve(inputDoc)).existsSync(), isTrue);
+      expect(read(project, formDoc), isNot(contains('layout')));
     });
   });
 }

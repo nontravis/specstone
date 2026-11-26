@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
@@ -176,6 +178,7 @@ void main() {
         project,
         templates: TemplateResolver(),
         homeDirectory: await writeTree({}),
+        generators: shippedGenerators(),
       );
 
       expect(plan.lists.toJson()['steps'], [
@@ -267,9 +270,8 @@ void main() {
   });
 
   group('merged set', () {
-    test('a project that lists the three packs holds fifteen, ten, and '
-        'nineteen doc types', () {
-      expect(prdCoreIds, hasLength(15));
+    test('a project that lists the three packs holds each prd-core type, ten '
+        'software-tech types, and nineteen design-system types', () {
       expect(softwareTechIds, hasLength(10));
       expect(softwareDesignSystemIds, hasLength(19));
       expect(

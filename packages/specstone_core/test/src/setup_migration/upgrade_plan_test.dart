@@ -20,12 +20,14 @@ import 'package:specstone_core/src/document_writing/owner_confirmation.dart'
     show OwnerConfirmation;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show StaleMention;
+import 'package:specstone_core/src/index_query/doc_index.dart' show DocIndex;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show frontmatterValuesOf;
 import 'package:specstone_core/src/index_query/read_session.dart'
     show ReadSession;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentCursorPath, agentMdText, importBlock;
@@ -34,6 +36,10 @@ import 'package:specstone_core/src/setup_migration/migrate_run.dart'
     show MigrateRequest, runMigrate;
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
+import 'package:specstone_core/src/templates/generator_kinds.dart'
+    show shippedGeneratorKinds;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_floors.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -129,6 +135,7 @@ RunPlan _plan(({Directory project, Directory home}) fixture) => planUpgradeRun(
   fixture.project,
   templates: TemplateResolver(),
   homeDirectory: fixture.home,
+  generators: shippedGenerators(),
 );
 
 /// The `id:` value of a doc-type text, or null.
@@ -156,6 +163,7 @@ void main() {
   _mergeDocTests();
   _dropDocTypeTests();
   _relinkTests();
+  _regenerateTests();
 
   test('the --dry-run --json plans of an add over twin targets and of a '
       'merge_doc step hold only the keys api:setup_migration/upgrade_packs '
@@ -180,6 +188,7 @@ void main() {
           readLine: () => null,
           warningLog: [],
           out: out,
+          generators: shippedGenerators(),
         ),
       );
       expect(status, 0);
@@ -1469,6 +1478,7 @@ RunPlan _planAt(Directory project) => planUpgradeRun(
   _canonical(project),
   templates: TemplateResolver(),
   homeDirectory: null,
+  generators: shippedGenerators(),
 );
 
 void _agentFilesTests() {
@@ -1844,6 +1854,7 @@ void _agentFilesTests() {
         _canonical(project),
         templates: TemplateResolver(),
         homeDirectory: home,
+        generators: shippedGenerators(),
       );
 
       expect(plan.agentFiles!.isEmpty, isTrue);
@@ -2414,6 +2425,7 @@ RunPlan _planWith(Directory project) => planUpgradeRun(
   _canonical(project),
   templates: TemplateResolver(),
   homeDirectory: null,
+  generators: shippedGenerators(),
 );
 
 Future<Directory> _labelTree(
@@ -2810,6 +2822,7 @@ void _treeMoveTests() {
           confirmation: OwnerConfirmation.prompt,
           readLine: () => asked++ == 0 ? 'y' : null,
           out: StringBuffer(),
+          generators: shippedGenerators(),
         ),
       );
 
@@ -2934,6 +2947,7 @@ sections:
         _canonical(project),
         templates: TemplateResolver(),
         homeDirectory: home,
+        generators: shippedGenerators(),
       );
 
       expect(plan.moves, [
@@ -2987,8 +3001,12 @@ Future<Directory> _testNameProject({
   return root;
 }
 
-RunPlan _planTestNames(Directory project) =>
-    planUpgradeRun(project, templates: TemplateResolver(), homeDirectory: null);
+RunPlan _planTestNames(Directory project) => planUpgradeRun(
+  project,
+  templates: TemplateResolver(),
+  homeDirectory: null,
+  generators: shippedGenerators(),
+);
 
 void _testNameTests() {
   group('test names', () {
@@ -3591,6 +3609,7 @@ RunPlan _planAdding(Directory project, List<String> adds) => planUpgradeRun(
   templates: TemplateResolver(),
   homeDirectory: null,
   addedPacks: adds,
+  generators: shippedGenerators(),
 );
 
 /// The `config.yaml` text [plan] writes, less the `agent_files_version` line
@@ -3605,7 +3624,8 @@ PackVersion _version(String text) =>
 
 void _floorPinsTests() {
   test('a project pinned at every shipped floor upgrades to the carried '
-      'versions with only the two spec-scope mark_retrim steps', () async {
+      'versions with the prd-core regenerate step and the two spec-scope '
+      'mark_retrim steps', () async {
     String pins(Map<String, Object> versions) => [
       'packs:\n',
       for (final pack in PackFloors.shipped.byPack.keys)
@@ -3619,9 +3639,15 @@ void _floorPinsTests() {
       project,
       templates: TemplateResolver(),
       homeDirectory: null,
+      generators: shippedGenerators(),
     );
 
     expect(plan.lists.toJson()['steps'], [
+      {
+        'from': '1.31.0',
+        'step': 'regenerate: feature_catalog, group_feature_catalog',
+        'paths': <String>[],
+      },
       {'from': '1.5.0', 'step': 'mark_retrim', 'paths': <String>[]},
       {'from': '1.26.0', 'step': 'mark_retrim', 'paths': <String>[]},
     ]);
@@ -3649,6 +3675,7 @@ void _addedPinsTests() {
         templates: TemplateResolver(),
         homeDirectory: fixture.home,
         addedPacks: const ['agent-skills'],
+        generators: shippedGenerators(),
       );
 
       expect(
@@ -3670,6 +3697,7 @@ void _addedPinsTests() {
         templates: TemplateResolver(),
         homeDirectory: fixture.home,
         addedPacks: const ['agent-skills'],
+        generators: shippedGenerators(),
       );
       final addOnly = _planAdding(alone, const ['agent-skills']);
 
@@ -4043,6 +4071,7 @@ void _addedPinsTests() {
           templates: TemplateResolver(),
           homeDirectory: home,
           addedPacks: const ['mine'],
+          generators: shippedGenerators(),
         );
 
         expect(plan.lists.toJson()['typedByAdd'], ['specs/flutter/MEMO.md']);
@@ -4467,6 +4496,7 @@ RunPlan _planMerge(_MergeFixture fixture) => planUpgradeRun(
   fixture.project,
   templates: TemplateResolver(),
   homeDirectory: fixture.home,
+  generators: shippedGenerators(),
 );
 
 const _dropTypePackYaml = '''
@@ -4712,6 +4742,7 @@ void _mergeDocTests() {
         project,
         templates: TemplateResolver(),
         homeDirectory: home,
+        generators: shippedGenerators(),
       );
 
       expect(
@@ -5560,4 +5591,569 @@ MigrateFault _refusedWith(void Function() plan) {
     return fault;
   }
   fail('expected the plan to refuse');
+}
+
+const _regenPackYaml = '''
+name: acme
+version: 1.1.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - regenerate: {generators: [feature_catalog, area_catalog]}
+''';
+
+const _regenFeatureOnlyPackYaml = '''
+name: acme
+version: 1.1.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - regenerate: {generators: [feature_catalog]}
+''';
+
+const _areaIndexType = '''
+id: area_index
+description: One index per feature group.
+path_from: feature_groups
+file: AREA.md
+generators: [area_catalog]
+sections:
+  - id: features
+    header: Features
+''';
+
+const _acmeNoteType = '''
+id: acme_note
+description: A note kept beside the features.
+path: prds/notes/{slug}.md
+generators: [area_catalog]
+sections:
+  - id: features
+    header: Features
+''';
+
+const _regenFeaturesPath = 'prds/FEATURES.md';
+const _regenNotePath = 'prds/notes/a.md';
+const _kitchenAreaPath = 'prds/features/kitchen/AREA.md';
+const _pantryAreaPath = 'prds/features/pantry/AREA.md';
+const _plainRecipes = 'prds/features/f01_recipes/FEATURE.md';
+
+final String _featureOpen = generatedOpenMarker('feature_catalog');
+final String _areaOpen = generatedOpenMarker('area_catalog');
+
+/// A features doc whose catalog block holds [block].
+String _regenFeaturesDoc(String block) =>
+    '# Features\n\n## Features\n\n$_featureOpen\n$block\n'
+    '$generatedEndMarker\n\n## System interaction diagram\n\n'
+    '```mermaid\nflowchart LR\n  A --> B\n```\n\n## Systems\n\n'
+    '| System | Description |\n|---|---|\n| S | d |\n';
+
+/// An `area_index` or note doc whose block holds [rows], closed unless
+/// [isOpen].
+String _regenAreaDoc(String title, String rows, {bool isOpen = false}) =>
+    '# $title\n\n## Features\n\n$_areaOpen\n$rows\n'
+    '${isOpen ? '' : '$generatedEndMarker\n'}';
+
+/// The `feature_catalog` and `area_catalog` kinds with fake text, and the
+/// `area_index` docs `feature_catalog` keeps: one per group folder of a
+/// feature, as `featureCatalogCompanions` lists them.
+GeneratorRegistry<DocIndex> _regenRegistry() {
+  List<String> featurePaths(DocIndex index) => [
+    for (final doc in index.docs)
+      if (doc.docTypeId == 'feature') doc.docPath,
+  ];
+  return GeneratorRegistry<DocIndex>(
+    {
+      'feature_catalog': (doc, docPath, type, index) => [
+        GeneratedBlock(
+          kind: 'feature_catalog',
+          sectionId: 'features',
+          place: const SectionTop(),
+          text: 'features: ${featurePaths(index).length}',
+        ),
+      ],
+      'area_catalog': (doc, docPath, type, index) => [
+        GeneratedBlock(
+          kind: 'area_catalog',
+          sectionId: type.sections.first.id,
+          place: const SectionTop(),
+          text: 'rows of $docPath',
+        ),
+      ],
+    },
+    companions: {
+      'feature_catalog': (docPath, type, index) {
+        final slugs = {
+          for (final path in featurePaths(index))
+            if (path.split('/') case [_, _, final slug, _, _]) slug,
+        }.toList()..sort();
+        return CompanionDocs(
+          docTypeId: slugs.isEmpty ? '' : 'area_index',
+          docs: [
+            for (final slug in slugs)
+              CompanionDoc(
+                docPath: 'prds/features/$slug/AREA.md',
+                seedText: '# $slug\n\n## Features\n',
+              ),
+          ],
+        );
+      },
+    },
+  );
+}
+
+TemplateResolver _regenTemplates() => TemplateResolver(
+  generatorKinds: {...shippedGeneratorKinds, 'area_catalog'},
+);
+
+/// A project and the personal pack home it pins `acme` in.
+final class _RegenFixture {
+  const new(this.project, this.home);
+
+  final Directory project;
+  final Directory home;
+}
+
+/// A project pinned to the personal pack `acme` at 1.0.0 whose home holds
+/// 1.1.0, so `TemplateResolver.resolve` refuses its pin.
+///
+/// With [grouped] the `feature` path holds one group folder.
+Future<_RegenFixture> _regenFixture({
+  required Map<String, String> docs,
+  String packYaml = _regenPackYaml,
+  String noteType = _acmeNoteType,
+  bool grouped = true,
+}) async {
+  final home = await writeTree({
+    '.specstone/packs/acme/pack.yaml': packYaml,
+    '.specstone/packs/acme/area_index.yaml': _areaIndexType,
+    '.specstone/packs/acme/acme_note.yaml': noteType,
+  });
+  final project = await writeTree({
+    '.specstone/config.yaml': _config('1.0.0'),
+    if (grouped)
+      '.specstone/templates/feature.yaml':
+          'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+  });
+  return _RegenFixture(project, home);
+}
+
+RunPlan _planRegen(
+  _RegenFixture fixture, {
+  required GeneratorRegistry<DocIndex> generators,
+  RegenerationIndex? index,
+}) => planUpgradeRun(
+  fixture.project,
+  templates: _regenTemplates(),
+  homeDirectory: fixture.home,
+  generators: generators,
+  regenerationIndex: index,
+);
+
+/// [_regenRegistry] with each generator and companions call adding its index
+/// to [seen], by identity.
+GeneratorRegistry<DocIndex> _recordingRegistry(Set<DocIndex> seen) {
+  final registry = _regenRegistry();
+  return GeneratorRegistry<DocIndex>(
+    {
+      for (final kind in registry.kinds)
+        kind: (doc, docPath, type, index) {
+          seen.add(index);
+          return registry[kind]!(doc, docPath, type, index);
+        },
+    },
+    companions: {
+      for (final kind in registry.kinds)
+        if (registry.companionsOf(kind) case final companions?)
+          kind: (docPath, type, index) {
+            seen.add(index);
+            return companions(docPath, type, index);
+          },
+    },
+  );
+}
+
+const _kitchenRecipes = 'prds/features/kitchen/f01_recipes/FEATURE.md';
+const _kitchenMenus = 'prds/features/kitchen/f02_menus/FEATURE.md';
+
+/// The docs of a kitchen group with two top features, a fresh features doc,
+/// and the [extra] docs.
+Map<String, String> _kitchenDocs([Map<String, String> extra = const {}]) => {
+  _kitchenRecipes: '# Recipes\n',
+  _kitchenMenus: '# Menus\n',
+  _regenFeaturesPath: _regenFeaturesDoc('features: 2'),
+  ...extra,
+};
+
+void _regenerateTests() {
+  group('regenerate step', () {
+    test(
+      'a regenerate step below the carried version plans its line',
+      () async {
+        final fixture = await _regenFixture(
+          grouped: false,
+          packYaml: _regenFeatureOnlyPackYaml,
+          docs: {
+            _plainRecipes: '# Recipes\n',
+            _regenFeaturesPath: _regenFeaturesDoc('old'),
+          },
+        );
+
+        await expectLater(
+          () => _regenTemplates().resolve(
+            workingDirectory: fixture.project,
+            homeDirectory: fixture.home,
+          ),
+          throwsA(
+            isA<TemplateFault>().having(
+              (fault) => fault.code,
+              'code',
+              FaultCode.personalPackVersionDiffers,
+            ),
+          ),
+        );
+        final plan = _planRegen(fixture, generators: _regenRegistry());
+
+        expect(
+          plan.toText(),
+          contains('  from 1.0.0: regenerate: feature_catalog: 1 docs\n'),
+        );
+        expect(plan.lists.toJson()['steps'], [
+          {
+            'from': '1.0.0',
+            'step': 'regenerate: feature_catalog',
+            'paths': [_regenFeaturesPath],
+          },
+        ]);
+        expect(
+          _docText(plan, fixture.project, _regenFeaturesPath),
+          _regenFeaturesDoc('features: 1'),
+        );
+      },
+    );
+
+    test('a current features doc prints 0 docs and writes nothing', () async {
+      final fixture = await _regenFixture(
+        grouped: false,
+        packYaml: _regenFeatureOnlyPackYaml,
+        docs: {
+          _plainRecipes: '# Recipes\n',
+          _regenFeaturesPath: _regenFeaturesDoc('features: 1'),
+        },
+      );
+
+      final plan = _planRegen(fixture, generators: _regenRegistry());
+
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: regenerate: feature_catalog: 0 docs\n'),
+      );
+      expect(plan.lists.steps.single.paths, isEmpty);
+      expect(
+        _docText(plan, fixture.project, _regenFeaturesPath),
+        _regenFeaturesDoc('features: 1'),
+      );
+      expect(plan.creates, isEmpty);
+      expect(plan.trashedDocs, isEmpty);
+    });
+
+    test('a missing group doc is a commit 2 create listed in the step paths, '
+        'approved with its block filled', () async {
+      final fixture = await _regenFixture(docs: _kitchenDocs());
+
+      final plan = _planRegen(fixture, generators: _regenRegistry());
+
+      final create = plan.creates.single;
+      expect(create.path, 'docs/$_kitchenAreaPath');
+      expect(create.text, contains('rows of $_kitchenAreaPath'));
+      expect(create.text, contains('approved: "'));
+      expect(
+        plan.toText(),
+        contains('commit 2, creates:\n  $_kitchenAreaPath\n'),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'regenerate: feature_catalog, area_catalog',
+          'paths': [_kitchenAreaPath],
+        },
+      ]);
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: regenerate: feature_catalog, area_catalog: 1 docs\n',
+        ),
+      );
+    });
+
+    test('a group doc whose folder holds no top feature is moved to the trash '
+        'by commit 2, listed in the step paths and counted', () async {
+      final fixture = await _regenFixture(
+        docs: _kitchenDocs({
+          _kitchenAreaPath: _regenAreaDoc(
+            'kitchen',
+            'rows of $_kitchenAreaPath',
+          ),
+          _pantryAreaPath: _regenAreaDoc('pantry', 'rows of $_pantryAreaPath'),
+        }),
+      );
+
+      final plan = _planRegen(fixture, generators: _regenRegistry());
+
+      expect(plan.trashedDocs, ['docs/$_pantryAreaPath']);
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'regenerate: feature_catalog, area_catalog',
+          'paths': [_pantryAreaPath],
+        },
+      ]);
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: regenerate: feature_catalog, area_catalog: 1 docs\n',
+        ),
+      );
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.path),
+        isNot(contains('docs/$_pantryAreaPath')),
+      );
+      final steps = plan.journalSteps(
+        base: 'abc',
+        projectRoot: fixture.project,
+      );
+      expect(
+        steps.whereType<MoveStep>().map((step) => step.from),
+        contains('docs/$_pantryAreaPath'),
+      );
+      expect(
+        steps.whereType<CommitStep>().single.paths,
+        contains('docs/$_pantryAreaPath'),
+      );
+    });
+
+    test('an unclosed area_catalog marker in one group doc refuses the run '
+        'as an upgrade_collision naming the doc and the open block', () async {
+      final fixture = await _regenFixture(
+        docs: _kitchenDocs({
+          _regenFeaturesPath: _regenFeaturesDoc('old'),
+          _kitchenAreaPath: _regenAreaDoc('kitchen', 'old', isOpen: true),
+          _regenNotePath: _regenAreaDoc('A', 'old'),
+        }),
+      );
+
+      final fault = _refusedWith(
+        () => _planRegen(fixture, generators: _regenRegistry()),
+      );
+
+      expect(fault.code, MigrateFaultCode.upgradeCollision);
+      expect(fault.file, _kitchenAreaPath);
+      expect(
+        fault.message,
+        'regenerate cannot write docs/$_kitchenAreaPath: open generated '
+        'block area_catalog; make the doc one format accepts, then run '
+        'specstone migrate again',
+      );
+      expect(fault.more, isEmpty);
+    });
+
+    test('a features doc with an owner-added header refuses the run as an '
+        'upgrade_collision naming the doc and the header', () async {
+      final fixture = await _regenFixture(
+        docs: _kitchenDocs({
+          _regenFeaturesPath: '${_regenFeaturesDoc('old')}\n## Notes\n\nmine\n',
+        }),
+      );
+
+      final fault = _refusedWith(
+        () => _planRegen(fixture, generators: _regenRegistry()),
+      );
+
+      expect(fault.code, MigrateFaultCode.upgradeCollision);
+      expect(fault.file, _regenFeaturesPath);
+      expect(
+        fault.message,
+        'regenerate cannot write docs/$_regenFeaturesPath: unknown header '
+        '"## Notes"; make the doc one format accepts, then run specstone '
+        'migrate again',
+      );
+    });
+
+    test('a refused doc whose type lists no kind of the step leaves the plan '
+        'standing', () async {
+      final fixture = await _regenFixture(
+        docs: _kitchenDocs({_kitchenRecipes: '# Recipes\n\n## Mystery\n\nx\n'}),
+      );
+
+      final plan = _planRegen(fixture, generators: _regenRegistry());
+
+      expect(plan.creates.single.path, 'docs/$_kitchenAreaPath');
+    });
+
+    test('two plans sharing one RegenerationIndex read their generators from '
+        'one index, and a plan with none builds its own', () async {
+      final seen = <DocIndex>{};
+      final fixture = await _regenFixture(docs: _kitchenDocs());
+      final index = RegenerationIndex();
+      addTearDown(index.close);
+
+      _planRegen(fixture, generators: _recordingRegistry(seen), index: index);
+      final shown = seen.length;
+      _planRegen(fixture, generators: _recordingRegistry(seen), index: index);
+
+      expect(shown, 1);
+      expect(seen, hasLength(1));
+      _planRegen(fixture, generators: _recordingRegistry(seen));
+      expect(seen, hasLength(2));
+    });
+
+    test('planning the dry run leaves no index file and no new .gitignore '
+        'under .specstone', () async {
+      final fixture = await _regenFixture(
+        docs: _kitchenDocs({
+          _pantryAreaPath: _regenAreaDoc('pantry', 'rows of $_pantryAreaPath'),
+        }),
+      );
+      final specstone = '${fixture.project.path}/.specstone';
+      final before = Directory(specstone)
+          .listSync(recursive: true)
+          .map((entity) => entity.path)
+          .toSet();
+
+      _planRegen(fixture, generators: _regenRegistry());
+
+      expect(
+        Directory(specstone)
+            .listSync(recursive: true)
+            .map((entity) => entity.path)
+            .toSet(),
+        before,
+      );
+      expect(File('$specstone/index.sqlite').existsSync(), isFalse);
+      expect(File('$specstone/.gitignore').existsSync(), isFalse);
+    });
+
+    test('a regenerate naming a kind the registry lacks throws a StateError '
+        'before the plan prints', () async {
+      final fixture = await _regenFixture(
+        grouped: false,
+        packYaml: _regenFeatureOnlyPackYaml,
+        docs: {
+          _plainRecipes: '# Recipes\n',
+          _regenFeaturesPath: _regenFeaturesDoc('old'),
+        },
+      );
+
+      expect(
+        () => _planRegen(fixture, generators: GeneratorRegistry({})),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('feature_catalog'),
+          ),
+        ),
+      );
+    });
+
+    test('a doc a step of the same run reshapes gets its block filled and is '
+        'listed and counted by the regenerate step', () async {
+      const reshaped = '''
+id: acme_note
+description: A note kept beside the features.
+path: prds/notes/{slug}.md
+generators: [area_catalog]
+sections:
+  - id: rows
+    header: Rows
+''';
+      const packYaml = '''
+name: acme
+version: 1.1.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: acme_note, from: {id: features, header: Features}, to: {id: rows, header: Rows}}
+      - regenerate: {generators: [area_catalog]}
+''';
+      final fixture = await _regenFixture(
+        grouped: false,
+        packYaml: packYaml,
+        noteType: reshaped,
+        docs: {_regenNotePath: _regenAreaDoc('A', 'old')},
+      );
+
+      final plan = _planRegen(fixture, generators: _regenRegistry());
+
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: regenerate: area_catalog: 1 docs\n'),
+      );
+      expect(plan.lists.steps.last.paths, [_regenNotePath]);
+      // The regenerate step reads the doc after the rename in a probe that
+      // records no change, so the rename step lists the doc once.
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: rename_section acme_note features -> rows: '),
+      );
+      expect(plan.lists.steps.first.paths, [_regenNotePath]);
+      expect(plan.lists.steps.first.text, endsWith(': 1 docs'));
+      expect(
+        _docText(plan, fixture.project, _regenNotePath),
+        _regenAreaDoc(
+          'A',
+          'rows of $_regenNotePath',
+        ).replaceFirst('## Features', '## Rows'),
+      );
+    });
+
+    test('a regenerate step counts and lists the catalog and the group '
+        'features docs it creates and deletes', () async {
+      const formDoc = 'prds/features/form/FEATURES.md';
+      const oldDoc = 'prds/features/old/FEATURES.md';
+      const packYaml = '''
+name: acme
+version: 1.1.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - regenerate: {generators: [feature_catalog, group_feature_catalog]}
+''';
+      final groupOpen = generatedOpenMarker('group_feature_catalog');
+      final fixture = _RegenFixture(
+        await writeTree({
+          '.specstone/config.yaml': _config('1.0.0'),
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          'docs/$_regenFeaturesPath': _regenFeaturesDoc('stale'),
+          'docs/prds/features/form/f01_input/FEATURE.md': '# Input\n',
+          'docs/$oldDoc':
+              '# old features\n\n## Features\n\n$groupOpen\nstale\n'
+              '$generatedEndMarker\n',
+        }),
+        await writeTree({'.specstone/packs/acme/pack.yaml': packYaml}),
+      );
+
+      final plan = _planRegen(fixture, generators: shippedGenerators());
+
+      final step = plan.lists.steps.single;
+      expect(step.paths, [_regenFeaturesPath, formDoc, oldDoc]);
+      expect(
+        step.text,
+        'from 1.0.0: regenerate: feature_catalog, group_feature_catalog: '
+        '3 docs',
+      );
+      final create = plan.creates.single;
+      expect(create.path, 'docs/$formDoc');
+      expect(create.note, '');
+      expect(plan.trashedDocs, ['docs/$oldDoc']);
+      expect(plan.toText(), contains('commit 2, creates:\n  $formDoc\n'));
+      expect(plan.toText(), isNot(contains('(draft)')));
+    });
+  });
 }

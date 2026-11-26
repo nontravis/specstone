@@ -159,6 +159,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       j,
       file: file,
     ),
+    'regenerate' => _parseRegenerate(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
     _ => throw TemplateFault(
       FaultCode.unknownValue,
       'the step kind $kind is not defined',
@@ -379,6 +385,32 @@ MarkRetrim _parseMarkRetrim(YamlMap map, int i, int j, {required String file}) {
     docTypes: listOf('doc_types'),
     sections: listOf('sections'),
   );
+}
+
+Regenerate _parseRegenerate(YamlMap map, int i, int j, {required String file}) {
+  final prefix = 'migrations[$i].steps[$j].regenerate.';
+  checkKeys(
+    map,
+    const {'generators'},
+    file: file,
+    format: 'regenerate step',
+    prefix: prefix,
+  );
+  final generators = stringsOf(
+    requireValue<YamlList>(map, 'generators', file: file, prefix: prefix),
+    'generators',
+    file: file,
+    prefix: prefix,
+  );
+  if (generators.isEmpty) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key generators must hold at least one generator kind',
+      file: file,
+      key: '${prefix}generators',
+    );
+  }
+  return Regenerate(generators: generators);
 }
 
 DropSection _parseDropSection(

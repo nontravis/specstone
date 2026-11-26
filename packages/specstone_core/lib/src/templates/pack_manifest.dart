@@ -308,6 +308,27 @@ final class PackManifest {
     }
   }
 
+  /// Throws `unknown_value` for the first `regenerate` generator outside
+  /// [kinds].
+  ///
+  /// The key is `migrations[<i>].steps[<j>].regenerate.generators`.
+  void checkRegenerateKinds(Set<String> kinds) {
+    for (final (i, migration) in migrations.indexed) {
+      for (final (j, step) in migration.steps.indexed) {
+        if (step is! Regenerate) continue;
+        for (final generator in step.generators) {
+          if (kinds.contains(generator)) continue;
+          throw TemplateFault(
+            FaultCode.unknownValue,
+            'the regenerate generator $generator is not a generator kind',
+            file: file,
+            key: 'migrations[$i].steps[$j].regenerate.generators',
+          );
+        }
+      }
+    }
+  }
+
   /// Throws `unknown_value` for the first `drop_section` step whose
   /// `doc_types` entry is outside [layerLists] and no later `merge_doc` folds
   /// it, or whose `section.id` a layer

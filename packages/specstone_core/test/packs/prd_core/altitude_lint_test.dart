@@ -266,6 +266,9 @@ void main() {
         expectSame('measurement.${section.id}', {...byId, ...held});
       }
     }
-    expect(set.docTypes.where((t) => t.id != 'reference'), hasLength(14));
+    expect(
+      set.docTypes.where((t) => t.id != 'reference'),
+      hasLength(prdCoreIds.length - 1),
+    );
   });
 }

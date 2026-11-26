@@ -343,6 +343,25 @@ sections:
       expect(merged.toJson()['maxDepth'], 2);
     });
 
+    test('toJson of a path_from doc type prints paths and no path, empty in '
+        'an ungrouped set', () {
+      final merged = _merge(
+        'description: One index per group.\n'
+        'path_from: feature_groups\nfile: AREA.md\n',
+      );
+
+      expect(merged.pathFrom, 'feature_groups');
+      expect(merged.file, 'AREA.md');
+      expect(merged.toJson().keys.take(3), ['id', 'description', 'paths']);
+      expect(merged.toJson()['paths'], isEmpty);
+      expect(merged.toJson(), isNot(contains('path')));
+      final grouped = merged.copyWith(
+        derivedPaths: ['prds/features/{slug}/AREA.md'],
+      );
+      expect(grouped.toJson()['paths'], ['prds/features/{slug}/AREA.md']);
+      expect(grouped.paths, ['prds/features/{slug}/AREA.md']);
+    });
+
     test('toJson prints title right after path, then maxDepth; a doc type '
         'with no title prints neither title nor a null', () {
       final titled = _merge(_featureLayer, 'title: Glossary\nmax_depth: 2');

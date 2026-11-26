@@ -5,6 +5,8 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
@@ -249,6 +251,7 @@ void main() {
         project,
         templates: TemplateResolver(),
         homeDirectory: await writeTree({}),
+        generators: shippedGenerators(),
       );
 
       expect(plan.lists.toJson()['steps'], [
@@ -379,7 +382,7 @@ void main() {
       set = await resolveSoftwareTech();
     });
 
-    test('the set holds the fifteen prd-core and the ten '
+    test('the set holds each prd-core type beside the ten '
         'software-tech doc types', () {
       expect(
         set.docTypes.map((d) => d.id).toList(),

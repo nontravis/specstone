@@ -25,6 +25,8 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -1164,6 +1166,7 @@ void main() {
           confirmation: OwnerConfirmation.prompt,
           readLine: () => 'y',
           out: out,
+          generators: shippedGenerators(),
         ),
       );
 
@@ -1188,6 +1191,7 @@ void main() {
         confirmation: OwnerConfirmation.prompt,
         readLine: () => 'y',
         out: plan,
+        generators: shippedGenerators(),
       ),
     );
 

@@ -477,6 +477,190 @@ sections:
       );
     });
   });
+  group('regenerate step', () {
+    const migrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - regenerate: {generators: [feature_catalog]}
+''';
+    const featuresPath = 'docs/prds/FEATURES.md';
+    const featurePath = 'docs/prds/features/f01_recipes/FEATURE.md';
+    final open = generatedOpenMarker('feature_catalog');
+    String featuresDoc(String block) =>
+        '# Features\n\n## Features\n\n$open\n$block\n'
+        '$generatedEndMarker\n\n## System interaction diagram\n\n'
+        '```mermaid\nflowchart LR\n  A --> B\n```\n\n## Systems\n\n'
+        '| System | Description |\n|---|---|\n| S | d |\n';
+
+    test('bare migrate writes the stale features catalog in commit 2 under '
+        'a pin the carried version refuses', () async {
+      final home = await _home(version: '1.1.0', migrations: migrations);
+      final root = await _project(
+        files: {featuresPath: featuresDoc('old'), featurePath: '# Recipes\n'},
+      );
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        contains('  from 1.0.0: regenerate: feature_catalog: 1 docs\n'),
+      );
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      final features = _read(root, featuresPath);
+      expect(features, isNot(contains('\nold\n')));
+      expect(features, contains('features/f01_recipes/FEATURE.md'));
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('a prd-core 1.31.0 pin in a grouped project regenerates the catalog '
+        'and creates the group features doc approved', () async {
+      const catalogLine =
+          '  from 1.31.0: regenerate: feature_catalog, '
+          'group_feature_catalog: 2 docs\n';
+      const groupPath = 'prds/features/form/FEATURES.md';
+      final shippedCore = shippedPackVersions()['prd-core'];
+      final pins = shippedPinsConfig().replaceFirst(
+        '  prd-core: $shippedCore\n',
+        '  prd-core: 1.31.0\n',
+      );
+      final featuresType = TemplateResolver()
+          .resolveCarried(
+            packNames: const ['prd-core', 'software-tech'],
+            homeDirectory: null,
+          )
+          .lookup('features');
+      final root = await gitFixture({
+        '.specstone/config.yaml': '$pins$_stamp',
+        _gitignore: _ignoreFile,
+        '.specstone/templates/feature.yaml':
+            'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+        featuresPath: withApprovalHash(
+          featuresDoc(
+            '1 features · 0 stories · 0 implemented, 0 planned\n\n'
+            '| Feature | What it does | Status | Stories | Serves |\n'
+            '|---|---|---|---|---|\n'
+            '| [Input](features/form/f01_input/FEATURE.md) | — | planned '
+            '| 0/0 | — |',
+          ).replaceFirst('# Features\n', '# Feature map\n'),
+          featuresType,
+        ),
+        'docs/prds/features/form/f01_input/FEATURE.md': '# Input\n',
+      });
+      final home = await writeTree({});
+      final bytes = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(dry.out, contains(catalogLine));
+      expect(_bytesUnder(root), bytes);
+      final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+      final steps =
+          (jsonDecode(json.out) as Map<String, Object?>)['steps']!
+              as List<Object?>;
+      expect(
+        steps,
+        contains(
+          isA<Map<String, Object?>>().having((step) => step['paths'], 'paths', [
+            'prds/FEATURES.md',
+            groupPath,
+          ]),
+        ),
+      );
+      expect(_bytesUnder(root), bytes);
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(result.out, contains(catalogLine));
+      expect(result.out, contains('commit 2, creates:\n  $groupPath\n'));
+      expect(result.out, isNot(contains('(draft)')));
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      final group = _read(root, 'docs/$groupPath');
+      expect(group, contains('approved:'));
+      expect(group, isNot(contains('draft: true')));
+      final check = await _run(root, home, ['check', '--json']);
+      for (final path in [groupPath, 'prds/FEATURES.md']) {
+        expect(
+          _findingKinds(check.out, docPath: path),
+          isNot(contains('approval_stale')),
+          reason: path,
+        );
+      }
+    });
+
+    test('a prd-core 1.31.0 pin with two group levels creates the doc of '
+        'each level approved and links each row to its doc', () async {
+      const formPath = 'prds/features/form/FEATURES.md';
+      const inputPath = 'prds/features/form/input/FEATURES.md';
+      final shippedCore = shippedPackVersions()['prd-core'];
+      final pins = shippedPinsConfig().replaceFirst(
+        '  prd-core: $shippedCore\n',
+        '  prd-core: 1.31.0\n',
+      );
+      final root = await gitFixture({
+        '.specstone/config.yaml': '$pins$_stamp',
+        _gitignore: _ignoreFile,
+        '.specstone/templates/feature.yaml':
+            'path: prds/features/{slug}/{slug}/f{nn}_{slug}/FEATURE.md\n',
+        featuresPath: featuresDoc('old'),
+        'docs/prds/features/form/input/f01_text/FEATURE.md': '# Text\n',
+        'docs/prds/features/form/input/f02_select/FEATURE.md': '# Select\n',
+      });
+      final home = await writeTree({});
+      final subjects = _subjects(root);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(
+        result.out,
+        contains(
+          '  from 1.31.0: regenerate: feature_catalog, '
+          'group_feature_catalog: 3 docs\n',
+        ),
+      );
+      expect(
+        result.out,
+        contains('commit 2, creates:\n  $formPath\n  $inputPath\n'),
+      );
+      expect(_subjects(root), hasLength(subjects.length + 1));
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      for (final path in [formPath, inputPath]) {
+        final text = _read(root, 'docs/$path');
+        expect(text, contains('approved: "'), reason: path);
+        expect(text, isNot(contains('draft: true')), reason: path);
+      }
+      expect(
+        _read(root, 'docs/$formPath'),
+        contains('| [input](input/FEATURES.md) | 2 | 2 planned | 0/0 |'),
+      );
+      expect(
+        _read(root, 'docs/$inputPath'),
+        contains(
+          '| [Text](f01_text/FEATURE.md) | — | planned | 0/0 | — |\n'
+          '| [Select](f02_select/FEATURE.md) | — | planned | 0/0 | — |',
+        ),
+      );
+      expect(
+        _read(root, featuresPath),
+        contains('| [form](features/form/FEATURES.md) | 2 | 2 planned | 0/0 |'),
+      );
+      final check = await _run(root, home, ['check', '--json']);
+      for (final path in [formPath, inputPath]) {
+        expect(
+          _findingKinds(check.out, docPath: path),
+          isNot(contains('approval_stale')),
+          reason: path,
+        );
+      }
+    });
+  });
   group('merge_doc step', () {
     const migrations = '''
 migrations:

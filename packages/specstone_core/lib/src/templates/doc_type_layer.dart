@@ -313,6 +313,8 @@ final class DocTypeLayer {
     required this.parent,
     required this.extendsId,
     required this.path,
+    required this.pathFrom,
+    required this.docFile,
     required this.title,
     required this.maxDepth,
     required this.perTarget,
@@ -379,6 +381,8 @@ final class DocTypeLayer {
       parent: optionalValue<String>(map, 'parent', file: file),
       extendsId: optionalValue<String>(map, 'extends', file: file),
       path: optionalValue<String>(map, 'path', file: file),
+      pathFrom: _parsePathFrom(map, file: file),
+      docFile: _parseDocFile(map, file: file),
       title: _parseTitle(map, file: file),
       maxDepth: _parseMaxDepth(map, file: file),
       perTarget: optionalValue<bool>(map, 'per_target', file: file),
@@ -427,6 +431,16 @@ final class DocTypeLayer {
   /// The file pattern, when this layer writes it.
   final String? path;
 
+  /// What the doc type derives its patterns from in place of [path], when this
+  /// layer writes it; only [featureGroupsPathFrom] is a value.
+  final String? pathFrom;
+
+  /// The `file` key: the doc file name each pattern derived from [pathFrom]
+  /// ends with, when this layer writes it.
+  ///
+  /// Named apart from [file], the layer's own source file.
+  final String? docFile;
+
   /// The fixed text of every doc's `# ` line, when this layer writes it.
   final String? title;
 
@@ -471,13 +485,63 @@ final class DocTypeLayer {
   final ListWrite<String>? generators;
 
   /// The first key a layer defining a new doc type lacks, or null when it
-  /// holds them all: `id`, `path`, and `description` unless it extends a type.
+  /// holds them all: `id`, `path` unless it writes `path_from`, `file` with
+  /// `path_from`, and `description` unless it extends a type.
   String? get missingNewDocTypeKey {
     if (id == null) return 'id';
-    if (path == null) return 'path';
+    if (path == null && pathFrom == null) return 'path';
+    if (pathFrom != null && docFile == null) return 'file';
     if (extendsId == null && description == null) return 'description';
     return null;
   }
+}
+
+/// The one `path_from` value: the doc type derives its patterns from the
+/// group levels of the merged `feature` path.
+const featureGroupsPathFrom = 'feature_groups';
+
+/// One `.md` file name of letters, digits, `_`, `-`, and `.`, with no leading
+/// dot, so no OS and no path pattern reads it as more than a literal name.
+final _docFileName = RegExp(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*\.md$');
+
+/// The names Windows reads as a device, with or without an extension.
+final _windowsDeviceName = RegExp(
+  r'^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)',
+  caseSensitive: false,
+);
+
+/// Returns the `file` of [map], or null when absent.
+///
+/// Throws `unknown_value` for a value that is not one bare portable `.md` file
+/// name: one outside [_docFileName], with a `..`, or a Windows device name.
+String? _parseDocFile(YamlMap map, {required String file}) {
+  final value = optionalValue<String>(map, 'file', file: file);
+  if (value == null) return null;
+  if (_docFileName.hasMatch(value) &&
+      !value.contains('..') &&
+      !_windowsDeviceName.hasMatch(value)) {
+    return value;
+  }
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'file takes one file name of letters, digits, _, - and . ending in .md',
+    file: file,
+    key: 'file',
+  );
+}
+
+/// Returns the `path_from` of [map], or null when absent.
+///
+/// Throws `unknown_value` for a value other than [featureGroupsPathFrom].
+String? _parsePathFrom(YamlMap map, {required String file}) {
+  final value = optionalValue<String>(map, 'path_from', file: file);
+  if (value == null || value == featureGroupsPathFrom) return value;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'path_from takes $featureGroupsPathFrom',
+    file: file,
+    key: 'path_from',
+  );
 }
 
 /// Reads the `summary_for` key of [map] as a list of strings, or null.
@@ -675,6 +739,8 @@ const _topKeys = {
   'id',
   'description',
   'path',
+  'path_from',
+  'file',
   'title',
   'max_depth',
   'per_target',

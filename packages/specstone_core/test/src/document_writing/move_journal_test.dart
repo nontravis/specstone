@@ -346,6 +346,26 @@ void main() {
         : 'only Windows refuses to rename an open file',
   );
 
+  test('run refuses a trash folder that holds parked docs or another '
+      'journal, and leaves it', () {
+    final parked = File('${root.path}/${MoveJournal.stagePath}/parked.md')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('parked');
+
+    expect(
+      () => const MoveJournal([PruneStep('docs/$_login/us03_reset_password')])
+          .run(JournalTarget.of(openProject(root), homeDirectory: testHome())),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.file, 'file', MoveJournal.journalPath),
+      ),
+    );
+
+    expect(parked.readAsStringSync(), 'parked');
+    expect(journalExists(), isFalse);
+  });
+
   test('run moves to the trash, prunes, then clears journal and trash', () {
     const MoveJournal([
       MoveStep('docs/$fr31', '$_trashDocs/$fr31'),

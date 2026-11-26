@@ -48,17 +48,6 @@ Directory? homeFrom(Map<String, String> env) {
   return null;
 }
 
-/// Returns the generators of the shipped doc types: the journey kinds,
-/// `feature_catalog`, and `component_catalog`.
-GeneratorRegistry<DocIndex> _shippedGenerators() {
-  final journeys = journeyGenerators();
-  return GeneratorRegistry<DocIndex>({
-    for (final kind in journeys.kinds) kind: journeys[kind]!,
-    featureCatalogKind: featureCatalogBlocks,
-    componentCatalogKind: componentCatalogBlocks,
-  });
-}
-
 /// Runs the specstone command line.
 ///
 /// Prints the Specstone version for `--version`, prints generated usage for
@@ -79,7 +68,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     UpdateNotice? updateNotice,
     Future<void> Function(String line)? courtesy,
   }) : this._(
-         registry: generators ?? _shippedGenerators(),
+         registry: generators ?? shippedGenerators(),
          out: out,
          err: err,
          templates: templates,

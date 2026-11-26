@@ -66,18 +66,69 @@ typedef Generator<R> = List<GeneratedBlock> Function(
   R resolver,
 );
 
-/// The generators of a run, keyed by kind.
+/// One doc that a format run keeps beside the doc whose generator lists it.
+final class CompanionDoc {
+  const new({required this.docPath, required this.seedText});
+
+  /// The doc's path from the docs root.
+  final String docPath;
+
+  /// The LF text a missing doc starts from: a title line and empty `##`
+  /// sections, before its blocks are filled.
+  final String seedText;
+}
+
+/// The docs that one generator kind keeps beside the doc listing it.
+final class CompanionDocs {
+  const new({required this.docTypeId, required this.docs});
+
+  /// The doc type of every companion; every existing doc of this type that
+  /// [docs] leaves out is deleted. Empty when the layout has no companions.
+  final String docTypeId;
+
+  /// The companions the doc has now, in the order a run reports them.
+  final List<CompanionDoc> docs;
+}
+
+/// Returns the companions of the doc at [docPath], whose type is [docType].
+typedef CompanionsOf<R> = CompanionDocs Function(
+  String docPath,
+  MergedDocType docType,
+  R resolver,
+);
+
+/// The generators of a run, keyed by kind, and the companions some of them
+/// keep.
 final class GeneratorRegistry<R> {
-  new(Map<String, Generator<R>> generators)
-    : _generators = Map.unmodifiable(generators);
+  new(
+    Map<String, Generator<R>> generators, {
+    Map<String, CompanionsOf<R>> companions = const {},
+  }) : _generators = Map.unmodifiable(generators),
+       _companions = Map.unmodifiable(companions);
 
   final Map<String, Generator<R>> _generators;
+  final Map<String, CompanionsOf<R>> _companions;
 
   /// The registered kinds.
   Set<String> get kinds => _generators.keys.toSet();
 
   /// Returns the generator of [kind], or null when none is registered.
   Generator<R>? operator [](String kind) => _generators[kind];
+
+  /// Returns the companions function of [kind], or null when it keeps none.
+  CompanionsOf<R>? companionsOf(String kind) => _companions[kind];
+
+  /// Returns the registry of the [kinds] alone, each with its companions.
+  GeneratorRegistry<R> only(Set<String> kinds) => GeneratorRegistry(
+    {
+      for (final MapEntry(:key, :value) in _generators.entries)
+        if (kinds.contains(key)) key: value,
+    },
+    companions: {
+      for (final MapEntry(:key, :value) in _companions.entries)
+        if (kinds.contains(key)) key: value,
+    },
+  );
 }
 
 /// The result of writing generated blocks into a doc.

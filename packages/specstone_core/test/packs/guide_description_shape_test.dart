@@ -49,6 +49,7 @@ const _itemShapeTypes = {
   'prd-core/glossary',
   'prd-core/gnfr',
   'prd-core/goal',
+  'prd-core/group_features',
   'prd-core/journey',
   'prd-core/measurement',
   'prd-core/nf',

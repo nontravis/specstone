@@ -132,6 +132,30 @@ final class WriteSession {
     }
   }
 
+  /// Opens the project's index for a command that holds no session: refuses a
+  /// pending migrate, finishes an unfinished move journal inside the write
+  /// lock, and opens the index afresh.
+  ///
+  /// Adds to [warnings] the warnings of the first open when a journal is
+  /// pending, then each warning the replay raises. The caller closes the
+  /// session.
+  static ReadSession openReplayed({
+    required TemplateResolver templates,
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+    required List<String> warnings,
+    Duration busyTimeout = indexBusyTimeout,
+  }) {
+    refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
+    return _openReplayed(
+      templates: templates,
+      workingDirectory: workingDirectory,
+      homeDirectory: homeDirectory,
+      busyTimeout: busyTimeout,
+      warnings: warnings,
+    );
+  }
+
   static WriteSession _openAttempt(
     TemplateResolver templates,
     Directory workingDirectory,

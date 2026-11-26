@@ -1,0 +1,18 @@
+id: group_features
+description: |-
+  A group features doc: the catalog of one group folder of the feature tree.
+  Title it `# <group folder name> features`; the folder name is its identity, so it may hold a digit.
+  Write one rule per item, since the `features` section holds no IDs.
+path_from: feature_groups
+file: FEATURES.md
+generators: [group_feature_catalog]
+sections:
+  - id: features
+    header: Features
+    required: true
+    description: |-
+      Holds the group feature catalog, a generated block that `specstone format` fills; never written by hand.
+lint:
+  title_no_number: false
+  max_lines: 400
+  max_chars: 20000

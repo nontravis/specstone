@@ -8,6 +8,8 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -720,6 +722,7 @@ void main() {
               confirmation: OwnerConfirmation.prompt,
               readLine: () => throw StateError('must not ask'),
               out: StringBuffer(),
+              generators: shippedGenerators(),
             ),
           ),
         );

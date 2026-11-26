@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
@@ -22,6 +23,13 @@ const _configPath = '.specstone/config.yaml';
 const _frozenX = 'prd-core/frozen/x.yaml';
 
 Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
+
+/// A project type no pack defines that derives its patterns from the groups.
+const _areaIndexLayer =
+    'id: area_index\n'
+    'description: One index per group.\n'
+    'path_from: feature_groups\n'
+    'file: AREA.md\n';
 
 PackVersion _version(String text) =>
     PackVersion.parse(text, file: 'test', key: 'version');
@@ -1194,6 +1202,40 @@ path: prds/notes/{slug}/NOTE.md
       });
     });
 
+    test('a regenerate generators kind no one registers is unknown_value '
+        'at that key', () async {
+      Map<String, Uint8List> files(String generators) => {
+        ...shipped(),
+        'prd-core/pack.yaml': _bytes(
+          'name: prd-core\nversion: 1.1.0\nmigrations:\n'
+          '  - from: 1.0.0\n    steps:\n'
+          '      - regenerate: {generators: $generators}\n',
+        ),
+      };
+      Future<MergedSet> resolveWith(String generators) async =>
+          TemplateResolver(shippedFiles: files(generators)).resolve(
+            workingDirectory: await writeTree({
+              _configPath: 'packs:\n  prd-core: 1.1.0\n',
+            }),
+            homeDirectory: await writeTree({}),
+          );
+
+      await expectLater(
+        resolveWith('[feature_catalog, journey_map]'),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', 'packs/prd-core/pack.yaml')
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].regenerate.generators',
+              ),
+        ),
+      );
+      expect(await resolveWith('[feature_catalog]'), isA<MergedSet>());
+    });
+
     group('a mark_retrim step', () {
       Map<String, Uint8List> files({
         String docTypes = '[feature]',
@@ -1871,6 +1913,50 @@ path: prds/notes/{slug}/NOTE.md
 
       expect(merged.lookup('feature')!.maxDepth, 3);
       expect(merged.lookup('epic')!.maxDepth, isNull);
+    });
+
+    test('a path_from doc type derives its patterns from a grouped '
+        'feature path', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml':
+            'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+        '.specstone/templates/area_index.yaml': _areaIndexLayer,
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      final areaIndex = merged.lookup('area_index')!;
+      expect(areaIndex.path, isNull);
+      expect(areaIndex.pathFrom, 'feature_groups');
+      expect(areaIndex.paths, ['prds/features/{slug}/AREA.md']);
+      expect(
+        PathPattern(areaIndex.paths.single)
+            .matches('prds/features/form/AREA.md'),
+        isTrue,
+      );
+    });
+
+    test('a doc type extending a path_from type with no pattern key is '
+        'missing_key at path', () async {
+      final fault = await _resolveFault(
+        project: {
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/area_index.yaml': _areaIndexLayer,
+          '.specstone/templates/area_note.yaml':
+              'id: area_note\n'
+              'extends: area_index\n',
+        },
+      );
+
+      expect(fault.code, FaultCode.missingKey);
+      expect(fault.key, 'path');
+      expect(fault.file, '.specstone/templates/area_note.yaml');
     });
 
     test('a project template with a new id '
@@ -2899,6 +2985,95 @@ path: ops/{slug}/RUN.md
               )
               .having((f) => f.relatedFiles, 'relatedFiles', [
                 '.specstone/templates/run.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('a project path_from type clashing with a pack type faults on the '
+        'project file', () async {
+      final fault = await _resolveFault(
+        project: {
+          _configPath: 'packs:\n  prd-core: 1.1.0\n',
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          '.specstone/templates/area_index.yaml': _areaIndexLayer,
+        },
+        shippedFiles: {
+          ...shipped(),
+          'prd-core/area.yaml': _bytes(
+            'id: area\ndescription: An area\n'
+            'path: prds/features/{slug}/AREA.md\n',
+          ),
+        },
+      );
+
+      expect(fault.code, FaultCode.docTypePathConflict);
+      expect(fault.key, 'file');
+      expect(fault.file, '.specstone/templates/area_index.yaml');
+      expect(fault.relatedFiles, ['packs/prd-core/area.yaml']);
+    });
+
+    test('two project doc types listing group_feature_catalog are '
+        'unknown_value at generators', () async {
+      final projectDir = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/area_a.yaml':
+            'id: area_a\ndescription: A\npath: area_a/{slug}.md\n'
+            'generators: [group_feature_catalog]\n',
+        '.specstone/templates/area_b.yaml':
+            'id: area_b\ndescription: B\npath: area_b/{slug}.md\n'
+            'generators: [group_feature_catalog]\n',
+      });
+      final homeDir = await writeTree({});
+      final resolver = TemplateResolver(
+        shippedFiles: shipped(),
+        generatorKinds: {...shippedGeneratorKinds, groupFeatureCatalogKind},
+      );
+
+      expect(
+        () => resolver.resolve(
+          workingDirectory: projectDir,
+          homeDirectory: homeDir,
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'generators')
+              .having((f) => f.file, 'file', '.specstone/templates/area_b.yaml')
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '.specstone/templates/area_a.yaml',
+              ]),
+        ),
+      );
+    });
+
+    test('a project type listing group_feature_catalog beside the shipped '
+        'group_features is refused at generators', () async {
+      final projectDir = await writeTree({
+        _configPath: shippedPinsConfig(['prd-core']),
+        '.specstone/templates/area_index.yaml':
+            'id: area_index\ndescription: A\npath: area/{slug}.md\n'
+            'generators: [group_feature_catalog]\n',
+      });
+      final homeDir = await writeTree({});
+
+      expect(
+        () => TemplateResolver().resolve(
+          workingDirectory: projectDir,
+          homeDirectory: homeDir,
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'generators')
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/area_index.yaml',
+              )
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                'packs/prd-core/group_features.yaml',
               ]),
         ),
       );

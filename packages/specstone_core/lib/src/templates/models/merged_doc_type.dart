@@ -17,11 +17,14 @@ final class MergedDocType {
     this.extendsId,
     this.extendsChain = const [],
     this.path,
+    this.pathFrom,
+    this.file,
     this.title,
     this.maxDepth,
     this.isPerTarget = false,
     this.fixedNumbers = false,
     this.nestedPaths,
+    this.derivedPaths,
     this.bundle,
     this.bundleRefs,
     this.summaryFor,
@@ -86,8 +89,15 @@ final class MergedDocType {
   bool buildsOn(String docTypeId) =>
       id == docTypeId || extendsChain.contains(docTypeId);
 
-  /// The doc path pattern.
+  /// The doc path pattern; null on a [pathFrom] type.
   final String? path;
+
+  /// What the doc type derives its patterns from in place of [path]; null
+  /// when it writes a [path].
+  final String? pathFrom;
+
+  /// The doc file name each pattern derived from [pathFrom] ends with.
+  final String? file;
 
   /// The fixed text of every doc's `# ` line; null when no layer sets it.
   final String? title;
@@ -112,9 +122,16 @@ final class MergedDocType {
   /// type's `max_depth`, so [copyWith] keeps it unless one of those is given.
   final List<String>? nestedPaths;
 
-  /// The path patterns a doc of this type matches: [nestedPaths], else [path],
-  /// else none.
-  List<String> get paths => nestedPaths ?? [?path];
+  /// One path pattern per group level of the `feature` path, for a [pathFrom]
+  /// type; empty in an ungrouped layout, null until a `MergedSet` derives it.
+  ///
+  /// A `MergedSet` derives it from the merged `feature` path and [file], so
+  /// [copyWith] keeps it unless [pathFrom] or [file] is given.
+  final List<String>? derivedPaths;
+
+  /// The path patterns a doc of this type matches: [nestedPaths], else
+  /// [derivedPaths], else [path], else none.
+  List<String> get paths => nestedPaths ?? derivedPaths ?? [?path];
 
   /// The bundle modes the doc type takes part in; null when no layer sets it.
   final List<String>? bundle;
@@ -168,18 +185,22 @@ final class MergedDocType {
   /// Returns a copy with each non-null argument replacing its property.
   ///
   /// [nestedPaths] stays unless [path], [parent], or [maxDepth] is given, since
-  /// a new value of any makes the old list stale.
+  /// a new value of any makes the old list stale; [derivedPaths] stays unless
+  /// [pathFrom] or [file] is given, for the same reason.
   MergedDocType copyWith({
     String? description,
     String? parent,
     String? extendsId,
     List<String>? extendsChain,
     String? path,
+    String? pathFrom,
+    String? file,
     String? title,
     int? maxDepth,
     bool? isPerTarget,
     bool? fixedNumbers,
     List<String>? nestedPaths,
+    List<String>? derivedPaths,
     List<String>? bundle,
     bool? bundleRefs,
     List<String>? summaryFor,
@@ -200,6 +221,8 @@ final class MergedDocType {
     extendsId: extendsId ?? this.extendsId,
     extendsChain: extendsChain ?? this.extendsChain,
     path: path ?? this.path,
+    pathFrom: pathFrom ?? this.pathFrom,
+    file: file ?? this.file,
     title: title ?? this.title,
     maxDepth: maxDepth ?? this.maxDepth,
     isPerTarget: isPerTarget ?? this.isPerTarget,
@@ -209,6 +232,9 @@ final class MergedDocType {
         (path == null && parent == null && maxDepth == null
             ? this.nestedPaths
             : null),
+    derivedPaths:
+        derivedPaths ??
+        (pathFrom == null && file == null ? this.derivedPaths : null),
     bundle: bundle ?? this.bundle,
     bundleRefs: bundleRefs ?? this.bundleRefs,
     summaryFor: summaryFor ?? this.summaryFor,
@@ -236,6 +262,7 @@ final class MergedDocType {
       'parent': ?parent,
       'extends': ?extendsId,
       'path': ?path,
+      if (pathFrom != null) 'paths': derivedPaths ?? const <String>[],
       'title': ?title,
       'maxDepth': ?maxDepth,
       if (isPerTarget) 'perTarget': true,

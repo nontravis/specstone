@@ -8,6 +8,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
@@ -239,6 +241,7 @@ void main() {
           readLine: () => read++ == 0 ? 'y' : null,
           out: StringBuffer(),
           warn: (_) {},
+          generators: shippedGenerators(),
         ),
       );
 

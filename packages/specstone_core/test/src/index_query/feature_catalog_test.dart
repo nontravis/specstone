@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/feature_catalog.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -10,6 +11,9 @@ import '../../helpers/temp_tree.dart';
 
 const _featuresDoc = 'prds/FEATURES.md';
 const _tableHeader = '| Feature | What it does | Status | Stories | Serves |';
+const _groupTableHeader = '| Group | Features | Status | Stories |';
+const _groupedRecordPath =
+    '.specstone/records/{slug}/f{nn}_{slug}/IMPLEMENTATION.md';
 const _dash = '—';
 
 /// The files of one feature at [dir] under `prds/features/`, with a story per
@@ -41,6 +45,36 @@ Map<String, String> _record(
       '---\n\n# Record\n',
 };
 
+/// The template layers that put the feature and its stories under [levels]
+/// group folders.
+Map<String, String> _groupedLayers({
+  int levels = 1,
+  Map<String, String> extra = const {},
+}) {
+  final groups = List.filled(levels, '{slug}/').join();
+  return {
+    '.specstone/templates/feature.yaml':
+        'path: prds/features/${groups}f{nn}_{slug}/FEATURE.md\n',
+    '.specstone/templates/user_story.yaml':
+        'path: prds/features/${groups}f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md\n',
+    ...extra,
+  };
+}
+
+/// The files of one grouped feature at [dir], with a story per entry of
+/// [stories] that writes its status.
+Map<String, String> _groupedFeature(
+  String dir,
+  String title,
+  Map<String, String> stories,
+) => {
+  'docs/prds/features/$dir/FEATURE.md': '# $title\n\n## Problem\nNeed it.\n',
+  for (final (n, MapEntry(:key, :value)) in stories.entries.indexed)
+    'docs/prds/features/$dir/us0${n + 1}_$key/USER_STORY.md':
+        '---\nstatus: $value\n---\n\n# Agent uses $key\n\n'
+        '## Use Case\nUse it.\n',
+};
+
 Future<DocIndex> _open(
   Map<String, String> files, {
   List<String> targets = const [],
@@ -70,6 +104,39 @@ List<String> _cells(String row) {
 }
 
 String _text(DocIndex index) => featureCatalogText(index, _featuresDoc);
+
+/// A project layer of the shipped `group_features` type that renames its doc
+/// file to `AREA.md`.
+const Map<String, String> _areaLayer = {
+  '.specstone/templates/group_features.yaml': 'file: AREA.md\n',
+};
+
+/// Three grouped features: two in `kitchen`, one in `garden`.
+Map<String, String> _kitchenAndGarden({bool area = false}) => {
+  ..._groupedLayers(extra: area ? _areaLayer : const {}),
+  ..._groupedFeature('kitchen/f01_recipes', 'Recipes', {
+    'cook': 'implemented',
+    'bake': 'implemented',
+  }),
+  ..._groupedFeature('kitchen/f02_menus', 'Menus', {'plan': 'planned'}),
+  ..._groupedFeature('garden/f03_beds', 'Beds', {'dig': 'implemented'}),
+};
+
+/// Two features under `form`, one in each of its two child groups.
+Map<String, String> _formGroups() => {
+  ..._groupedLayers(levels: 2),
+  ..._groupedFeature('form/input/f01_text', 'Text', {'type': 'implemented'}),
+  ..._groupedFeature('form/choice/f02_pick', 'Pick', {'tap': 'planned'}),
+};
+
+String _groupText(DocIndex index, String folder) =>
+    groupFeatureCatalogText(index, 'prds/features/$folder/FEATURES.md');
+
+CompanionDocs _companionsOf(DocIndex index) => featureCatalogCompanions(
+  _featuresDoc,
+  index.set.lookup('features')!,
+  index,
+);
 
 void main() {
   group('feature_catalog', () {
@@ -378,6 +445,129 @@ void main() {
       });
     });
 
+    group('grouped layout', () {
+      test('two group folders give a four-column table, one row per folder in '
+          'tree order', () async {
+        final index = await _open(
+          {
+            ..._groupedLayers(),
+            ..._groupedFeature('kitchen/f01_recipes', 'Recipes', {
+              'cook': 'implemented',
+            }),
+            ..._groupedFeature('kitchen/f02_menus', 'Menus', {
+              'plan': 'planned',
+            }),
+            ..._groupedFeature('garden/f03_beds', 'Beds', {
+              'dig': 'implemented',
+            }),
+          },
+          packs: ['prd-core'],
+        );
+
+        final lines = _text(index).split('\n');
+
+        expect(
+          lines.first,
+          '3 features · 3 stories · 2 implemented, 1 planned',
+        );
+        expect(lines[1], isEmpty);
+        expect(lines[2], _groupTableHeader);
+        expect(lines[3], '|---|---|---|---|');
+        expect(
+          [for (final row in lines.skip(4)) _cells(row)[0]],
+          [
+            '[garden](features/garden/FEATURES.md)',
+            '[kitchen](features/kitchen/FEATURES.md)',
+          ],
+        );
+      });
+
+      test('a group row counts its features, their status counts, and their '
+          'stories', () async {
+        final index = await _open(
+          {
+            ..._groupedLayers(),
+            ..._groupedFeature('kitchen/f01_recipes', 'Recipes', {
+              'cook': 'implemented',
+              'bake': 'implemented',
+            }),
+            ..._groupedFeature('kitchen/f02_menus', 'Menus', {
+              'plan': 'planned',
+            }),
+          },
+          packs: ['prd-core'],
+        );
+
+        final row = _cells(_rows(_text(index)).single);
+
+        expect(row.sublist(1), ['2', '1 implemented, 1 planned', '2/3']);
+      });
+
+      test('with two levels the features doc lists only the first-level '
+          'groups', () async {
+        final index = await _open(
+          {
+            ..._groupedLayers(levels: 2),
+            ..._groupedFeature('form/input/f01_text', 'Text', {
+              'type': 'implemented',
+            }),
+            ..._groupedFeature('form/choice/f02_pick', 'Pick', {
+              'tap': 'planned',
+            }),
+          },
+          packs: ['prd-core'],
+        );
+
+        final rows = _rows(_text(index));
+
+        expect(rows, hasLength(1));
+        expect(_cells(rows.single), [
+          '[form](features/form/FEATURES.md)',
+          '2',
+          '1 implemented, 1 planned',
+          '1/2',
+        ]);
+      });
+
+      test("a grouped project with two targets gives each target's status "
+          'counts and stories in its group row', () async {
+        final index = await _open(
+          {
+            ..._groupedLayers(
+              extra: {
+                '.specstone/templates/implementation.yaml':
+                    'path: $_groupedRecordPath\n',
+              },
+            ),
+            ..._feature('kitchen/f01_recipes', 'Recipes', stories: ['a', 'b']),
+            ..._feature('kitchen/f02_menus', 'Menus', stories: ['c']),
+            ..._record('kitchen/f01_recipes', [
+              'a:implemented',
+              'b:implemented',
+            ], target: 'flutter'),
+            ..._record('kitchen/f01_recipes', [
+              'a:implemented',
+            ], target: 'jaspr'),
+          },
+          targets: ['flutter', 'jaspr'],
+        );
+
+        final row = _cells(_rows(_text(index)).single);
+
+        expect(row.sublist(1), [
+          '2',
+          'flutter: 1 implemented, 1 planned · jaspr: 2 planned',
+          'flutter: 2/3, jaspr: 1/3',
+        ]);
+      });
+
+      test('an ungrouped project keeps the feature table', () async {
+        final index = await _open(_feature('f01_a', 'A'));
+
+        expect(_text(index).split('\n')[2], _tableHeader);
+      });
+    });
+
     group('featureCatalogBlocks', () {
       test('returns one block at the top of the features section', () async {
         final index = await _open(_feature('f01_a', 'A'));
@@ -417,6 +607,189 @@ void main() {
             contains('[A](../features/f01_a/FEATURE.md)'),
           );
         },
+      );
+    });
+  });
+
+  group('group_feature_catalog', () {
+    test('a one-level group doc lists its own top features in the five-column '
+        'table', () async {
+      final index = await _open(_kitchenAndGarden(), packs: ['prd-core']);
+
+      final text = _groupText(index, 'kitchen');
+
+      expect(text.split('\n')[2], _tableHeader);
+      expect(
+        [for (final row in _rows(text)) _cells(row)[0]],
+        ['[Recipes](f01_recipes/FEATURE.md)', '[Menus](f02_menus/FEATURE.md)'],
+      );
+    });
+
+    test("a group doc's summary line counts only its group's features and "
+        'stories', () async {
+      final index = await _open(_kitchenAndGarden(), packs: ['prd-core']);
+
+      expect(
+        _groupText(index, 'kitchen').split('\n').first,
+        '2 features · 3 stories · 1 implemented, 1 planned',
+      );
+    });
+
+    test('a first-level group doc of a two-level layout lists its child '
+        'groups as group rows', () async {
+      final index = await _open(_formGroups(), packs: ['prd-core']);
+
+      final text = _groupText(index, 'form');
+
+      expect(text.split('\n')[2], _groupTableHeader);
+      expect(
+        [for (final row in _rows(text)) _cells(row)[0]],
+        ['[choice](choice/FEATURES.md)', '[input](input/FEATURES.md)'],
+      );
+    });
+
+    test(
+      'a second-level group doc lists the top features of its folder',
+      () async {
+        final index = await _open(_formGroups(), packs: ['prd-core']);
+
+        final text = _groupText(index, 'form/input');
+
+        expect(text.split('\n')[2], _tableHeader);
+        expect(
+          [for (final row in _rows(text)) _cells(row)[0]],
+          ['[Text](f01_text/FEATURE.md)'],
+        );
+      },
+    );
+
+    test('groupFeatureCatalogBlocks returns one block at the top of the '
+        'features section', () async {
+      final index = await _open(_kitchenAndGarden(), packs: ['prd-core']);
+      final type = index.set.lookup('features')!;
+      const docPath = 'prds/features/kitchen/FEATURES.md';
+
+      final blocks = groupFeatureCatalogBlocks(
+        Doc.parse(''),
+        docPath,
+        type,
+        index,
+      );
+
+      expect(blocks, hasLength(1));
+      expect(blocks.single.kind, groupFeatureCatalogKind);
+      expect(blocks.single.sectionId, 'features');
+      expect(blocks.single.place, isA<SectionTop>());
+      expect(blocks.single.text, groupFeatureCatalogText(index, docPath));
+    });
+
+    test('group docs in the index leave the features top features', () async {
+      final index = await _open(
+        {
+          ..._groupedLayers(),
+          ..._groupedFeature('kitchen/f01_recipes', 'Recipes', {
+            'cook': 'implemented',
+          }),
+          'docs/prds/features/kitchen/FEATURES.md':
+              '# kitchen features\n\n## Features\n',
+        },
+        packs: ['prd-core'],
+      );
+
+      expect(
+        index.docs.where((doc) => doc.docTypeId == 'group_features'),
+        hasLength(1),
+      );
+      expect(
+        index.docs
+            .where((doc) => doc.docTypeId == 'feature')
+            .map(index.parentOf),
+        [null],
+      );
+      expect(_text(index).split('\n').first, startsWith('1 features'));
+    });
+  });
+
+  group('feature catalog companions', () {
+    test('the companion list holds one group doc per group folder at every '
+        'level', () async {
+      final index = await _open(_formGroups(), packs: ['prd-core']);
+
+      final companions = _companionsOf(index);
+
+      expect(companions.docTypeId, 'group_features');
+      expect(
+        [for (final doc in companions.docs) doc.docPath],
+        [
+          'prds/features/form/FEATURES.md',
+          'prds/features/form/choice/FEATURES.md',
+          'prds/features/form/input/FEATURES.md',
+        ],
+      );
+    });
+
+    test('a group folder with no top feature gets no companion', () async {
+      final index = await _open(
+        {
+          ..._kitchenAndGarden(),
+          'docs/prds/features/empty/NOTES.md': '# Notes\n',
+        },
+        packs: ['prd-core'],
+      );
+
+      expect(
+        [for (final doc in _companionsOf(index).docs) doc.docPath],
+        [
+          'prds/features/garden/FEATURES.md',
+          'prds/features/kitchen/FEATURES.md',
+        ],
+      );
+    });
+
+    test("a companion's seed text holds the title line and one header per "
+        'section', () async {
+      final index = await _open(_formGroups(), packs: ['prd-core']);
+
+      final seed = _companionsOf(index).docs.first.seedText;
+
+      expect(seed, '# form features\n\n## Features\n');
+    });
+
+    test('an ungrouped project lists no companion', () async {
+      final index = await _open(_feature('f01_a', 'A'), packs: ['prd-core']);
+
+      expect(_companionsOf(index).docs, isEmpty);
+    });
+
+    test('a grouped project with no group doc type lists no companion '
+        'and names no doc type', () async {
+      final index = await _open(
+        {
+          ..._kitchenAndGarden(),
+          '.specstone/templates/group_features.yaml':
+              'generators:\n  remove: [group_feature_catalog]\n',
+        },
+        packs: ['prd-core'],
+      );
+
+      final companions = _companionsOf(index);
+
+      expect(companions.docTypeId, isEmpty);
+      expect(companions.docs, isEmpty);
+    });
+
+    test("a group row links the group doc by the group type's file", () async {
+      final index = await _open(
+        _kitchenAndGarden(area: true),
+        packs: ['prd-core'],
+      );
+
+      expect(
+        [for (final row in _rows(_text(index))) _cells(row)[0]],
+        [
+          '[garden](features/garden/AREA.md)',
+          '[kitchen](features/kitchen/AREA.md)',
+        ],
       );
     });
   });

@@ -7,8 +7,11 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart' show DocIndex;
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/claude_settings.dart'
     show SpecstoneHookFile;
@@ -37,6 +40,7 @@ final class MigrateRequest {
     required this.workingDirectory,
     required this.homeDirectory,
     required this.templates,
+    required this.generators,
     required this.dryRun,
     required this.confirmation,
     required this.readLine,
@@ -59,6 +63,9 @@ final class MigrateRequest {
 
   /// Loads the carried packs.
   final TemplateResolver templates;
+
+  /// The generators a `regenerate` step runs, keyed by kind.
+  final GeneratorRegistry<DocIndex> generators;
 
   /// Whether to print the plan and write nothing.
   final bool dryRun;
@@ -335,50 +342,60 @@ Future<int> _plannedRun(
   final trust = _trustOf(root, linkFolder, request);
   _preflight(request, root, trust, checksCleanTree: !request.dryRun);
   final isTreeDirty = request.dryRun && isWorkTreeDirty(root, request.runGit);
-  final plan = _planOf(request, root, added);
-  _nameSkipped(request, plan);
-  final planText = plan.toText();
-  if (request.dryRun) {
-    _printDryRun(
-      request,
-      planText,
-      plan.inputs,
-      plan.lists,
-      isTreeDirty: isTreeDirty,
-    );
-    return 0;
-  }
-  _printPlan(request, planText);
-  request.confirmation.refuseIfMissing(_applyRefusal);
-  if (request.confirmation.prompts) {
-    // Under `--json` the plan object waits for the run's end, so the Owner
-    // reads the plan here, before the `y`.
-    if (request.asJson) _say(request, planText);
-    MoveJournal.requireHomeFolder(request.homeDirectory, root);
-    _say(request, 'apply? [y/N] ', endsLine: false);
-    final answer = request.readLine()?.trim();
-    if (answer != 'y') {
-      _printPlanObject(request, planText, plan.lists);
+  // The shown plan and the plan before the apply read one index.
+  final index = RegenerationIndex();
+  try {
+    final plan = _planOf(request, root, added, index);
+    _nameSkipped(request, plan);
+    final planText = plan.toText();
+    if (request.dryRun) {
+      _printDryRun(
+        request,
+        planText,
+        plan.inputs,
+        plan.lists,
+        isTreeDirty: isTreeDirty,
+      );
       return 0;
     }
-  } else {
-    _requireSeenPlan(request, planText, plan.inputs);
+    _printPlan(request, planText);
+    request.confirmation.refuseIfMissing(_applyRefusal);
+    if (request.confirmation.prompts) {
+      // Under `--json` the plan object waits for the run's end, so the Owner
+      // reads the plan here, before the `y`.
+      if (request.asJson) _say(request, planText);
+      MoveJournal.requireHomeFolder(request.homeDirectory, root);
+      _say(request, 'apply? [y/N] ', endsLine: false);
+      final answer = request.readLine()?.trim();
+      if (answer != 'y') {
+        _printPlanObject(request, planText, plan.lists);
+        return 0;
+      }
+    } else {
+      _requireSeenPlan(request, planText, plan.inputs);
+    }
+    requireCleanWorkTree(root, request.runGit);
+    final applied = _replanMatching(request, root, plan, added, index);
+    final base = headSha(root, request.runGit);
+    final steps = applied.journalSteps(base: base, projectRoot: root);
+    MoveJournal(steps).run(
+      _targetOf(root, request, trust, agentFiles: applied.agentFiles?.writeSet),
+    );
+    _printCommits(request, root, steps.whereType<CommitStep>().toList());
+    _printCodexTrustLine(request, applied.agentFiles?.paths ?? const []);
+    await _printClosingLine(request, root);
+    _printPlanObject(request, planText, plan.lists);
+    return 0;
+  } finally {
+    index.close();
   }
-  requireCleanWorkTree(root, request.runGit);
-  final applied = _replanMatching(request, root, plan, added);
-  final base = headSha(root, request.runGit);
-  final steps = applied.journalSteps(base: base, projectRoot: root);
-  MoveJournal(steps).run(
-    _targetOf(root, request, trust, agentFiles: applied.agentFiles?.writeSet),
-  );
-  _printCommits(request, root, steps.whereType<CommitStep>().toList());
-  _printCodexTrustLine(request, applied.agentFiles?.paths ?? const []);
-  await _printClosingLine(request, root);
-  _printPlanObject(request, planText, plan.lists);
-  return 0;
 }
 
 /// Plans again and returns the new plan when it hashes as [shown] does.
+///
+/// The new plan reads the docs through [index], the one [shown] built, so a
+/// `regenerate` step indexes them once per run; a doc edited since changes the
+/// plan's inputs and is refused as below.
 ///
 /// Throws [MigrateFault] `working_tree_dirty` otherwise, naming the first
 /// input that differs, or the plan alone when only its text does. A new plan
@@ -392,11 +409,12 @@ RunPlan _replanMatching(
   Directory root,
   RunPlan shown,
   List<String> added,
+  RegenerationIndex index,
 ) {
   final recorder = PlanInputs(root);
   final RunPlan fresh;
   try {
-    fresh = recorder.collect(() => _planOf(request, root, added));
+    fresh = recorder.collect(() => _planOf(request, root, added, index));
   } on FileSystemException catch (error) {
     throw _inputChanged(_fromRoot(root, error.path));
   } on TemplateFault catch (fault) {
@@ -453,13 +471,19 @@ void _nameSkipped(MigrateRequest request, RunPlan plan) {
   }
 }
 
-RunPlan _planOf(MigrateRequest request, Directory root, List<String> added) =>
-    planUpgradeRun(
-      root,
-      templates: request.templates,
-      homeDirectory: request.homeDirectory,
-      addedPacks: added,
-    );
+RunPlan _planOf(
+  MigrateRequest request,
+  Directory root,
+  List<String> added,
+  RegenerationIndex index,
+) => planUpgradeRun(
+  root,
+  templates: request.templates,
+  homeDirectory: request.homeDirectory,
+  addedPacks: added,
+  generators: request.generators,
+  regenerationIndex: index,
+);
 
 /// Finishes the migrate journal a stopped run left, with no second `y`: the
 /// Owner's first `y` approved its steps.

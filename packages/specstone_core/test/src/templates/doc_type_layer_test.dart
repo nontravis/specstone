@@ -1,11 +1,42 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/record_status.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/temp_tree.dart';
+
 const _file = '.specstone/templates/feature.yaml';
+
+const _areaFile = '.specstone/templates/area_index.yaml';
+
+/// The fault the resolver throws for a project type `area_index` that writes
+/// [keys] beside its id and description.
+Future<TemplateFault> _resolveNewTypeFault(String keys) async {
+  final project = await writeTree({
+    '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
+    _areaFile: 'id: area_index\ndescription: x\n$keys',
+  });
+  final home = await writeTree({});
+  final resolver = TemplateResolver(
+    shippedFiles: {
+      'prd-core/pack.yaml': Uint8List.fromList(
+        utf8.encode('name: prd-core\nversion: 1.1.0\n'),
+      ),
+    },
+  );
+  try {
+    resolver.resolve(workingDirectory: project, homeDirectory: home);
+  } on TemplateFault catch (fault) {
+    return fault;
+  }
+  fail('resolve threw no fault');
+}
 
 final class _FakeFiles implements LayerFiles {
   const new(this.paths);
@@ -208,6 +239,90 @@ void main() {
         );
       }
     });
+
+    test('path_from takes feature_groups only', () {
+      final layer = _parse('path_from: feature_groups\nfile: AREA.md\n');
+      expect(layer.pathFrom, 'feature_groups');
+      expect(layer.docFile, 'AREA.md');
+      expect(_parse('path: a/{slug}/A.md\n').pathFrom, isNull);
+      expect(
+        () => _parse('path_from: feature_folders\nfile: AREA.md\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'path_from')),
+      );
+    });
+
+    test('file takes one portable .md file name', () {
+      for (final value in [
+        '../x.md',
+        'a/b.md',
+        r'a\b.md',
+        '/abs.md',
+        'x.txt',
+        '',
+        '{slug}.md',
+        'a{nn}.md',
+        'a}b.md',
+        'a*b.md',
+        'a?b.md',
+        'a<b.md',
+        'a>b.md',
+        'a|b.md',
+        'a"b.md',
+        'a:b.md',
+        'a b.md',
+        'a\u001Bb.md',
+        'a\nb.md',
+        '.hidden.md',
+        'a..md',
+        '.md',
+        'NUL.md',
+        'con.md',
+        'Com1.notes.md',
+        'LPT9.md',
+      ]) {
+        expect(
+          () =>
+              _parse('path_from: feature_groups\nfile: ${jsonEncode(value)}\n'),
+          throwsA(_fault(FaultCode.unknownValue, key: 'file')),
+          reason: value,
+        );
+      }
+      for (final value in ['FEATURES.md', 'a-b_c.1.md', '_x.md', 'COM10.md']) {
+        expect(
+          _parse('path_from: feature_groups\nfile: $value\n').docFile,
+          value,
+        );
+      }
+    });
+
+    test('a camelCase pathFrom key is unknown_key', () {
+      expect(
+        () => _parse('pathFrom: feature_groups\n'),
+        throwsA(_fault(FaultCode.unknownKey, key: 'pathFrom')),
+      );
+    });
+
+    test(
+      'a new doc type with path_from and no file is missing_key at file',
+      () async {
+        final fault = await _resolveNewTypeFault('path_from: feature_groups\n');
+
+        expect(fault.code, FaultCode.missingKey);
+        expect(fault.key, 'file');
+        expect(fault.file, _areaFile);
+      },
+    );
+
+    test(
+      'a new doc type with neither path nor path_from is missing_key at path',
+      () async {
+        final fault = await _resolveNewTypeFault('');
+
+        expect(fault.code, FaultCode.missingKey);
+        expect(fault.key, 'path');
+        expect(fault.file, _areaFile);
+      },
+    );
 
     test('title reads a fixed title string', () {
       expect(_parse('title: Domain glossary\n').title, 'Domain glossary');

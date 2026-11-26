@@ -1,10 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/feature_catalog.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart';
+import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
@@ -15,8 +22,11 @@ import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, withApprovalHashes;
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/temp_tree.dart';
 
 const _zeta = '''
@@ -214,6 +224,138 @@ String _noteDoc(String block, {String front = ''}) =>
 String _fresh() => '$_toc\ntoc R1\n$_end';
 
 String _stale() => '$_toc\nold\n$_end';
+
+const _groupedFeature = 'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n';
+
+const _areaIndex = '''
+id: area_index
+description: One index per feature group.
+path_from: feature_groups
+file: AREA.md
+generators: [area_catalog]
+sections:
+  - id: features
+    header: Features
+''';
+
+const _featureMap = '''
+id: feature_map
+description: The features doc.
+path: prds/FEATURES.md
+generators: [group_rows]
+sections:
+  - id: features
+    header: Features
+''';
+
+const _mapPath = 'docs/prds/FEATURES.md';
+final String _rowsMarker = generatedOpenMarker('group_rows');
+final String _areaMarker = generatedOpenMarker('area_catalog');
+
+String _areaPath(String slug) => 'docs/prds/features/$slug/AREA.md';
+
+String _mapDoc(String groups) =>
+    '# Features\n\n## Features\n\n$_rowsMarker\ngroups[$groups]\n$_end\n';
+
+String _areaDoc(String slug, {String? rows}) =>
+    '# $slug\n\n## Features\n\n$_areaMarker\n'
+    '${rows ?? 'rows of prds/features/$slug/AREA.md'}\n$_end\n';
+
+/// The docs of a grouped project holding [groups], each with a fresh doc.
+Map<String, String> _freshGroups(List<String> groups) => {
+  _mapPath: _mapDoc(groups.join(',')),
+  for (final slug in groups) _areaPath(slug): _areaDoc(slug),
+};
+
+/// Generators of a grouped features doc: the resolver is the group slugs, and
+/// each slug has one `AREA.md` companion.
+GeneratorRun<List<String>> _groupRun(
+  List<String> groups, {
+  void Function(void Function() write)? lockWrites,
+}) => GeneratorRun<List<String>>(
+  registry: GeneratorRegistry<List<String>>(
+    {
+      'group_rows': (doc, docPath, type, slugs) => [
+        GeneratedBlock(
+          kind: 'group_rows',
+          sectionId: 'features',
+          place: const SectionTop(),
+          text: 'groups[${slugs.join(',')}]',
+        ),
+      ],
+      'area_catalog': (doc, docPath, type, slugs) => [
+        GeneratedBlock(
+          kind: 'area_catalog',
+          sectionId: 'features',
+          place: const SectionTop(),
+          text: 'rows of $docPath',
+        ),
+      ],
+    },
+    companions: {
+      'group_rows': (docPath, type, slugs) => CompanionDocs(
+        docTypeId: 'area_index',
+        docs: [
+          for (final slug in slugs)
+            CompanionDoc(
+              docPath: 'prds/features/$slug/AREA.md',
+              seedText: '# $slug\n\n## Features\n',
+            ),
+        ],
+      ),
+    },
+  ),
+  open: () => OpenedResolver(
+    resolver: groups,
+    close: () {},
+    lockWrites: lockWrites ?? (write) => write(),
+  ),
+);
+
+Future<_Run> _openGroups(Map<String, String> docs) async {
+  final root = await fixtureProject({
+    '.specstone/templates/feature.yaml': _groupedFeature,
+    '.specstone/templates/area_index.yaml': _areaIndex,
+    '.specstone/templates/feature_map.yaml': _featureMap,
+    ...docs,
+  });
+  final project = DocsProject.open(
+    templates: TemplateResolver(
+      shippedFiles: fixturePackFiles(),
+      generatorKinds: {...shippedGeneratorKinds, 'group_rows', 'area_catalog'},
+    ),
+    workingDirectory: root,
+    homeDirectory: null,
+  );
+  return (root: root, project: project);
+}
+
+FormatReport _runGroups(
+  _Run run,
+  List<String> groups, {
+  Directory? home,
+  bool check = false,
+  String? target,
+  void Function(void Function() write)? lockWrites,
+}) => runFormat<List<String>>(
+  run.project,
+  run.project.resolveTarget(
+    target,
+    workingDirectory: run.root,
+    defaultsToDocsRoot: true,
+  ),
+  check: check,
+  generators: _groupRun(groups, lockWrites: lockWrites),
+  homeDirectory: home,
+);
+
+Future<Directory> _home() => writeTree({});
+
+Map<String, FileStatus> _statuses(FormatReport report) => {
+  for (final file in report.files) file.path: file.status,
+};
+
+bool _exists(_Run run, String path) => _file(run, path).existsSync();
 
 void main() {
   // ignore: lines_longer_than_80_chars -- the test name stays one literal
@@ -1303,6 +1445,602 @@ void main() {
       );
       final again = _runNotes(run, generators, check: true);
       expect(again.files.single.status, FileStatus.unchanged);
+    });
+  });
+
+  group('a features doc and its group docs', () {
+    test('a missing group doc is created approved and reports '
+        'created', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['list']),
+        _mapPath: _mapDoc('form,list'),
+      });
+      final home = await _home();
+
+      final report = _runGroups(run, ['form', 'list'], home: home);
+
+      expect(_statuses(report), {
+        _mapPath: FileStatus.unchanged,
+        _areaPath('form'): FileStatus.created,
+        _areaPath('list'): FileStatus.unchanged,
+      });
+      final text = _read(run, _areaPath('form'));
+      final fields = ApprovalFields.of(Doc.parse(toLf(text)));
+      expect(text, contains(_areaDoc('form')));
+      expect(fields.isDraft, isFalse);
+      expect(
+        fields.approvedValue,
+        approvalHashOf(toLf(text), run.project.set.lookup('area_index')),
+      );
+      expect(report.toText(), '${_areaPath('form')}: created\n');
+      expect(MoveJournal.pending(run.root), isFalse);
+    });
+
+    test('a stale group doc is rewritten and reports formatted', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form', 'list']),
+        _areaPath('form'): _areaDoc('form', rows: 'old'),
+      });
+      final home = await _home();
+
+      final report = _runGroups(run, ['form', 'list'], home: home);
+
+      expect(_statuses(report), {
+        _mapPath: FileStatus.unchanged,
+        _areaPath('form'): FileStatus.formatted,
+        _areaPath('list'): FileStatus.unchanged,
+      });
+      expect(_read(run, _areaPath('form')), _areaDoc('form'));
+      expect(report.toText(), '${_areaPath('form')}: formatted\n');
+    });
+
+    test('a group doc whose folder the list leaves out is deleted and '
+        'reports deleted', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      final home = await _home();
+
+      final report = _runGroups(run, ['form'], home: home);
+
+      expect(_statuses(report), {
+        _mapPath: FileStatus.unchanged,
+        _areaPath('form'): FileStatus.unchanged,
+        _areaPath('old'): FileStatus.deleted,
+      });
+      expect(_exists(run, _areaPath('old')), isFalse);
+      expect(_read(run, _areaPath('form')), _areaDoc('form'));
+      expect(report.toText(), '${_areaPath('old')}: deleted\n');
+      expect(MoveJournal.pending(run.root), isFalse);
+    });
+
+    test('a run on the features doc alone deletes a group doc outside '
+        'its target that the list leaves out', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      final home = await _home();
+
+      final report = _runGroups(run, ['form'], home: home, target: _mapPath);
+
+      expect(_statuses(report)[_areaPath('old')], FileStatus.deleted);
+      expect(_exists(run, _areaPath('old')), isFalse);
+      expect(_exists(run, _areaPath('form')), isTrue);
+    });
+
+    test('a group that changes only the features doc writes it with no '
+        'home folder', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _mapPath: _mapDoc('old'),
+      });
+
+      final report = _runGroups(run, ['form']);
+
+      expect(_statuses(report), {
+        _mapPath: FileStatus.formatted,
+        _areaPath('form'): FileStatus.unchanged,
+      });
+      expect(_read(run, _mapPath), _mapDoc('form'));
+    });
+
+    test('an unclosed area_catalog marker in one group doc refuses it, '
+        'and no file under the docs root changes', () async {
+      final unclosed = '# form\n\n## Features\n\n$_areaMarker\nno end\n';
+      final docs = {
+        _mapPath: _mapDoc('stale'),
+        _areaPath('form'): unclosed,
+        _areaPath('list'): _areaDoc('list', rows: 'old'),
+        _areaPath('gone'): _areaDoc('gone'),
+      };
+      final run = await _openGroups(docs);
+      final home = await _home();
+
+      final report = _runGroups(run, ['form', 'list', 'third'], home: home);
+
+      for (final MapEntry(:key, :value) in docs.entries) {
+        expect(_read(run, key), value, reason: key);
+      }
+      expect(_exists(run, _areaPath('third')), isFalse);
+      expect(_statuses(report), {
+        _mapPath: FileStatus.unchanged,
+        _areaPath('form'): FileStatus.refused,
+        _areaPath('list'): FileStatus.unchanged,
+      });
+      expect(
+        report.toText(),
+        '${_areaPath('form')}: refused: open generated block area_catalog\n',
+      );
+      expect(report.exitStatus, 1);
+    });
+
+    test('a run on a folder holding a group doc but not the features doc '
+        'writes that doc alone', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form', 'list']),
+        _areaPath('form'): _areaDoc('form', rows: 'old'),
+        _areaPath('old'): _areaDoc('old'),
+      });
+
+      final report = _runGroups(run, [
+        'form',
+        'list',
+        'third',
+      ], target: 'docs/prds/features/form');
+
+      expect(_statuses(report), {_areaPath('form'): FileStatus.formatted});
+      expect(_read(run, _areaPath('form')), _areaDoc('form'));
+      expect(_exists(run, _areaPath('third')), isFalse);
+      expect(_exists(run, _areaPath('old')), isTrue);
+    });
+
+    test('a group doc keeps its CRLF and byte order mark when the group '
+        'writes through the journal', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      _file(run, _areaPath('form')).writeAsBytesSync([
+        ..._bom,
+        ...utf8.encode(_areaDoc('form', rows: 'old').replaceAll('\n', '\r\n')),
+      ]);
+      final home = await _home();
+
+      _runGroups(run, ['form'], home: home);
+
+      expect(_file(run, _areaPath('form')).readAsBytesSync(), [
+        ..._bom,
+        ...utf8.encode(_areaDoc('form').replaceAll('\n', '\r\n')),
+      ]);
+      expect(_exists(run, _areaPath('old')), isFalse);
+    });
+
+    test('a group that creates a doc with no home folder is refused and '
+        'writes nothing', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _mapPath: _mapDoc('old'),
+      });
+
+      expect(
+        () => _runGroups(run, ['form', 'list']),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.outputNotWritable,
+          ),
+        ),
+      );
+
+      expect(_read(run, _mapPath), _mapDoc('old'));
+      expect(_exists(run, _areaPath('list')), isFalse);
+    });
+
+    test('a set with no group folder and no group doc reports as before '
+        'the companion write', () async {
+      final run = await _openGroups({
+        _mapPath: '# Features\n\n## Features\n\n$_rowsMarker\nold\n$_end\n',
+      });
+
+      final report = _runGroups(run, []);
+
+      expect(_statuses(report), {_mapPath: FileStatus.formatted});
+      expect(report.toText(), '$_mapPath: formatted\n');
+      expect(_read(run, _mapPath), _mapDoc(''));
+    });
+
+    // ignore: lines_longer_than_80_chars, one literal so check finds the test
+    test('check lists the features doc when a group folder lacks its doc and when a group doc is stale, and writes nothing', () async {
+      final cases = [
+        (
+          docs: {
+            ..._freshGroups(['list']),
+            _mapPath: _mapDoc('form,list'),
+          },
+          text: '$_mapPath\n',
+        ),
+        (
+          docs: {
+            ..._freshGroups(['form', 'list']),
+            _areaPath('form'): _areaDoc('form', rows: 'old'),
+          },
+          text: '$_mapPath\n${_areaPath('form')}\n',
+        ),
+      ];
+
+      for (final (:docs, :text) in cases) {
+        final run = await _openGroups(docs);
+
+        final report = _runGroups(run, ['form', 'list'], check: true);
+
+        expect(report.toText(), text);
+        expect(report.exitStatus, 1);
+        for (final MapEntry(:key, :value) in docs.entries) {
+          expect(_read(run, key), value, reason: key);
+        }
+        expect(
+          _exists(run, _areaPath('form')),
+          docs.containsKey(_areaPath('form')),
+        );
+      }
+    });
+
+    test('check on a group doc whose folder the list leaves out lists the '
+        'features doc and that doc, and keeps the doc', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): _areaDoc('old'),
+      });
+
+      final report = _runGroups(run, ['form'], check: true);
+
+      expect(_statuses(report)[_areaPath('old')], FileStatus.deleted);
+      expect(report.toText(), '$_mapPath\n${_areaPath('old')}\n');
+      expect(report.exitStatus, 1);
+      expect(_read(run, _areaPath('old')), _areaDoc('old'));
+    });
+
+    test('a pending journal refuses the group write, and its trash and '
+        'parked docs stay', () async {
+      final docs = {
+        ..._freshGroups(['form']),
+        _mapPath: _mapDoc('old'),
+      };
+      final run = await _openGroups(docs);
+      final parked = _file(run, '.specstone/trash/stage/parked.md')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('parked');
+      final home = await _home();
+
+      expect(
+        () => _runGroups(run, ['form', 'list'], home: home),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', MoveJournal.journalPath),
+        ),
+      );
+
+      expect(parked.readAsStringSync(), 'parked');
+      expect(_read(run, _mapPath), _mapDoc('old'));
+      expect(_exists(run, _areaPath('list')), isFalse);
+    });
+
+    test('a listed path holding a doc that is not UTF-8 refuses the group, '
+        'and nothing is written', () async {
+      final docs = {
+        ..._freshGroups(['form', 'list']),
+        _mapPath: _mapDoc('old'),
+      };
+      final run = await _openGroups(docs);
+      final bytes = [0xFF, 0xFE, 0xFA];
+      _file(run, _areaPath('list')).writeAsBytesSync(bytes);
+      final home = await _home();
+
+      final report = _runGroups(run, ['form', 'list'], home: home);
+
+      expect(_read(run, _mapPath), _mapDoc('old'));
+      expect(_file(run, _areaPath('list')).readAsBytesSync(), bytes);
+      expect(_statuses(report), {
+        _mapPath: FileStatus.unchanged,
+        _areaPath('form'): FileStatus.unchanged,
+        _areaPath('list'): FileStatus.refused,
+      });
+      expect(
+        report.toText(),
+        '${_areaPath('list')}: refused: cannot be read as a doc\n',
+      );
+      expect(report.exitStatus, 1);
+      expect(MoveJournal.pending(run.root), isFalse);
+    });
+
+    test('a doc the list leaves out that is not UTF-8 is reported skipped '
+        'with a warning, and kept', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): '',
+      });
+      final bytes = [0xFF, 0xFE, 0xFA];
+      _file(run, _areaPath('old')).writeAsBytesSync(bytes);
+      final home = await _home();
+
+      final report = _runGroups(run, ['form'], home: home, target: _mapPath);
+
+      expect(_statuses(report)[_areaPath('old')], FileStatus.skipped);
+      expect(report.warnings, ['${_areaPath('old')}: not UTF-8 text; skipped']);
+      expect(_file(run, _areaPath('old')).readAsBytesSync(), bytes);
+    });
+
+    test('a delete prunes the folder it empties', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      final home = await _home();
+
+      _runGroups(run, ['form'], home: home);
+
+      expect(
+        Directory('${run.root.path}/docs/prds/features/old').existsSync(),
+        isFalse,
+      );
+      expect(
+        Directory('${run.root.path}/docs/prds/features/form').existsSync(),
+        isTrue,
+      );
+    });
+
+    test('a journaled write runs inside the lock the opener gives, and a '
+        'single-file write takes none', () async {
+      final events = <String>[];
+      void lock(void Function() write) {
+        events.add('lock');
+        write();
+        events.add('unlock');
+      }
+
+      final grouped = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      _runGroups(grouped, ['form'], home: await _home(), lockWrites: lock);
+      expect(events, ['lock', 'unlock']);
+      expect(_exists(grouped, _areaPath('old')), isFalse);
+
+      events.clear();
+      final single = await _openGroups({
+        ..._freshGroups(['form']),
+        _mapPath: _mapDoc('old'),
+      });
+      _runGroups(single, ['form'], lockWrites: lock);
+      expect(events, isEmpty);
+    });
+
+    test('a doc that changed after the run read it refuses the journaled '
+        'write, and nothing is written', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('form'): _areaDoc('form', rows: 'old'),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      final edited = _areaDoc('form', rows: 'edited meanwhile');
+      void lock(void Function() write) {
+        _file(run, _areaPath('form')).writeAsStringSync(edited);
+        write();
+      }
+
+      expect(
+        () => _runGroups(run, ['form'], home: null, lockWrites: lock),
+        throwsA(isA<RenderFault>()),
+      );
+      final home = await _home();
+      expect(
+        () => _runGroups(run, ['form'], home: home, lockWrites: lock),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', _areaPath('form')),
+        ),
+      );
+
+      expect(_read(run, _areaPath('form')), edited);
+      expect(_exists(run, _areaPath('old')), isTrue);
+      expect(MoveJournal.pending(run.root), isFalse);
+    });
+
+    test('a read-only group doc refuses the journaled write before any '
+        'change', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _areaPath('form'): _areaDoc('form', rows: 'old'),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      final form = _file(run, _areaPath('form'));
+      await Process.run('chmod', ['444', form.path]);
+      addTearDown(() => Process.run('chmod', ['644', form.path]));
+      final home = await _home();
+
+      expect(
+        () => _runGroups(run, ['form'], home: home),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.message, 'message', 'the doc is read-only'),
+        ),
+      );
+
+      expect(_read(run, _areaPath('form')), _areaDoc('form', rows: 'old'));
+      expect(_exists(run, _areaPath('old')), isTrue);
+      expect(MoveJournal.pending(run.root), isFalse);
+    }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : false);
+
+    test('planFormatWrites plans from a registry and a resolver and writes '
+        'no file', () async {
+      final run = await _openGroups({
+        ..._freshGroups(['form']),
+        _mapPath: _mapDoc('old'),
+        _areaPath('old'): _areaDoc('old'),
+      });
+      final target = run.project.resolveTarget(
+        null,
+        workingDirectory: run.root,
+        defaultsToDocsRoot: true,
+      );
+      final reads = [
+        for (final entry in collectDocEntries(target, run.project.matcher))
+          readDoc(run.project, entry),
+      ];
+
+      final plan = planFormatWrites<List<String>>(
+        run.project,
+        reads,
+        _groupRun(['form', 'list']).registry,
+        ['form', 'list'],
+      );
+
+      expect(plan.rewrites.keys, [_mapPath]);
+      expect(plan.creates.keys, [_areaPath('list')]);
+      expect(plan.deletes, [_areaPath('old')]);
+      expect(_read(run, _mapPath), _mapDoc('old'));
+      expect(_exists(run, _areaPath('list')), isFalse);
+      expect(_exists(run, _areaPath('old')), isTrue);
+    });
+
+    test('a companion listed outside the docs root or at a path no doc type '
+        'matches refuses the group, and nothing is written', () async {
+      final cases = [
+        (slug: '../../../outside', stray: 'outside/AREA.md'),
+        (slug: 'x/y', stray: 'docs/prds/features/x/y/AREA.md'),
+      ];
+
+      for (final (:slug, :stray) in cases) {
+        final docs = {
+          ..._freshGroups(['form']),
+          _mapPath: _mapDoc('old'),
+          _areaPath('old'): _areaDoc('old'),
+        };
+        final run = await _openGroups(docs);
+        final home = await _home();
+
+        final report = _runGroups(run, ['form', slug], home: home);
+
+        for (final MapEntry(:key, :value) in docs.entries) {
+          expect(_read(run, key), value, reason: '$slug $key');
+        }
+        expect(_exists(run, stray), isFalse, reason: slug);
+        expect(MoveJournal.pending(run.root), isFalse, reason: slug);
+        expect(report.exitStatus, 1, reason: slug);
+        expect(
+          report.toText(),
+          'docs/prds/features/$slug/AREA.md: refused: '
+          'not a path of its doc type under the docs root\n',
+          reason: slug,
+        );
+      }
+    });
+
+    test('toText and toJson print created and deleted', () {
+      const report = FormatReport(
+        check: false,
+        files: [
+          FileResult(path: 'docs/a/AREA.md', status: FileStatus.created),
+          FileResult(path: 'docs/b/AREA.md', status: FileStatus.deleted),
+        ],
+        warnings: [],
+      );
+
+      expect(
+        report.toText(),
+        'docs/a/AREA.md: created\ndocs/b/AREA.md: deleted\n',
+      );
+      expect(report.toJson()['files'], [
+        {'path': 'a/AREA.md', 'status': 'created'},
+        {'path': 'b/AREA.md', 'status': 'deleted'},
+      ]);
+      expect(report.exitStatus, 0);
+    });
+  });
+
+  group('a group features doc of the shipped prd-core type', () {
+    test('an approved group features doc keeps its approval when format '
+        'rewrites its catalog', () async {
+      const mapDoc = 'prds/FEATURES.md';
+      const groupDoc = 'prds/features/kitchen/FEATURES.md';
+      String block(String kind) => '${generatedOpenMarker(kind)}\nold\n$_end\n';
+      final root = await writeTree(
+        withApprovalHashes({
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          'docs/prds/features/kitchen/f01_recipes/FEATURE.md':
+              '# Recipes\n\n## Problem\n\nNeed it.\n',
+          'docs/$mapDoc':
+              '# Feature map\n\n## Features\n\n'
+              '${block(featureCatalogKind)}\n'
+              '## System interaction diagram\n\nOne system.\n\n'
+              '## Systems\n\n- Login\n',
+          'docs/$groupDoc':
+              '# kitchen features\n\n## Features\n\n'
+              '${block(groupFeatureCatalogKind)}',
+        }),
+      );
+      final home = await writeTree({});
+      final session = openSession(root);
+      addTearDown(session.close);
+      final project = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: home,
+      );
+
+      final report = runFormat<DocIndex>(
+        project,
+        project.resolveTarget(
+          null,
+          workingDirectory: root,
+          defaultsToDocsRoot: true,
+        ),
+        check: false,
+        homeDirectory: home,
+        generators: GeneratorRun<DocIndex>(
+          registry: GeneratorRegistry<DocIndex>(
+            {
+              featureCatalogKind: featureCatalogBlocks,
+              groupFeatureCatalogKind: groupFeatureCatalogBlocks,
+            },
+            companions: {featureCatalogKind: featureCatalogCompanions},
+          ),
+          open: () => OpenedResolver(
+            resolver: session.index,
+            close: () {},
+            lockWrites: (write) => write(),
+          ),
+        ),
+      );
+
+      expect(_statuses(report), {
+        'docs/$mapDoc': FileStatus.formatted,
+        'docs/$groupDoc': FileStatus.formatted,
+        'docs/prds/features/kitchen/f01_recipes/FEATURE.md':
+            FileStatus.unchanged,
+      });
+      expect(
+        File('${root.path}/docs/$groupDoc').readAsStringSync(),
+        contains(
+          '1 features · 0 stories · 1 planned\n\n'
+          '| Feature | What it does | Status | Stories | Serves |\n'
+          '|---|---|---|---|---|\n'
+          '| [Recipes](f01_recipes/FEATURE.md) | — | planned | 0/0 | — |\n',
+        ),
+      );
+      final checked = await checkOf(root);
+      expect([
+        for (final f in checked.findings)
+          if (f.kind == FindingKind.approvalStale) f.path,
+      ], isEmpty);
     });
   });
 }

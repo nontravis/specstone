@@ -35,6 +35,7 @@ const _guideTokenRows = <String, int>{
   'prd-core/glossary': 302,
   'prd-core/gnfr': 2666,
   'prd-core/goal': 644,
+  'prd-core/group_features': 275,
   'prd-core/journey': 593,
   'prd-core/measurement': 668,
   'prd-core/nf': 1061,

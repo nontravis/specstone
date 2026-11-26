@@ -479,6 +479,41 @@ void main() {
     }
   });
 
+  group('regenerate', () {
+    test('a regenerate step reads its generators and touches no doc type', () {
+      final step = parseMigrationsOf('''
+- from: 1.31.0
+  steps:
+    - regenerate: {generators: [feature_catalog, group_feature_catalog]}
+''').single.steps.single;
+
+      expect(step, isA<Regenerate>());
+      step as Regenerate;
+      expect(step.kind, 'regenerate');
+      expect(step.generators, ['feature_catalog', 'group_feature_catalog']);
+      expect(step.touches('feature'), isFalse);
+    });
+
+    test('an empty, missing, or extra key is refused at that key', () {
+      const steps = '- from: 1.31.0\n  steps:\n    - regenerate: ';
+      for (final (body, code, name) in [
+        ('{generators: []}', FaultCode.unknownValue, 'generators'),
+        ('{}', FaultCode.missingKey, 'generators'),
+        (
+          '{generators: [feature_catalog], note: x}',
+          FaultCode.unknownKey,
+          'note',
+        ),
+      ]) {
+        expect(
+          () => parseMigrationsOf('$steps$body\n'),
+          throwsA(_fault(code, key: 'migrations[0].steps[0].regenerate.$name')),
+          reason: body,
+        );
+      }
+    });
+  });
+
   group('drop_section', () {
     const body =
         '{doc_types: [architecture, project_architecture],'

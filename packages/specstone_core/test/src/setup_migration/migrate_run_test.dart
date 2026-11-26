@@ -7,9 +7,12 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart' show DocIndex;
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show inlineBlock;
@@ -17,6 +20,8 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -188,6 +193,7 @@ Future<int> _run(
   List<String>? warningLog,
   RunGit runGit = runMigrateGit,
   List<String> addedPacks = const [],
+  GeneratorRegistry<DocIndex>? generators,
 }) async {
   var call = 0;
   return await runMigrate(
@@ -206,12 +212,63 @@ Future<int> _run(
       warn: (warnings ?? <String>[]).add,
       say: (progress ?? <String>[]).add,
       warningLog: warningLog,
+      generators: generators ?? shippedGenerators(),
     ),
+  );
+}
+
+/// The shipped generators, each call adding the index it reads to [seen], by
+/// identity.
+GeneratorRegistry<DocIndex> _recordingGenerators(Set<DocIndex> seen) {
+  final shipped = shippedGenerators();
+  return GeneratorRegistry<DocIndex>(
+    {
+      for (final kind in shipped.kinds)
+        kind: (doc, docPath, type, index) {
+          seen.add(index);
+          return shipped[kind]!(doc, docPath, type, index);
+        },
+    },
+    companions: {
+      for (final kind in shipped.kinds)
+        if (shipped.companionsOf(kind) case final companions?)
+          kind: (docPath, type, index) {
+            seen.add(index);
+            return companions(docPath, type, index);
+          },
+    },
   );
 }
 
 void main() {
   useColdHostNode();
+
+  test('an apply that crosses a regenerate step builds one index for the '
+      'shown plan and the plan before the write', () async {
+    final seen = <DocIndex>{};
+    final pins = shippedPinsConfig().replaceFirst(
+      '  prd-core: ${shippedPackVersions()['prd-core']}\n',
+      '  prd-core: 1.31.0\n',
+    );
+    final root = await gitFixture({
+      '.specstone/config.yaml':
+          '${pins}agent_files_version: $specstoneVersion\n',
+      'docs/prds/features/f01_recipes/FEATURE.md': '# Recipes\n',
+      'docs/prds/FEATURES.md': '# Feature map\n\n## Features\n',
+    });
+    final out = StringBuffer();
+
+    final status = await _run(
+      root,
+      out,
+      answers: ['y'],
+      generators: _recordingGenerators(seen),
+    );
+
+    expect(status, 0);
+    expect(out.toString(), contains('regenerate: feature_catalog'));
+    expect(seen, hasLength(1));
+  }, skip: hasGit ? null : 'git is not available');
 
   group('the names an add checks before the trust and git checks', () {
     Matcher usageError(String message) => throwsA(
@@ -827,6 +884,7 @@ void main() {
         planHash: planHash,
         readLine: () => 'y',
         out: out,
+        generators: shippedGenerators(),
       ),
     );
 
@@ -949,6 +1007,7 @@ void main() {
           return 'y';
         },
         out: out ?? StringBuffer(),
+        generators: shippedGenerators(),
       ),
     );
 
@@ -1759,6 +1818,7 @@ sections:
       root,
       templates: TemplateResolver(),
       homeDirectory: testHome(),
+      generators: shippedGenerators(),
     ).inputs;
     expect(planLine, 'plan ${planHashOf(plan, inputs)}');
   }, skip: hasGit ? null : 'git is not available');
@@ -1801,6 +1861,7 @@ sections:
         root,
         templates: TemplateResolver(),
         homeDirectory: testHome(),
+        generators: shippedGenerators(),
       ).inputs;
       expect(_planHashIn(text), planHashOf(plan, inputs));
       expect(_planHashIn(text), isNot(clean));
@@ -1983,6 +2044,7 @@ sections:
         planHash: hash,
         readLine: () => throw StateError('--yes must not ask'),
         out: out,
+        generators: shippedGenerators(),
       ),
     );
 
@@ -2217,6 +2279,7 @@ sections:
               confirmation: OwnerConfirmation.prompt,
               readLine: () => throw StateError('resume must not ask'),
               out: StringBuffer(),
+              generators: shippedGenerators(),
             ),
           ),
           throwsA(
@@ -2268,6 +2331,7 @@ sections:
           confirmation: OwnerConfirmation.prompt,
           readLine: () => throw StateError('resume must not ask'),
           out: StringBuffer(),
+          generators: shippedGenerators(),
         ),
       );
 
@@ -2517,6 +2581,7 @@ sections:
           confirmation: OwnerConfirmation.prompt,
           readLine: () => throw StateError('resume must not ask'),
           out: out,
+          generators: shippedGenerators(),
         ),
       );
 
@@ -2872,6 +2937,7 @@ sections:
             out: StringBuffer(),
             runGit: (arguments, {required workingDirectory, environment}) =>
                 throw const ProcessException('git', []),
+            generators: shippedGenerators(),
           ),
         ),
         throwsA(
@@ -2904,6 +2970,7 @@ sections:
                 arguments.first == '--version'
                 ? ProcessResult(0, 0, 'git version 2.24.4\n', '')
                 : runRealGit(arguments, workingDirectory: workingDirectory),
+            generators: shippedGenerators(),
           ),
         ),
         throwsA(
@@ -2941,6 +3008,7 @@ sections:
                     206,
                   )
                 : runRealGit(arguments, workingDirectory: workingDirectory),
+            generators: shippedGenerators(),
           ),
         ),
         throwsA(
@@ -3716,6 +3784,7 @@ sections:
             confirmation: OwnerConfirmation.prompt,
             readLine: () => throw StateError('the refusal comes first'),
             out: out,
+            generators: shippedGenerators(),
           ),
         ),
         _untrustedRefusal(tree),
@@ -3772,6 +3841,7 @@ sections:
               planHash: '000000000000',
               readLine: () => 'y',
               out: StringBuffer(),
+              generators: shippedGenerators(),
             ),
           ),
           throwsA(refusal.matcher),
@@ -3946,6 +4016,7 @@ void _stopAfterCommit1(Directory root) {
     root,
     templates: TemplateResolver(),
     homeDirectory: testHome(),
+    generators: shippedGenerators(),
   ).journalSteps(base: headOf(root), projectRoot: root);
   final specstone = Directory('${root.path}/.specstone')
     ..createSync(recursive: true);

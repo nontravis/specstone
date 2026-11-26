@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/feature_group_paths.dart';
+import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
@@ -97,6 +99,8 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// `record_status` field and its merged `per_target` is `true`, a `targets:`
 /// config without the record doc type is refused, a doc type that carries the
 /// `patterns` field holds an enabled `out_of_scope` section (`unknown_value`),
+/// at most one doc type lists `group_feature_catalog` and it writes
+/// `path_from` (`unknown_value`),
 /// and a `path` under `.specstone/` belongs only to the record doc type, below
 /// `.specstone/records/` (`unknown_value`).
 void checkMergedSet(
@@ -109,7 +113,9 @@ void checkMergedSet(
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
   _checkNesting(sorted, layerLists, loadIndex);
+  _checkPathFrom(sorted, layerLists);
   _checkPaths(sorted, layerLists, loadIndex);
+  _checkGroupCatalogHolders(sorted, layerLists, loadIndex);
   _checkRecordPaths(sorted, layerLists);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
@@ -197,46 +203,158 @@ bool _lastFolderHoldsSlug(String? path) {
       segments[segments.length - 2].contains('{slug}');
 }
 
-/// Throws `doc_type_path_conflict` for a `path` two doc types share.
+/// Throws `doc_type_path_conflict` for a path pattern two doc types share.
 ///
-/// `file` holds the `path` writer that loads last by [loadIndex], and
-/// `relatedFiles` the other holders' writers, ascending. The message names the
-/// holders in that same load order.
+/// A `path_from` type's derived patterns count as patterns, so two `path_from`
+/// types with one `file` clash in a grouped layout only. `file` holds the
+/// writer that loads last by [loadIndex], and `relatedFiles` the other
+/// holders' writers, ascending. The message names the holders in that same
+/// load order; `key` is `file` when the last writer holds a derived pattern,
+/// else `path`.
 void _checkPaths(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
 ) {
   final byPath = <String, List<MergedDocType>>{};
-  for (final docType in withNestedPaths(docTypes)) {
+  for (final docType in withNestedPaths(withFeatureGroupPaths(docTypes))) {
     for (final path in docType.paths) {
       byPath.putIfAbsent(path, () => []).add(docType);
     }
   }
   for (final MapEntry(key: path, value: holders) in byPath.entries) {
     if (holders.length < 2) continue;
-    final writers =
-        [
-          for (final holder in holders)
-            (id: holder.id, file: _writerOf(holder.id, _wrotePath, layerLists)),
-        ]..sort(
-          (a, b) => _loadRank(a.file, loadIndex) - _loadRank(b.file, loadIndex),
-        );
+    _throwPathConflict(path, holders, layerLists, loadIndex);
+  }
+}
+
+/// Throws the `doc_type_path_conflict` for [holders] sharing [path].
+Never _throwPathConflict(
+  String path,
+  List<MergedDocType> holders,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final writers =
+      [
+        for (final holder in holders)
+          (
+            id: holder.id,
+            key: _patternKey(holder),
+            file: _writerOf(holder.id, _patternWriter(holder), layerLists),
+          ),
+      ]..sort(
+        (a, b) => _loadRank(a.file, loadIndex) - _loadRank(b.file, loadIndex),
+      );
+  final RankedFaultFiles(:file, :related) = rankFaultFiles([
+    for (final writer in writers) writer.file,
+  ], loadIndex);
+  throw TemplateFault(
+    FaultCode.docTypePathConflict,
+    'doc types ${_joinIds([for (final writer in writers) writer.id])} '
+    'share the path $path',
+    file: file,
+    key: writers.last.key,
+    relatedFiles: related,
+  );
+}
+
+/// The fault key of the pattern [holder] sets: `file` for a derived pattern,
+/// `path` for a set one.
+String _patternKey(MergedDocType holder) =>
+    holder.pathFrom == null ? 'path' : 'file';
+
+/// The writer test of the key that sets the patterns of [holder].
+bool Function(DocTypeLayer) _patternWriter(MergedDocType holder) =>
+    holder.pathFrom == null ? _wrotePath : _wroteDocFile;
+
+bool _wrotePath(DocTypeLayer layer) => layer.path != null;
+
+/// Throws `unknown_value` for a doc type that holds both `path` and
+/// `path_from`, or `file` with no `path_from`.
+///
+/// `file` holds the top-most layer that wrote the named key.
+void _checkPathFrom(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    if (docType.pathFrom != null && docType.path != null) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a doc type holds path or path_from, not both',
+        file: _writerOf(docType.id, _wrotePathFrom, layerLists),
+        key: 'path_from',
+      );
+    }
+    if (docType.file != null && docType.pathFrom == null) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key file belongs to a doc type that writes path_from',
+        file: _writerOf(docType.id, _wroteDocFile, layerLists),
+        key: 'file',
+      );
+    }
+  }
+}
+
+/// Throws `unknown_value` at `generators` when two or more doc types list
+/// `group_feature_catalog`, or the one that lists it writes no `path_from`.
+///
+/// The holder's patterns are then always a group prefix and a literal `file`,
+/// so no `path` reaches the docs a format run deletes. `file` holds the holder
+/// file that loads last by [loadIndex], and the message names the holders in
+/// that load order; a holder is named by its highest layer that lists the kind.
+void _checkGroupCatalogHolders(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+  LoadIndex loadIndex,
+) {
+  final holders =
+      [
+        for (final docType in docTypes)
+          if (docType.listedGenerators.contains(groupFeatureCatalogKind))
+            (
+              id: docType.id,
+              hasPathFrom: docType.pathFrom != null,
+              file: _writerOf(docType.id, _listedGroupCatalog, layerLists),
+            ),
+      ]..sort(
+        (a, b) => _loadRank(a.file, loadIndex) - _loadRank(b.file, loadIndex),
+      );
+  if (holders.length > 1) {
     final RankedFaultFiles(:file, :related) = rankFaultFiles([
-      for (final writer in writers) writer.file,
+      for (final holder in holders) holder.file,
     ], loadIndex);
     throw TemplateFault(
-      FaultCode.docTypePathConflict,
-      'doc types ${_joinIds([for (final writer in writers) writer.id])} '
-      'share the path $path',
+      FaultCode.unknownValue,
+      'only one doc type lists $groupFeatureCatalogKind: '
+      '${_joinIds([for (final holder in holders) holder.id])} do',
       file: file,
-      key: 'path',
+      key: 'generators',
       relatedFiles: related,
+    );
+  }
+  for (final holder in holders) {
+    if (holder.hasPathFrom) continue;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      '${holder.id} lists $groupFeatureCatalogKind and writes no path_from',
+      file: holder.file,
+      key: 'generators',
     );
   }
 }
 
-bool _wrotePath(DocTypeLayer layer) => layer.path != null;
+bool _listedGroupCatalog(DocTypeLayer layer) => switch (layer.generators) {
+  PlainList<String>(:final items) => items.contains(groupFeatureCatalogKind),
+  ListChange<String>(:final add) => add.contains(groupFeatureCatalogKind),
+  null => false,
+};
+
+bool _wrotePathFrom(DocTypeLayer layer) => layer.pathFrom != null;
+
+bool _wroteDocFile(DocTypeLayer layer) => layer.docFile != null;
 
 /// Throws `unknown_value` for a `path` under `.specstone/` that is not the
 /// record doc type's path below `.specstone/records/`.

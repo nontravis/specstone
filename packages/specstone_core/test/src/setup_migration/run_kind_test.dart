@@ -7,6 +7,8 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
@@ -650,6 +652,7 @@ void main() {
         Directory(root.resolveSymbolicLinksSync()),
         templates: TemplateResolver(),
         homeDirectory: null,
+        generators: shippedGenerators(),
       );
 
       expect(_choose(root), RunKind.upgrade);

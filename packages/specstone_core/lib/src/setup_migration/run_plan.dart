@@ -266,8 +266,9 @@ final class RunPlan {
   /// `commit 2, creates:`.
   final AgentWritePlan? agentFiles;
 
-  /// The ProjectPath of each doc file commit 2 moves to the trash, the docs a
-  /// `merge_doc` step folded into others.
+  /// The ProjectPath of each doc file commit 2 moves to the trash: the docs a
+  /// `merge_doc` step folded into others, and the group features docs a
+  /// `regenerate` step deletes.
   final List<String> trashedDocs;
 
   /// The path lists the count lines of [rewriteLines] print as numbers.

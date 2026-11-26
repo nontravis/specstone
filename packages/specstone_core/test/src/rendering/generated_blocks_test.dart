@@ -39,6 +39,9 @@ GeneratedBlock _block(
 }) =>
     GeneratedBlock(kind: kind, sectionId: sectionId, place: place, text: text);
 
+CompanionDocs _noCompanions(String docPath, MergedDocType type, int r) =>
+    const CompanionDocs(docTypeId: 'area', docs: []);
+
 GeneratorRegistry<int> _given(List<GeneratedBlock> blocks) =>
     GeneratorRegistry<int>({
       'note_toc': (doc, docPath, docType, resolver) => blocks,
@@ -281,6 +284,25 @@ void main() {
       expect(sectionIndexOf(doc, type, 'steps'), 0);
       expect(sectionIndexOf(doc, type, 'nowhere'), isNull);
       expect(sectionIndexOf(Doc.parse('# T\n'), type, 'contents'), isNull);
+    });
+
+    test('GeneratorRegistry.only keeps the named kinds and their '
+        'companions alone', () {
+      final registry = GeneratorRegistry<int>(
+        {
+          'note_toc': (doc, docPath, docType, resolver) => const [],
+          'note_end': (doc, docPath, docType, resolver) => const [],
+        },
+        companions: {'note_toc': _noCompanions, 'note_end': _noCompanions},
+      );
+
+      final subset = registry.only({'note_toc', 'unregistered'});
+
+      expect(subset.kinds, {'note_toc'});
+      expect(subset['note_end'], isNull);
+      expect(subset.companionsOf('note_toc'), same(_noCompanions));
+      expect(subset.companionsOf('note_end'), isNull);
+      expect(registry.companionsOf('note_end'), same(_noCompanions));
     });
   });
 }

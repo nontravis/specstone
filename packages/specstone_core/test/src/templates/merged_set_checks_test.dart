@@ -42,6 +42,14 @@ MergedDocType builtIn(String id) => MergedDocType(
   files: const [],
 );
 
+/// A `feature` type whose path holds one group level.
+final MergedDocType _groupedFeature = builtIn('feature')
+    .copyWith(path: 'prds/features/{slug}/f{nn}_{slug}/FEATURE.md');
+
+/// The doc type [id] that derives its patterns, with the file `AREA.md`.
+MergedDocType _derived(String id) =>
+    builtIn(id).copyWith(pathFrom: 'feature_groups', file: 'AREA.md');
+
 /// [base] with each of [layers] applied through the merger, lowest first.
 MergedDocType mergeLayers(MergedDocType base, DocTypeLayers layers) {
   var type = base;
@@ -135,6 +143,349 @@ void main() {
                 _runbookFile,
                 _playbookFile,
               ]),
+        ),
+      );
+    });
+
+    test('a doc type with path and path_from is unknown_value at '
+        'path_from', () {
+      final layers = {
+        'runbook': [
+          layerOf(
+            'runbook',
+            'path: ops/{slug}/RUNBOOK.md\n',
+            file: _playbookFile,
+          ),
+          layerOf('runbook', 'path_from: feature_groups\nfile: AREA.md\n'),
+        ],
+      };
+      expect(
+        () => check([
+          mergeLayers(builtIn('runbook'), layers['runbook']!),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'path_from')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('a doc type with file and no path_from is unknown_value at '
+        'file', () {
+      final layers = {
+        'runbook': [
+          layerOf(
+            'runbook',
+            'path: ops/{slug}/RUNBOOK.md\n',
+            file: _playbookFile,
+          ),
+          layerOf('runbook', 'file: AREA.md\n'),
+        ],
+      };
+      expect(
+        () => check([
+          mergeLayers(builtIn('runbook'), layers['runbook']!),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'file')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('two path_from types with one file in a grouped set are '
+        'doc_type_path_conflict at file', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'path_from: feature_groups\nfile: AREA.md\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf('runbook', 'path_from: feature_groups\nfile: AREA.md\n'),
+        ],
+      };
+      expect(
+        () => check([
+          _groupedFeature,
+          _derived('playbook'),
+          _derived('runbook'),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.key, 'key', 'file')
+              .having((f) => f.file, 'file', _runbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
+        ),
+      );
+    });
+
+    test('two path_from types with one file in an ungrouped set '
+        'load clean', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'path_from: feature_groups\nfile: AREA.md\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf('runbook', 'path_from: feature_groups\nfile: AREA.md\n'),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('feature').copyWith(path: 'prds/features/f{nn}_{slug}.md'),
+          _derived('playbook'),
+          _derived('runbook'),
+        ], layers),
+        returnsNormally,
+      );
+    });
+
+    test('a derived pattern equal to a set path names the key of the '
+        'later-loaded holder', () {
+      final derivedLate = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'path: prds/features/{slug}/AREA.md\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf('runbook', 'path_from: feature_groups\nfile: AREA.md\n'),
+        ],
+      };
+      final setLate = {
+        'runbook': derivedLate['runbook']!,
+        'playbook': derivedLate['playbook']!,
+      };
+      final types = [
+        _groupedFeature,
+        builtIn('playbook').copyWith(path: 'prds/features/{slug}/AREA.md'),
+        _derived('runbook'),
+      ];
+      expect(
+        () => check(types, derivedLate),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.key, 'key', 'file')
+              .having((f) => f.file, 'file', _runbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
+        ),
+      );
+      expect(
+        () => check(types, setLate),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.key, 'key', 'path')
+              .having((f) => f.file, 'file', _playbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_runbookFile]),
+        ),
+      );
+    });
+
+    test('a derived pattern equal to a set path in an ungrouped set '
+        'loads clean', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'path: prds/features/{slug}/AREA.md\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf('runbook', 'path_from: feature_groups\nfile: AREA.md\n'),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('feature').copyWith(path: 'prds/features/f{nn}_{slug}.md'),
+          builtIn('playbook').copyWith(path: 'prds/features/{slug}/AREA.md'),
+          _derived('runbook'),
+        ], layers),
+        returnsNormally,
+      );
+    });
+
+    test('two doc types listing group_feature_catalog are unknown_value at '
+        'generators', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'generators: [group_feature_catalog]\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf('runbook', 'generators: [group_feature_catalog]\n'),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('playbook').copyWith(generators: ['group_feature_catalog']),
+          builtIn('runbook').copyWith(generators: ['group_feature_catalog']),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'generators')
+              .having((f) => f.file, 'file', _runbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
+        ),
+      );
+    });
+
+    test('the two holders are named in load order', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'generators: [group_feature_catalog]\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf('runbook', 'generators: [group_feature_catalog]\n'),
+        ],
+      };
+      final types = [
+        builtIn('playbook').copyWith(generators: ['group_feature_catalog']),
+        builtIn('runbook').copyWith(generators: ['group_feature_catalog']),
+      ];
+      final loadedLate = {
+        'runbook': layers['runbook']!,
+        'playbook': layers['playbook']!,
+      };
+      expect(
+        () => check(types, layers),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.message,
+            'message',
+            'only one doc type lists group_feature_catalog: '
+                'playbook and runbook do',
+          ),
+        ),
+      );
+      expect(
+        () => check(types, loadedLate),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.message,
+            'message',
+            'only one doc type lists group_feature_catalog: '
+                'runbook and playbook do',
+          ),
+        ),
+      );
+    });
+
+    test('one doc type listing group_feature_catalog with path_from loads '
+        'clean', () {
+      final layers = {
+        'runbook': [
+          layerOf(
+            'runbook',
+            'path_from: feature_groups\nfile: AREA.md\n'
+                'generators: [group_feature_catalog]\n',
+          ),
+        ],
+        'playbook': [
+          layerOf(
+            'playbook',
+            'generators: [feature_catalog]\n',
+            file: _playbookFile,
+          ),
+        ],
+      };
+      expect(
+        () => check([
+          _derived('runbook').copyWith(generators: ['group_feature_catalog']),
+          builtIn('playbook').copyWith(generators: ['feature_catalog']),
+        ], layers),
+        returnsNormally,
+      );
+    });
+
+    test('a doc type listing group_feature_catalog with no path_from is '
+        'unknown_value at generators, in the file that lists it', () {
+      final layers = {
+        'runbook': [
+          layerOf('runbook', 'path: ops/{slug}/RUNBOOK.md\n'),
+          layerOf(
+            'runbook',
+            'generators: {add: [group_feature_catalog]}\n',
+            file: _playbookFile,
+          ),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(
+            path: 'ops/{slug}/RUNBOOK.md',
+            generators: ['group_feature_catalog'],
+          ),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'generators')
+              .having((f) => f.file, 'file', _playbookFile)
+              .having(
+                (f) => f.message,
+                'message',
+                'runbook lists group_feature_catalog and writes no path_from',
+              ),
+        ),
+      );
+    });
+
+    test('a doc type that gains group_feature_catalog through add is named by '
+        'the higher layer', () {
+      final layers = {
+        'playbook': [
+          layerOf(
+            'playbook',
+            'generators: [group_feature_catalog]\n',
+            file: _playbookFile,
+          ),
+        ],
+        'runbook': [
+          layerOf(
+            'runbook',
+            'generators: [feature_catalog]\n',
+            file: _epicFile,
+          ),
+          layerOf('runbook', 'generators: {add: [group_feature_catalog]}\n'),
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('playbook').copyWith(generators: ['group_feature_catalog']),
+          builtIn(
+            'runbook',
+          ).copyWith(generators: ['feature_catalog', 'group_feature_catalog']),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'generators')
+              .having((f) => f.file, 'file', _runbookFile)
+              .having((f) => f.relatedFiles, 'relatedFiles', [_playbookFile]),
         ),
       );
     });

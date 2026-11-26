@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 import '../../specstone_core/test/helpers/check_fixture.dart';
 import '../../specstone_core/test/helpers/posix_modes.dart'
     show unreadablePathSkipReason;
+import '../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../specstone_core/test/helpers/write_fixture.dart'
     show
         docFile,
@@ -19,6 +20,7 @@ import '../../specstone_core/test/helpers/write_fixture.dart'
         writeJournal,
         writeWriteProject;
 import 'helpers/built_cli.dart';
+import 'helpers/temp_tree.dart';
 
 void main() {
   late String binary;
@@ -167,5 +169,67 @@ void main() {
     expect(readDoc(root, story3), readDoc(twin, story3));
     expect(readDoc(root, fr31), edited);
     expect(MoveJournal.pending(root), isFalse);
+  });
+
+  group('format with a recorded journal pending', () {
+    const oldFolder = 'docs/prds/features/f01_recipes';
+    const newFolder = 'docs/prds/features/f02_recipes';
+    const unformatted = '# Recipes\nbody   \n';
+    Map<String, String> environment() => {
+      'HOME': testHome().path,
+      'USERPROFILE': testHome().path,
+    };
+
+    Future<Directory> stoppedMove() async {
+      final root = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '$oldFolder/FEATURE.md': unformatted,
+      });
+      writeJournal(root, [const MoveStep(oldFolder, newFolder)]);
+      return root;
+    }
+
+    test('finishes the journal, then formats a target that exists only '
+        'after it', () async {
+      final root = await stoppedMove();
+
+      final result = await runSpecstone(
+        binary,
+        ['format', '$newFolder/FEATURE.md'],
+        workingDirectory: root.path,
+        environment: environment(),
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, '$newFolder/FEATURE.md: formatted\n');
+      expect(
+        File('${root.path}/$newFolder/FEATURE.md').readAsStringSync(),
+        '# Recipes\n\nbody\n',
+      );
+      expect(Directory('${root.path}/$oldFolder').existsSync(), isFalse);
+      expect(MoveJournal.pending(root), isFalse);
+    });
+
+    test(
+      '--check leaves the journal pending and the doc where it was',
+      () async {
+        final root = await stoppedMove();
+
+        final result = await runSpecstone(
+          binary,
+          ['format', '--check', '$oldFolder/FEATURE.md'],
+          workingDirectory: root.path,
+          environment: environment(),
+        );
+
+        expect(result.exitCode, 1, reason: '${result.stderr}');
+        expect(result.stdout, '$oldFolder/FEATURE.md\n');
+        expect(
+          File('${root.path}/$oldFolder/FEATURE.md').readAsStringSync(),
+          unformatted,
+        );
+        expect(MoveJournal.pending(root), isTrue);
+      },
+    );
   });
 }

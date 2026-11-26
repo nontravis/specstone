@@ -316,6 +316,15 @@ final class IndexStore {
     Duration busyTimeout = indexBusyTimeout,
   }) => _open(projectRoot, busyTimeout, discard: true);
 
+  /// Opens an empty index held in memory: no file, no `.specstone/.gitignore`,
+  /// no lock folder, so a caller that reads docs once writes nothing.
+  ///
+  /// A refresh fills it whole, as for any index that holds no stamp.
+  static IndexStore inMemory() {
+    final db = sqlite3.openInMemory()..execute(_schema);
+    return IndexStore._(db, null, [], indexBusyTimeout);
+  }
+
   /// Whether [e] says the file is no readable index.
   static bool isDamage(SqliteException e) =>
       e.resultCode == SqlError.SQLITE_NOTADB ||
@@ -369,7 +378,8 @@ final class IndexStore {
 
   final Database _db;
 
-  final Directory _specstoneFolder;
+  // Null for an index held in memory, which has no `.gitignore` to keep.
+  final Directory? _specstoneFolder;
 
   final Duration _busyTimeout;
 
@@ -657,15 +667,18 @@ final class IndexStore {
   }
 
   /// Checks the `.gitignore` lines, drops every table, recreates them empty in
-  /// this layout, and stores [stamp].
+  /// this layout, and stores [stamp]; an index held in memory has no
+  /// `.gitignore` to check.
   ///
   /// Throws [IndexFault] when `.specstone/.gitignore` cannot be written; no
   /// table is touched then.
   void reset(IndexStamp stamp) {
-    try {
-      ensureSpecstoneGitignore(_specstoneFolder);
-    } on FileSystemException {
-      throw IndexFault(IndexFaultCode.indexNotWritable, _notWritableMessage);
+    if (_specstoneFolder case final folder?) {
+      try {
+        ensureSpecstoneGitignore(folder);
+      } on FileSystemException {
+        throw IndexFault(IndexFaultCode.indexNotWritable, _notWritableMessage);
+      }
     }
     // Past the generation of the index it replaces, so no snapshot of that
     // index reads the new one as fresh.

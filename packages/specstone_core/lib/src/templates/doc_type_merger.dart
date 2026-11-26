@@ -99,6 +99,8 @@ final class DocTypeMerger {
       parent: parent,
       extendsId: layer.extendsId,
       path: layer.path,
+      pathFrom: layer.pathFrom,
+      file: layer.docFile,
       title: layer.title,
       maxDepth: layer.maxDepth,
       isPerTarget: layer.perTarget,

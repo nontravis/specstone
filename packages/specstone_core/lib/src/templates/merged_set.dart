@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/feature_group_paths.dart';
 import 'package:specstone_core/src/templates/leftover_home.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/feature_pattern.dart';
@@ -20,7 +21,9 @@ final class MergedSet {
     Set<String> droppedDocTypes = const {},
     Set<String> orphanedDocTypes = const {},
     List<LeftoverHome> leftoverHomes = const [],
-  }) : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes))),
+  }) : docTypes = List.unmodifiable(
+         withNestedPaths(withFeatureGroupPaths(_sortedCopy(docTypes))),
+       ),
        featurePatterns = List.unmodifiable(
          List<FeaturePattern>.of(featurePatterns)
            ..sort((a, b) => compareCodePoints(a.id, b.id)),

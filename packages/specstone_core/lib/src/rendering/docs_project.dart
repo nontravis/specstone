@@ -71,6 +71,25 @@ final class DocsProject {
       workingDirectory: workingDirectory,
       homeDirectory: homeDirectory,
     );
+    return DocsProject._of(trust, set);
+  }
+
+  /// Opens the project holding [workingDirectory] on [set], the merged doc
+  /// types the caller already holds.
+  ///
+  /// No pack is resolved and no pin is checked against its carried version, so
+  /// a caller can read a project at the version a run moves it to. Throws
+  /// `project_not_found` as [open] does.
+  static DocsProject onSet(
+    MergedSet set, {
+    required Directory workingDirectory,
+    required Directory? homeDirectory,
+  }) => DocsProject._of(
+    RootTrust.locate(workingDirectory, homeDirectory: homeDirectory),
+    set,
+  );
+
+  static DocsProject _of(RootTrust trust, MergedSet set) {
     final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
     final targets = List<CodeTarget>.unmodifiable(config.targets);

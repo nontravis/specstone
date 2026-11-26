@@ -958,7 +958,9 @@ final class MoveJournal {
   ///
   /// Throws [IndexFault] `index_not_writable` when `.specstone/.gitignore`
   /// cannot be written, and [RenderFault] `output_not_writable` before any
-  /// change when there is no usable home folder to record the journal in, when
+  /// change when the trash folder holds a journal or parked docs, so they would
+  /// be overwritten, when there is no usable home folder to
+  /// record the journal in, when
   /// `.specstone` or its trash folder leads outside the roots, when a step path
   /// leaves them, when a folder a file moves out of sits on another volume than
   /// the trash (before any file moves), when cursor 0 or the journal cannot be
@@ -975,6 +977,7 @@ final class MoveJournal {
     _requireInside(target, [
       for (final step in steps) ...step._paths,
     ], agentFiles: target.agentFiles);
+    _requireNoPending(target);
     final specstone = Directory(_join(target.projectRoot.path, '.specstone'));
     try {
       specstone.createSync(recursive: true);
@@ -1061,6 +1064,32 @@ final class MoveJournal {
       ...steps.skip(cursor + 1),
     ];
   }
+}
+
+/// Throws [RenderFault] `output_not_writable`, naming the journal, when the
+/// trash folder under the project root holds anything but a stray cursor.
+///
+/// A journal, the docs a stopped run parked, or a probe left behind would be
+/// replaced or deleted by a run on top of it; a write command's replay
+/// finishes or clears it first. A cursor alone no journal owns is replaced, as
+/// [MoveJournal.run] states.
+void _requireNoPending(JournalTarget target) {
+  final trash = Directory(
+    _join(target.projectRoot.path, MoveJournal.trashPath),
+  );
+  if (!trash.existsSync()) return;
+  final strayCursor = _lastSegmentOf(MoveJournal.cursorPath);
+  final holdsMore = trash
+      .listSync(followLinks: false)
+      .any((entry) => _lastSegmentOf(entry.path) != strayCursor);
+  if (!holdsMore) return;
+  throw RenderFault(
+    RenderFaultCode.outputNotWritable,
+    'cannot write ${MoveJournal.journalPath}: ${MoveJournal.trashPath}/ holds '
+    'an unfinished journal or its parked docs; run a specstone write command '
+    'to finish it, or check and delete the folder',
+    file: MoveJournal.journalPath,
+  );
 }
 
 /// Returns the steps of the journal file, or null when there is none.

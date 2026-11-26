@@ -15,12 +15,27 @@ import 'package:specstone_core/src/document_writing/set_doc.dart'
     show markDraft;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
+import 'package:specstone_core/src/index_query/doc_index.dart' show DocIndex;
+import 'package:specstone_core/src/index_query/index_store.dart'
+    show IndexStore;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show IndexedDoc, docNameOf;
+import 'package:specstone_core/src/index_query/read_session.dart'
+    show ReadSession;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/release_version.dart' show ReleaseVersion;
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show DocRead, ReadableDoc, readDoc;
+import 'package:specstone_core/src/rendering/doc_tree.dart'
+    show collectDocEntries;
+import 'package:specstone_core/src/rendering/docs_project.dart'
+    show DocsProject, Target;
+import 'package:specstone_core/src/rendering/format_run.dart'
+    show FileResult, planFormatWrites;
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry, fillGeneratedBlocks;
 import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
@@ -101,6 +116,26 @@ const _matrixRowsChange = 'fold matrix rows';
 /// [homeDirectory] is the personal pack home, or null. The plan's `inputs` hold
 /// every file it read.
 ///
+/// A `regenerate` step runs the [generators] it lists through the format write
+/// at the version the run moves the pins to, so a pin below its carried
+/// version plans. Each doc it changes takes its blocks on its text after the
+/// earlier steps, at its path on disk, so a doc a `move_file` step of the same
+/// run moves keeps its blocks until the next `format`. The generators read an
+/// in-memory index of the docs as they stand on disk, so the plan writes no
+/// index file, and a catalog cell lags a doc an earlier step of the same run
+/// reshapes. A group doc the step creates or deletes joins the run's creates
+/// or trashed docs. A doc the write cannot lay out, whether a features doc, a
+/// group doc, or a companion path no doc holds, refuses the run as an
+/// `upgrade_collision` naming the doc and why, so no pin moves with a stale
+/// catalog. Throws a `StateError` when a `regenerate` step names a kind
+/// [generators] lacks.
+///
+/// [regenerationIndex] holds that index across plans: a run that shows a plan
+/// and plans again before it applies passes one, so it builds the index once,
+/// and closes it. With none, the plan builds its own and closes it. A reused
+/// index describes the docs as the first plan read them; a doc edited since
+/// changes the plan's inputs, which the second plan refuses.
+///
 /// Each of [addedPacks], sorted with no repeat, joins the pins at the version
 /// its pack carries: the `packs:` form is checked first, then the merged set
 /// with the added packs loads, so a refused add prints nothing. Throws a
@@ -109,26 +144,40 @@ RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  required GeneratorRegistry<DocIndex> generators,
   List<String> addedPacks = const [],
+  RegenerationIndex? regenerationIndex,
 }) {
   final inputs = PlanInputs(root);
-  return inputs.collect(
-    () => _upgradeRunOf(
-      root,
-      templates: templates,
-      homeDirectory: homeDirectory,
-      addedPacks: addedPacks,
-      inputs: inputs,
-    ),
-  )..refuseTakenCreates(root);
+  final index = regenerationIndex ?? RegenerationIndex();
+  try {
+    return inputs.collect(
+      () => _upgradeRunOf(
+        root,
+        templates: templates,
+        homeDirectory: homeDirectory,
+        addedPacks: addedPacks,
+        generators: generators,
+        regenerationIndex: index,
+        inputs: inputs,
+      ),
+    )..refuseTakenCreates(root);
+  } finally {
+    if (regenerationIndex == null) index.close();
+  }
 }
 
 /// Plans the upgrade of [root] while [inputs] records each file read.
+///
+/// A `regenerate` step reads its generators' index through [regenerationIndex],
+/// which the caller closes.
 RunPlan _upgradeRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
   required List<String> addedPacks,
+  required GeneratorRegistry<DocIndex> generators,
+  required RegenerationIndex regenerationIndex,
   required PlanInputs inputs,
 }) {
   final config = ProjectConfig.read(root);
@@ -258,6 +307,11 @@ RunPlan _upgradeRunOf(
   );
   renameCollisions.addAll(folds.collisions);
   final keptLayers = _keptLayersOf(root, stepKinds);
+  // Each `regenerate` step's write, planned once the docs can be stepped.
+  final regenerations = <int, _Regeneration>{};
+  // Whether `stepped` reads a doc only, recording no change, ledger entry, or
+  // collision.
+  var isProbing = false;
   // A from doc an earlier step of the fold's pack names takes that pack's
   // steps before its fold, typed by its frozen doc type, and the fold merges
   // that stepped text.
@@ -274,6 +328,10 @@ RunPlan _upgradeRunOf(
         );
   final steppedTextByDocPath = <String, String>{};
   final ledger = HeadingLedger();
+  void refuse(MigrateFault fault) {
+    if (!isProbing) renameCollisions.add(fault);
+  }
+
   String foldInto(
     int index,
     MergeDoc step, {
@@ -297,29 +355,27 @@ RunPlan _upgradeRunOf(
         toHeaders: _headersOf(docType),
       );
       if (_heldHeader(text, merged.movedHeaders) case final header?) {
-        renameCollisions.add(
-          _foldCollision(step, source, header: header, file: path),
-        );
+        refuse(_foldCollision(step, source, header: header, file: path));
         return lf;
       }
       if (merged.isLeadUnplaced) {
-        renameCollisions.add(_leadFault(step, source, file: path));
+        refuse(_leadFault(step, source, file: path));
         return lf;
       }
       if (merged.unmergedFields.isNotEmpty) {
-        renameCollisions.add(
-          _unmergedFault(step, source, merged.unmergedFields, file: path),
-        );
+        refuse(_unmergedFault(step, source, merged.unmergedFields, file: path));
         return lf;
       }
-      ledger.folded(
-        fromPath: planned[source.fromPath] ?? source.fromPath,
-        fromLf: fromLf,
-        toPath: plannedPath,
-        toBefore: text,
-        toAfter: merged.text,
-        groups: merged.sectionGroups,
-      );
+      if (!isProbing) {
+        ledger.folded(
+          fromPath: planned[source.fromPath] ?? source.fromPath,
+          fromLf: fromLf,
+          toPath: plannedPath,
+          toBefore: text,
+          toAfter: merged.text,
+          groups: merged.sectionGroups,
+        );
+      }
       text = merged.text;
     }
     return text;
@@ -327,7 +383,8 @@ RunPlan _upgradeRunOf(
 
   /// Returns [text], the doc at [path] planned at [plannedPath], with each step
   /// from [firstStep] up to [endStep] that touches [docType] applied, adding
-  /// each change to [changes] and each refused rename to `renameCollisions`.
+  /// each change to [changes] and each refused rename to `renameCollisions`
+  /// unless `isProbing`.
   String stepped(
     String text, {
     required String path,
@@ -340,7 +397,8 @@ RunPlan _upgradeRunOf(
     var lf = text;
     for (final (index, PackStep(:step)) in steps.indexed) {
       if (index < firstStep || index >= endStep) continue;
-      if (!step.touches(docType.id)) continue;
+      // A `regenerate` step reaches no doc type; its write names the docs.
+      if (step is! Regenerate && !step.touches(docType.id)) continue;
       final renamed = switch (step) {
         RenameSection() => MoveRewrites.headerRenamed(
           lf,
@@ -377,6 +435,8 @@ RunPlan _upgradeRunOf(
           lf: lf,
         ),
         DropDocType() => lf,
+        Regenerate() =>
+          regenerations[index]?.fill(lf, path: path, docType: docType) ?? lf,
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -396,6 +456,7 @@ RunPlan _upgradeRunOf(
           DropSection() => false,
           MergeDoc() => false,
           DropDocType() => false,
+          Regenerate() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -415,8 +476,9 @@ RunPlan _upgradeRunOf(
             DropSection() => '',
             MergeDoc() => '',
             DropDocType() => '',
+            Regenerate() => '',
           };
-          renameCollisions.add(
+          refuse(
             MigrateFault(
               MigrateFaultCode.upgradeCollision,
               message,
@@ -425,19 +487,21 @@ RunPlan _upgradeRunOf(
           );
           continue;
         }
-        if (step is RenameSection) {
-          ledger.renamed(plannedPath, before: lf, after: renamed);
-        } else if (step is DropSection) {
-          ledger.dropped(
-            plannedPath,
-            before: lf,
-            after: renamed,
-            header: step.sectionHeader,
-          );
+        if (!isProbing) {
+          if (step is RenameSection) {
+            ledger.renamed(plannedPath, before: lf, after: renamed);
+          } else if (step is DropSection) {
+            ledger.dropped(
+              plannedPath,
+              before: lf,
+              after: renamed,
+              header: step.sectionHeader,
+            );
+          }
+          (changedAt[index] ??= []).add(plannedPath);
         }
         lf = renamed;
         changes.add(_describe(step));
-        (changedAt[index] ??= []).add(plannedPath);
       }
     }
     return lf;
@@ -454,6 +518,47 @@ RunPlan _upgradeRunOf(
       changes: <String>[],
     );
   }
+
+  // A `regenerate` step plans its write over each doc as the steps before it
+  // leave it, read through `stepped` with no change recorded.
+  final planner = _RegenerationPlanner(
+    root: root,
+    homeDirectory: homeDirectory,
+    set: finalSet,
+    generators: generators,
+    index: regenerationIndex,
+  );
+  for (final (index, PackStep(:step)) in steps.indexed) {
+    if (step is! Regenerate) continue;
+    isProbing = true;
+    final texts = {
+      for (final path in docPaths)
+        if (originals[path] case final original?)
+          path: switch (matcher.match(planned[path]!)) {
+            MatchedDocType(:final docType) => stepped(
+              original.lf,
+              path: path,
+              plannedPath: planned[path]!,
+              docType: docType,
+              firstStep: 0,
+              endStep: index,
+              changes: <String>[],
+            ),
+            _ => original.lf,
+          },
+    };
+    isProbing = false;
+    final regeneration = planner.plan(step, texts);
+    regeneration.refusals.forEach(refuse);
+    regenerations[index] = regeneration;
+    (changedAt[index] ??= []).addAll([
+      ...regeneration.creates.keys,
+      for (final path in regeneration.deletes) planned[path] ?? path,
+    ]);
+  }
+  final regeneratedAway = {
+    for (final regeneration in regenerations.values) ...regeneration.deletes,
+  };
 
   // A `to` doc the project lacks is a draft the merge steps create; it takes
   // the steps from its first merge on, as a doc the project holds does.
@@ -472,7 +577,11 @@ RunPlan _upgradeRunOf(
   for (final (:path, :original, :firstStep) in docs) {
     final isCreate = original == _absentDoc;
     final plannedPath = isCreate ? path : planned[path]!;
-    if (original == null || folds.fromPaths.contains(plannedPath)) continue;
+    if (original == null ||
+        folds.fromPaths.contains(plannedPath) ||
+        regeneratedAway.contains(path)) {
+      continue;
+    }
     final match = matcher.match(plannedPath);
     final docType = match is MatchedDocType ? match.docType : null;
     final target = match is MatchedDocType ? match.target : null;
@@ -772,7 +881,12 @@ RunPlan _upgradeRunOf(
     prunes: PathMoves.prunesOf(moves),
     rewrites: [...docRewrites, ...overrideRewrites, ?configRewrite],
     creates: [
-      ...mergeCreates..sort((a, b) => compareCodePoints(a.path, b.path)),
+      ...[
+        ...mergeCreates,
+        for (final regeneration in regenerations.values)
+          for (final MapEntry(:key, :value) in regeneration.creates.entries)
+            PlannedCreate(path: projectPathOfDocPath(key), text: value),
+      ]..sort((a, b) => compareCodePoints(a.path, b.path)),
     ],
     left: const [],
     commit1Message: _commit1Message,
@@ -792,8 +906,11 @@ RunPlan _upgradeRunOf(
     ],
     agentFiles: agentFiles,
     trashedDocs: [
-      for (final path in folds.fromPaths.toList()..sort(compareCodePoints))
-        projectPathOfDocPath(planned[path]!),
+      for (final path in {
+        ...folds.fromPaths,
+        ...regeneratedAway,
+      }.toList()..sort(compareCodePoints))
+        projectPathOfDocPath(planned[path] ?? path),
     ],
     lists: PlanLists(
       formatLayout: [...laidOutPaths]..sort(compareCodePoints),
@@ -808,6 +925,183 @@ RunPlan _upgradeRunOf(
     ),
   );
   return plan;
+}
+
+/// The in-memory read of the docs that the generators of a `regenerate` step
+/// read from.
+///
+/// The first plan that reaches a `regenerate` step builds it; a later plan
+/// given the same index reuses it, so one run builds it once. Its owner closes
+/// it.
+final class RegenerationIndex {
+  ReadSession? _session;
+
+  ReadSession _sessionOf(DocsProject project, Directory root) =>
+      _session ??= ReadSession.readFrom(
+        project,
+        IndexStore.inMemory(),
+        workingDirectory: root,
+      );
+
+  /// Closes the read; a later plan builds a new one.
+  void close() {
+    _session?.close();
+    _session = null;
+  }
+}
+
+/// The format write of one `regenerate` step, planned over the target-version
+/// set and read from an in-memory index.
+final class _Regeneration {
+  const new({
+    required this.registry,
+    required this.session,
+    required this.rewrites,
+    required this.creates,
+    required this.deletes,
+    required this.refusals,
+  });
+
+  /// The generators the step lists.
+  final GeneratorRegistry<DocIndex> registry;
+
+  /// The in-memory read of the docs the generators read from.
+  final ReadSession session;
+
+  /// One `upgrade_collision` per doc the write cannot lay out.
+  final List<MigrateFault> refusals;
+
+  /// The DocPath of each doc the write changes.
+  final Set<String> rewrites;
+
+  /// The LF text of each group doc the write creates, by DocPath.
+  final Map<String, String> creates;
+
+  /// The DocPath of each group doc the write deletes.
+  final List<String> deletes;
+
+  /// Returns [lf], the doc at [path] after the steps before this one, with its
+  /// generated blocks written when the write changes that doc.
+  String fill(
+    String lf, {
+    required String path,
+    required MergedDocType docType,
+  }) => rewrites.contains(path)
+      ? fillGeneratedBlocks(lf, docType, registry, session.index, docPath: path)
+      : lf;
+}
+
+/// Plans the format write of each `regenerate` step over [set].
+///
+/// The docs are read once, and indexed in memory once through [index], for
+/// every step. A write reads the docs as the steps before it leave them, so a
+/// group doc an earlier step creates or deletes stays that step's: a later
+/// step lists it no more.
+final class _RegenerationPlanner {
+  new({
+    required this.root,
+    required this.homeDirectory,
+    required this.set,
+    required this.generators,
+    required this.index,
+  });
+
+  final Directory root;
+  final Directory? homeDirectory;
+  final MergedSet set;
+  final GeneratorRegistry<DocIndex> generators;
+  final RegenerationIndex index;
+
+  final _taken = <String>{};
+  DocsProject? _project;
+  List<DocRead>? _reads;
+
+  /// Returns the write of [step], planned over [lfByDocPath], the LF text of
+  /// each doc by DocPath after the steps before [step]; a doc it holds no text
+  /// for keeps its text on disk.
+  ///
+  /// Throws a [StateError] when [step] names a kind [generators] lacks.
+  _Regeneration plan(Regenerate step, Map<String, String> lfByDocPath) {
+    final missing = step.generators.where(
+      (kind) => !generators.kinds.contains(kind),
+    );
+    if (missing.isNotEmpty) {
+      throw StateError(
+        'regenerate names ${missing.join(', ')}, which the generators the '
+        'caller passed do not hold',
+      );
+    }
+    final project = _project ??= DocsProject.onSet(
+      set,
+      workingDirectory: root,
+      homeDirectory: homeDirectory,
+    );
+    final session = index._sessionOf(project, root);
+    final reads = _reads ??= [
+      for (final entry in collectDocEntries(
+        Target(project.docsRoot, ''),
+        project.matcher,
+      ))
+        readDoc(project, entry),
+    ];
+    final registry = generators.only(step.generators.toSet());
+    final plan = planFormatWrites(
+      project,
+      [for (final read in reads) _withText(read, lfByDocPath)],
+      registry,
+      session.index,
+    );
+    final creates = {
+      for (final MapEntry(:key, :value) in plan.creates.entries)
+        if (docPathOfProjectPath(key) case final path?
+            when !_taken.contains(path))
+          path: value,
+    };
+    final deletes = [
+      for (final path in plan.deletes)
+        if (docPathOfProjectPath(path) case final docPath?
+            when !_taken.contains(docPath))
+          docPath,
+    ];
+    _taken
+      ..addAll(creates.keys)
+      ..addAll(deletes);
+    return _Regeneration(
+      registry: registry,
+      session: session,
+      rewrites: {
+        for (final path in plan.rewrites.keys) ?docPathOfProjectPath(path),
+      },
+      creates: creates,
+      deletes: deletes,
+      refusals: [for (final result in plan.blocked) _refusalOf(result)],
+    );
+  }
+
+  static MigrateFault _refusalOf(FileResult result) => MigrateFault(
+    MigrateFaultCode.upgradeCollision,
+    'regenerate cannot write ${result.path}: ${result.reasons}; make the doc '
+    'one format accepts, then run specstone migrate again',
+    file: docPathOfProjectPath(result.path) ?? result.path,
+  );
+
+  /// Returns [read] holding its text from [lfByDocPath], in its line ending,
+  /// or [read] itself when it holds none.
+  static DocRead _withText(DocRead read, Map<String, String> lfByDocPath) {
+    if (read is! ReadableDoc) return read;
+    final lf = lfByDocPath[read.docPath];
+    if (lf == null) return read;
+    return ReadableDoc(
+      read.file,
+      read.path,
+      docPath: read.docPath,
+      text: read.lineEnding.apply(lf),
+      lineEnding: read.lineEnding,
+      hasBom: read.hasBom,
+      docType: read.docType,
+      doc: Doc.parse(lf),
+    );
+  }
 }
 
 /// The docs the `merge_doc` steps of a run fold.
@@ -1274,6 +1568,7 @@ List<_OverrideFile> _renamedOverrides(
         DropSection() => file.lf,
         MergeDoc() => file.lf,
         DropDocType() => file.lf,
+        Regenerate() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -1797,6 +2092,7 @@ String _describe(MigrationStep step) => switch (step) {
   DropSection() => '${step.kind} ${step.docTypes.join(', ')} ${step.sectionId}',
   MergeDoc() => '${step.kind} ${step.fromId} -> ${step.toId}',
   DropDocType() => '${step.kind} ${step.id}',
+  Regenerate() => '${step.kind}: ${step.generators.join(', ')}',
 };
 
 /// Returns the doc paths in code point order, then the override paths in the

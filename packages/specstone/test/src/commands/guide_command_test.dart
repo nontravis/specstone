@@ -186,6 +186,26 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
+    test('a path_from type with --json prints paths after description and '
+        'no path', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml':
+              'path: prds/features/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          '.specstone/templates/area_index.yaml':
+              'id: area_index\ndescription: One index per group.\n'
+              'path_from: feature_groups\nfile: AREA.md\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'area_index', '--json']), 0);
+      final decoded = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(decoded.keys.take(3), ['id', 'description', 'paths']);
+      expect(decoded['paths'], ['prds/features/{slug}/AREA.md']);
+      expect(decoded.containsKey('path'), isFalse);
+      expect(err.toString(), isEmpty);
+    });
+
     test('an unknown type prints usage and '
         'exits 64', () async {
       final runner = await runnerIn(await projectWith({}));

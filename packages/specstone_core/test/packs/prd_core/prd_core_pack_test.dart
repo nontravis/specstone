@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -37,6 +38,7 @@ const _presentTruthIds = [
   'glossary',
   'gnfr',
   'goal',
+  'group_features',
   'journey',
   'nf',
   'persona',
@@ -96,6 +98,7 @@ const _sharedPatterns = <String, _Reach>{
     'glossary',
     'gnfr',
     'goal',
+    'group_features',
     'journey',
     'measurement',
     'nf',
@@ -147,6 +150,7 @@ const _noWordListIds = [
   'measurement',
   'goal',
   'glossary',
+  'group_features',
 ];
 
 /// The doc types that carry no `reference:` entry.
@@ -158,6 +162,7 @@ const _noReferenceIds = [
   'measurement',
   'goal',
   'glossary',
+  'group_features',
 ];
 
 void main() {
@@ -170,14 +175,20 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.31.0');
+      expect(manifest.version.toString(), '1.32.0');
       expect(manifest.extendsPack, isNull);
     });
 
-    test('prd-core ships no migration entry and no migrations key', () {
-      expect(_prdCoreManifest().migrations, isEmpty);
-      final text = utf8.decode(shippedPackFiles['prd-core/pack.yaml']!);
-      expect(text, isNot(contains('migrations:')));
+    test('prd-core ships one regenerate entry from 1.31.0 naming both '
+        'catalog generators', () {
+      final migrations = _prdCoreManifest().migrations;
+      expect(migrations, hasLength(1));
+      expect(migrations.single.from.toString(), '1.31.0');
+      expect(migrations.single.steps, hasLength(1));
+      final step = migrations.single.steps.single;
+      expect(step, isA<Regenerate>());
+      step as Regenerate;
+      expect(step.generators, ['feature_catalog', 'group_feature_catalog']);
     });
 
     test(
@@ -218,13 +229,13 @@ void main() {
       expect(shared.fields, isEmpty);
     });
 
-    test('the present_truth entry reaches thirteen doc types, measurement '
+    test('the present_truth entry reaches fourteen doc types, measurement '
         'not among them', () {
       final line = _prdCoreManifest().shared.lines.singleWhere(
         (l) => l.id == 'present_truth',
       );
 
-      expect(line.forDocTypes, hasLength(13));
+      expect(line.forDocTypes, hasLength(14));
       expect(line.forDocTypes, isNot(contains('measurement')));
     });
 
@@ -311,12 +322,11 @@ void main() {
   });
 
   group('prd-core doc types', () {
-    test('every doc type titles with no number, so each sets '
-        'lint.title_no_number', () async {
+    test('every doc type but group_features titles with no number, so each '
+        'sets lint.title_no_number', () async {
       final set = await resolvePrdCore();
 
-      expect(prdCoreIds, hasLength(15));
-      for (final id in prdCoreIds) {
+      for (final id in prdCoreIds.where((id) => id != 'group_features')) {
         expect(prdCoreDocType(set, id).lint.titleNoNumber, isTrue, reason: id);
       }
     });
@@ -363,7 +373,7 @@ void main() {
     });
 
     test('a project listing only prd-core '
-        'holds exactly the fifteen doc types', () async {
+        'holds exactly the sixteen doc types', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
@@ -395,7 +405,11 @@ void main() {
 
     test('each doc type flags a doc over its own line and character '
         'caps', () async {
-      final set = await resolvePrdCore();
+      // A path_from type has no path of its own; group_features_test.dart
+      // holds its caps.
+      final types = (await resolvePrdCore()).docTypes.where(
+        (t) => t.pathFrom == null,
+      );
       // A draft takes no approval stamp, so the counts stay exact.
       const draft = '---\ndraft: true\n---\n\n# Probe\n\n';
       String pathOf(MergedDocType docType) =>
@@ -404,11 +418,11 @@ void main() {
       Future<Map<String, Set<FindingKind>>> kindsByPath(
         String Function(MergedDocType) bodyOf,
       ) async {
-        final paths = {for (final t in set.docTypes) t.id: pathOf(t)};
+        final paths = {for (final t in types) t.id: pathOf(t)};
         final report = await checkOf(
           await writeCheckProject(
             extra: {
-              for (final t in set.docTypes)
+              for (final t in types)
                 'docs/${paths[t.id]}': '$draft${bodyOf(t)}\n',
             },
             unstamped: {for (final p in paths.values) 'docs/$p'},
@@ -427,7 +441,7 @@ void main() {
         (t) => List.filled(t.lint.maxLines! + 1, 'x').join('\n'),
       );
       final overChars = await kindsByPath((t) => 'x' * (t.lint.maxChars! + 1));
-      for (final docType in set.docTypes) {
+      for (final docType in types) {
         expect(
           overLines[pathOf(docType)],
           contains(FindingKind.linesOverLimit),
@@ -580,8 +594,8 @@ void main() {
   });
 
   group('prd-core shared lint and sources', () {
-    test('eleven doc types carry no banned word list at either level and '
-        'seven carry no reference entry', () async {
+    test('twelve doc types carry no banned word list at either level and '
+        'eight carry no reference entry', () async {
       final set = await resolvePrdCore();
       for (final id in _noWordListIds) {
         final docType = prdCoreDocType(set, id);
@@ -661,8 +675,8 @@ void main() {
       }
     });
 
-    test('persona, anti_persona, reference, feature, user_story, fr, and nf '
-        'set no title key', () async {
+    test('persona, anti_persona, reference, feature, user_story, fr, nf, and '
+        'group_features set no title key', () async {
       final set = await resolvePrdCore();
       for (final id in [
         'persona',
@@ -672,6 +686,7 @@ void main() {
         'user_story',
         'fr',
         'nf',
+        'group_features',
       ]) {
         expect(prdCoreDocType(set, id).title, isNull, reason: id);
       }

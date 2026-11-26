@@ -44,6 +44,7 @@ class FormatCommand extends SpecstoneCommand {
     }
     final runner = specstoneRunner;
     final asJson = argResults!.flag('json');
+    final check = argResults!.flag('check');
 
     final FormatReport report;
     final sessionWarnings = <String>[];
@@ -53,6 +54,38 @@ class FormatCommand extends SpecstoneCommand {
         workingDirectory: runner.workingDirectory,
         homeDirectory: runner.homeDirectory,
       );
+      final generators = GeneratorRun<DocIndex>(
+        registry: runner.generators,
+        finishJournal: () => WriteSession.openReplayed(
+          templates: runner.templates,
+          workingDirectory: runner.workingDirectory,
+          homeDirectory: runner.homeDirectory,
+          busyTimeout: runner.busyTimeout,
+          warnings: sessionWarnings,
+        ).close(),
+        open: () {
+          final session = ReadSession.open(
+            templates: runner.templates,
+            workingDirectory: runner.workingDirectory,
+            homeDirectory: runner.homeDirectory,
+            busyTimeout: runner.busyTimeout,
+          );
+          sessionWarnings.addAll(
+            session.indexWarnings.where(
+              (line) => !sessionWarnings.contains(line),
+            ),
+          );
+          return OpenedResolver(
+            resolver: session.index,
+            close: session.close,
+            lockWrites: (write) => session.writeIndex((_) => write()),
+          );
+        },
+      );
+      // A write finishes an unfinished journal before it resolves its target,
+      // as every write command does: the journal may move the target. A check
+      // writes nothing and leaves it.
+      if (!check) generators.finishPendingJournal(project);
       final target = project.resolveTarget(
         rest.firstOrNull,
         workingDirectory: runner.workingDirectory,
@@ -62,23 +95,9 @@ class FormatCommand extends SpecstoneCommand {
       report = runFormat<DocIndex>(
         project,
         target,
-        check: argResults!.flag('check'),
-        generators: GeneratorRun<DocIndex>(
-          registry: runner.generators,
-          open: () {
-            final session = ReadSession.open(
-              templates: runner.templates,
-              workingDirectory: runner.workingDirectory,
-              homeDirectory: runner.homeDirectory,
-              busyTimeout: runner.busyTimeout,
-            );
-            sessionWarnings.addAll(session.indexWarnings);
-            return OpenedResolver(
-              resolver: session.index,
-              close: session.close,
-            );
-          },
-        ),
+        check: check,
+        homeDirectory: runner.homeDirectory,
+        generators: generators,
       );
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);

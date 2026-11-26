@@ -76,7 +76,12 @@ export 'src/index_query/code_bundle.dart'
     show CodePath, pickCodeBundle, projectRootMatch, resolveCodePath;
 export 'src/index_query/doc_index.dart' show DocIndex;
 export 'src/index_query/feature_catalog.dart'
-    show featureCatalogBlocks, featureCatalogKind;
+    show
+        featureCatalogBlocks,
+        featureCatalogCompanions,
+        featureCatalogKind,
+        groupFeatureCatalogBlocks,
+        groupFeatureCatalogText;
 export 'src/index_query/folder_prune.dart' show pruneSpecstoneFolder;
 export 'src/index_query/get_docs.dart' show answerGet;
 export 'src/index_query/group_files.dart' show answerGroupFiles;
@@ -137,11 +142,13 @@ export 'src/setup_migration/migrate_fault.dart'
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
 export 'src/setup_migration/stale_project.dart' show staleProjectLine;
 export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
+export 'src/shipped_generators.dart' show shippedGenerators;
 export 'src/templates/cleanup_bounds.dart' show CleanupBounds;
 export 'src/templates/component_catalog.dart'
     show componentCatalogBlocks, componentCatalogKind;
 export 'src/templates/feature_pattern.dart' show FeaturePatternBody;
-export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
+export 'src/templates/generator_kinds.dart'
+    show groupFeatureCatalogKind, shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/models/checklist_item.dart';

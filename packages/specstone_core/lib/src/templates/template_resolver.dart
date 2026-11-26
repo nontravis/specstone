@@ -457,6 +457,7 @@ final class TemplateResolver {
     _checkRecordTargets(packs);
     _checkBulletLineTargets(packs, layerLists);
     _checkMarkRetrimTargets(packs, layerLists);
+    _checkRegenerateKinds(packs);
     _checkDropSectionTargets(packs, layerLists);
     _checkDropDocTypeTargets(packs);
     _checkMergeDocTargets(packs, layerLists);
@@ -548,6 +549,14 @@ final class TemplateResolver {
   ) {
     for (final ParsedPack(:pack) in packs) {
       pack.manifest.checkMarkRetrimTargets(layerLists);
+    }
+  }
+
+  /// Throws `unknown_value` for the first `regenerate` generator no kind of
+  /// this resolver registers.
+  void _checkRegenerateKinds(List<ParsedPack> packs) {
+    for (final ParsedPack(:pack) in packs) {
+      pack.manifest.checkRegenerateKinds(_generatorKinds);
     }
   }
 
@@ -832,7 +841,8 @@ final class TemplateResolver {
   };
 
   /// Throws `missing_key` when the defining layer of a new doc type misses
-  /// `id`, `path`, or `description` without `extends`.
+  /// `id`, `path` without `path_from`, `file` with `path_from`, or
+  /// `description` without `extends`.
   void _checkNewDocTypeKeys(DocTypeLayer defining) {
     final key = defining.missingNewDocTypeKey;
     if (key == null) return;
@@ -847,7 +857,8 @@ final class TemplateResolver {
   }
 
   /// The base of the doc type [id] extending [targetId]: every key of the
-  /// merged target kept but `id`, `path`, and `max_depth`.
+  /// merged target kept but `id`, `path`, `path_from`, `file`, and
+  /// `max_depth`; an extending type writes its own pattern key.
   ///
   /// `pack` and `files` restart with the defining layer; `extendsId` holds
   /// the target. The base drops `parent` when the [defining] layer clears it,
@@ -868,6 +879,8 @@ final class TemplateResolver {
       extendsId: targetId,
       extendsChain: List.unmodifiable([targetId, ...target.extendsChain]),
       path: null,
+      pathFrom: null,
+      file: null,
       maxDepth: null,
       isPerTarget: target.isPerTarget,
       fixedNumbers: target.fixedNumbers,

@@ -93,6 +93,7 @@ class MigrateCommand extends SpecstoneCommand {
           environment: runner.environment,
           planHash: planHash,
           addedPacks: added,
+          generators: runner.generators,
         ),
       );
     } on MigrateUsageError catch (error) {

@@ -8,6 +8,8 @@ import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -106,6 +108,7 @@ Future<int> _migrate(
     readLine: () => 'y',
     out: out,
     runGit: runGit ?? runRealGit,
+    generators: shippedGenerators(),
   ),
 );
 

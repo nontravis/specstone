@@ -253,3 +253,20 @@ final class DropDocType extends MigrationStep {
   @override
   String get kind => 'drop_doc_type';
 }
+
+/// A `regenerate` step: the generator kinds in [generators] run once over the
+/// docs root.
+///
+/// It reaches no doc type: the plan runs it after every doc took its steps.
+final class Regenerate extends MigrationStep {
+  const new({required this.generators});
+
+  /// The generator kinds to run, as written.
+  final List<String> generators;
+
+  @override
+  bool touches(String docTypeId) => false;
+
+  @override
+  String get kind => 'regenerate';
+}

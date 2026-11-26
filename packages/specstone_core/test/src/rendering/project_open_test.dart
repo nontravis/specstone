@@ -7,6 +7,8 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
+import 'package:specstone_core/src/shipped_generators.dart'
+    show shippedGenerators;
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -69,6 +71,7 @@ MigrateRequest _migrate(Directory root, {bool dryRun = false}) =>
       confirmation: OwnerConfirmation.prompt,
       readLine: () => throw StateError('must not ask'),
       out: StringBuffer(),
+      generators: shippedGenerators(),
     );
 
 InitRequest _init(Directory root) => InitRequest(

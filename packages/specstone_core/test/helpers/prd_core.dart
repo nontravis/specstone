@@ -54,6 +54,7 @@ const prdCoreIds = <String>[
   'glossary',
   'gnfr',
   'goal',
+  'group_features',
   'journey',
   'measurement',
   'nf',
