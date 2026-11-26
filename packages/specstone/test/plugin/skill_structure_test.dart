@@ -4,6 +4,8 @@
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart'
+    show FormatKey, KeyShape, docTypeFileFormat, packFileFormat;
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_asset.dart';
 import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
@@ -32,6 +34,7 @@ void main() {
   group('author mode', _authorModeTests);
   group('small edit', _smallEditTests);
   group('grounding', _groundingTests);
+  group('customize doc types', _customizeDocTypesTests);
   group('plan flow', _planFlowTests);
   group('sync routes', _syncRouteTests);
   group('sync procedure', _syncProcedureTests);
@@ -45,6 +48,7 @@ const _skillNames = [
   'bootstrap-prd',
   'bootstrap-spec',
   'brainstorming-sdd',
+  'customize-doc-types',
   'expert-sdd',
   'init',
   'plan-sdd',
@@ -937,10 +941,13 @@ void _referencesResolveTests() {
   });
 
   test(
-    'the source walk sees the thirteen sources and leaves AGENT.md out',
+    'the source walk sees the fourteen sources and leaves AGENT.md out',
     () async {
       final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
-      expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
+      expect(
+        seen.where((path) => path.endsWith('/SKILL.md')),
+        hasLength(_skillNames.length),
+      );
       expect(
         seen.where((path) => !isSkillSourcePath(path)),
         unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
@@ -961,7 +968,7 @@ void _referencesResolveTests() {
     },
   );
 
-  test('the nine skills and four agents are all there', () {
+  test('the ten skills and four agents are all there', () {
     expect(
       _skillFolders().map(_baseNameOf),
       unorderedEquals([for (final name in _skillNames) 'specstone-$name']),
@@ -3081,6 +3088,7 @@ void _groundingTests() {
       'specstone-brainstorming-sdd/SKILL.md',
       'specstone-plan-sdd/SKILL.md',
       _planAgent,
+      _customizeSkill,
     ]) {
       final text = _pluginText(file);
       final lines = text.split('\n');
@@ -3105,6 +3113,339 @@ void _groundingTests() {
         reason: file,
       );
     }
+  });
+}
+
+// MARK: - customize doc types
+
+const _customizeFolder = 'specstone-customize-doc-types';
+
+const _customizeSkill = '$_customizeFolder/SKILL.md';
+
+/// The title of the customize skill's step that drafts and asks the Owner.
+const _customizeAsk = '3. Draft the layer file and ask the Owner';
+
+/// The format keys the customize skill's steps name; every other key comes
+/// from the `guide --file-format` printout alone.
+const _customizeKeys = {'name', 'version', 'extends'};
+
+/// Each file of the customize skill, relative to the assets folder.
+List<String> _customizeFiles() => [
+  for (final file in _skillAndAgentFiles())
+    if (file.startsWith('$_customizeFolder/')) file,
+];
+
+/// The text of [markdown] after its frontmatter block.
+String _bodyOf(String markdown) => markdown.replaceFirst(_frontmatterBlock, '');
+
+/// Each `## ` step of [markdown]'s body, its title first, every whitespace
+/// run as one space, in order.
+List<String> _stepsOf(String markdown) =>
+    _bodyOf(markdown)
+        .split(RegExp('^## ', multiLine: true))
+        .skip(1)
+        .map(_oneLine)
+        .toList();
+
+/// A pattern matching [words] as whole words, any whitespace run between them.
+RegExp _wordsPattern(String words) =>
+    RegExp('\\b${words.split(' ').map(RegExp.escape).join(r'\s+')}\\b');
+
+/// The text after the `**<label>:**` bullet mark of a one-line [step], up to
+/// the next bullet mark, or null when [step] holds no such bullet.
+String? _markedClauseOf(String step, String label) =>
+    RegExp('\\*\\*${RegExp.escape(label)}:\\*\\*(.*?)(?: - \\*\\*|\$)')
+        .firstMatch(step)
+        ?.group(1);
+
+/// A word of a fenced line that may name a format key: a YAML key, group 1,
+/// or a dotted word, group 2.
+final _fencedKeyWord = RegExp(
+  r'^\s*(?:-\s+)?([a-z_][a-z0-9_]*)\s*:|\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)+)\b',
+  multiLine: true,
+);
+
+/// Every dotted key of [table] under [parent], each variant's keys and each
+/// `add`/`remove` change key included.
+Set<String> _dottedKeysOf(List<FormatKey> table, [String parent = '']) => {
+  for (final key in table) ...{
+    '$parent${key.name}',
+    ..._dottedKeysOf([
+      ...key.children,
+      for (final variant in key.variants) ...variant.children,
+    ], '$parent${key.name}.'),
+    if (key.shape == KeyShape.entriesOrChange ||
+        key.shape == KeyShape.valuesOrChange) ...[
+      '$parent${key.name}.add',
+      '$parent${key.name}.remove',
+    ],
+  },
+};
+
+void _customizeDocTypesTests() {
+  test('customize-doc-types takes a doc type change and leaves doc content and upgrade findings', () {
+    final frontmatter = _frontmatterBlock
+        .firstMatch(_pluginText(_customizeSkill))
+        ?.group(1);
+    final head = loadYaml(frontmatter ?? '') as YamlMap;
+    final description = _oneLine(head['description'] as String);
+    final needs =
+        RegExp(r"\bneeds\s+(.+?)\s+that\s+the\s+project's")
+            .firstMatch(description)
+            ?.group(1) ??
+        '';
+    for (final part in [
+      'doc type',
+      'section',
+      'field',
+      'lint value',
+      'list entry',
+    ]) {
+      expect(needs, matches(_wordsPattern(part)), reason: part);
+    }
+    for (final part in [
+      "project's merged doc types",
+      'lack or hold otherwise',
+      "writing a doc's content",
+    ]) {
+      expect(description, matches(_wordsPattern(part)), reason: part);
+    }
+    expect(
+      description,
+      matches(
+        RegExp(
+          r'migration\s+or\s+a\s+pack\s+upgrade\s+with\s+no\s+layer\s+file\s+'
+          'change[^.]*`specstone-bootstrap-prd`[^.]*`specstone-bootstrap-spec`',
+        ),
+      ),
+    );
+  });
+
+  test('customize-doc-types runs the file format guide first', () {
+    // The gate names `specstone init` as the way out; the skill never runs it.
+    final calls = _inlineSpans(_bodyOf(_pluginText(_customizeSkill))).where(
+      (span) => span.startsWith('specstone ') && span != 'specstone init',
+    );
+    expect(calls.take(3), [
+      'specstone folder',
+      'specstone guide --file-format --out',
+      'specstone guide <type> --out',
+    ]);
+    final files = _customizeFiles();
+    expect(files, contains(_customizeSkill));
+    final folderCalls = files.fold(
+      0,
+      (count, file) =>
+          count + 'specstone folder'.allMatches(_pluginText(file)).length,
+    );
+    expect(folderCalls, 1);
+    final gate = _pluginText(_customizeSkill)
+        .split('\n')
+        .where((line) => line.contains('project_not_found'))
+        .single;
+    expect(gate, contains('**78, `project_not_found`:**'));
+  });
+
+  test(
+    "customize-doc-types shows a new pack's pack.yaml and pin in the same ask",
+    () {
+      final steps = _stepsOf(_pluginText(_customizeSkill));
+      final ask = steps.indexWhere((step) => step.startsWith(_customizeAsk));
+      expect(ask, isNonNegative);
+      expect(
+        [
+          for (final (at, step) in steps.indexed)
+            if (step.contains('`pack.yaml`')) at,
+        ],
+        [ask],
+      );
+      expect(
+        _hasSentenceWith(steps[ask], [
+          '`pack.yaml`',
+          '`name`',
+          '`version`',
+          '`extends`',
+          '`packs:`',
+        ]),
+        isTrue,
+      );
+    },
+  );
+
+  test('customize-doc-types caps its fix loop', () {
+    final fix = _stepsOf(_pluginText(_customizeSkill))
+        .where((step) => step.startsWith(RegExp(r'\d+\. On exit 78\b')))
+        .single;
+    for (final word in [
+      _wordsPattern('fix'),
+      _wordsPattern('rerun'),
+      RegExp('`specstone guide '),
+      _wordsPattern('two'),
+      RegExp(r'\bstops?\b'),
+      _wordsPattern('Owner'),
+    ]) {
+      expect(fix, contains(word), reason: word.pattern);
+    }
+    expect(fix, contains(_wordsPattern('as step 4 does')));
+    expect(_hasSentenceWith(fix, ['did not write', 'Owner', 'stop']), isTrue);
+    final notWritten = fix.indexOf('did not write');
+    expect(notWritten, isNonNegative);
+    expect(notWritten, lessThan(fix.indexOf('the file step 4 wrote')));
+  });
+
+  test('customize-doc-types confirms each saved guide shows the drafted '
+      'entries', () {
+    final write = _stepsOf(_pluginText(_customizeSkill))
+        .where((step) => step.contains("the host's file write"))
+        .single;
+    final landed = _markedClauseOf(write, '0');
+    expect(landed, isNotNull);
+    for (final phrase in ['saved guide', 'Owner', 'the file written', 'stop']) {
+      expect(landed, contains(_wordsPattern(phrase)), reason: phrase);
+    }
+    final sentences = _sentencesOf(landed ?? '');
+    final confirm = sentences
+        .where((sentence) => sentence.contains('saved guide'))
+        .single;
+    expect(confirm, contains(_wordsPattern('every drafted doc-type entry')));
+    expect(confirm, isNot(contains('pack')));
+    expect(
+      _hasSentenceWith(landed ?? '', ['pack file', 'pin', 'exit 0']),
+      isTrue,
+    );
+  });
+
+  test('customize-doc-types names only the format keys its steps use', () {
+    final formatKeys = {
+      ..._dottedKeysOf(docTypeFileFormat),
+      ..._dottedKeysOf(packFileFormat),
+    };
+    final leafKeys = {for (final key in formatKeys) key.split('.').last};
+    final files = _customizeFiles();
+    expect(files, contains(_customizeSkill));
+    expect(formatKeys, containsAll(_customizeKeys));
+    for (final file in files) {
+      final text = _pluginText(file);
+      final fenced = [
+        for (final block in _fencedBlock.allMatches(text))
+          for (final word in _fencedKeyWord.allMatches(block.group(1) ?? ''))
+            word.group(1) ?? word.group(2) ?? '',
+      ];
+      bool isKey(String word) =>
+          formatKeys.contains(word) || leafKeys.contains(word);
+      final named = [
+        ..._inlineSpans(text).where(isKey),
+        ...fenced.where(isKey),
+      ];
+      expect(_customizeKeys, containsAll(named), reason: file);
+    }
+  });
+
+  test('customize-doc-types routes check findings to the bootstrap skills', () {
+    final body = _bodyOf(_pluginText(_customizeSkill));
+    final lines = body.split('\n');
+    final prdRoute = lines.where((line) => line.contains('`prds/`')).single;
+    expect(prdRoute, contains('`measurements/`'));
+    expect(prdRoute, contains('`specstone-bootstrap-prd`'));
+    final specRoute = lines.where((line) => line.contains('`specs/`')).single;
+    expect(specRoute, contains('`specstone-bootstrap-spec`'));
+    final route = _stepsOf(_pluginText(_customizeSkill))
+        .where((step) => step.contains('`specs/`'))
+        .single;
+    final opening = route.substring(0, route.indexOf('`specstone check'));
+    expect(
+      opening,
+      contains(_wordsPattern('shows every drafted doc-type entry')),
+    );
+    const elsewhereMark = '**Findings outside the folders below:**';
+    final elsewhere = _markedClauseOf(
+      route,
+      'Findings outside the folders below',
+    );
+    expect(elsewhere, isNotNull);
+    for (final phrase in [
+      'Owner',
+      'check file',
+      'stop',
+      'before following any skill below',
+    ]) {
+      expect(elsewhere, contains(_wordsPattern(phrase)), reason: phrase);
+    }
+    expect(route.indexOf(elsewhereMark), lessThan(route.indexOf('`prds/`')));
+    expect(
+      _markedClauseOf(route, 'None'),
+      contains(_wordsPattern('report the change done')),
+    );
+    final checks = _inlineSpans(body)
+        .where((span) => span.startsWith('specstone check'));
+    expect(checks, isNotEmpty);
+    expect(
+      checks,
+      everyElement(
+        'specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"',
+      ),
+    );
+  });
+
+  test('customize-doc-types asks the Owner before any file write', () {
+    final steps = _stepsOf(_pluginText(_customizeSkill));
+    final ask = steps.indexWhere((step) => step.startsWith(_customizeAsk));
+    expect(ask, isNonNegative);
+    expect(steps[ask], contains("Owner's ok"));
+    final writes = [
+      for (final (at, step) in steps.indexed)
+        if (step.contains("the host's file write")) at,
+    ];
+    expect(writes, isNotEmpty);
+    expect(writes, everyElement(greaterThan(ask)));
+  });
+
+  test('customize-doc-types enters its fix loop only from the post-write '
+      'guide', () {
+    final steps = _stepsOf(_pluginText(_customizeSkill));
+    final ask = steps.indexWhere((step) => step.startsWith(_customizeAsk));
+    final fix = steps.indexWhere(
+      (step) => step.startsWith(RegExp(r'\d+\. On exit 78\b')),
+    );
+    expect(ask, isNonNegative);
+    expect(fix, greaterThan(ask));
+    final toFix = _wordsPattern(
+      'step ${RegExp(r'^\d+').stringMatch(steps[fix])}',
+    );
+    final routes = [
+      for (final (at, step) in steps.indexed)
+        if (step.contains(toFix)) at,
+    ];
+    expect(routes, isNotEmpty);
+    expect(routes, everyElement(allOf(greaterThan(ask), lessThan(fix))));
+    final read = steps
+        .take(ask)
+        .where((step) => step.contains('`specstone guide '))
+        .single;
+    final fault = _markedClauseOf(read, '78');
+    expect(fault, isNotNull);
+    for (final phrase in ['Owner', "the fault's file, key, and code", 'stop']) {
+      expect(fault, contains(_wordsPattern(phrase)), reason: phrase);
+    }
+  });
+
+  test('customize-doc-types writes each file at the full path its ask '
+      'names', () {
+    final text = _pluginText(_customizeSkill);
+    final spans = _inlineSpans(_bodyOf(text));
+    expect(
+      spans,
+      containsAll([
+        '<folder>/templates/<doc_type>.yaml',
+        '~/.specstone/packs/<pack>/<doc_type>.yaml',
+        '<folder>/config.yaml',
+      ]),
+    );
+    expect(spans.where((span) => span.startsWith('.specstone/')), isEmpty);
+    final write = _stepsOf(text)
+        .where((step) => step.contains("the host's file write"))
+        .single;
+    expect(write, contains(_wordsPattern('at the paths the ask named')));
   });
 }
 

@@ -1722,4 +1722,178 @@ items:
       );
     });
   });
+
+  group('specstone guide --file-format', () {
+    late StringBuffer out;
+    late StringBuffer err;
+
+    setUp(() {
+      out = StringBuffer();
+      err = StringBuffer();
+    });
+
+    Future<SpecstoneCommandRunner> runnerIn(Directory folder) async =>
+        SpecstoneCommandRunner(
+          console: FakeConsole(),
+          out: out,
+          err: err,
+          templates: TemplateResolver(shippedFiles: shipped()),
+          workingDirectory: folder,
+          homeDirectory: await writeTree({}),
+        );
+
+    test('guide --file-format prints the format and exits 0 in a '
+        'project', () async {
+      final folder = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+      });
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--file-format']), 0);
+      expect(out.toString(), renderFileFormat());
+      expect(err.toString(), isEmpty);
+    });
+
+    test(
+      'guide --file-format prints the same text outside a project',
+      () async {
+        final runner = await runnerIn(await writeTree({}));
+
+        expect(await runner.run(['guide', '--file-format']), 0);
+        expect(out.toString(), renderFileFormat());
+        expect(err.toString(), isEmpty);
+      },
+      skip: _tempHasConfigAncestor()
+          ? 'an ancestor of the system temp folder holds $_configPath'
+          : false,
+    );
+
+    test('guide --file-format prints the format over a broken layer and a '
+        'pin mismatch', () async {
+      final folder = await writeTree({
+        _configPath: 'packs:\n  prd-core: 9.9.9\n',
+        '.specstone/templates/feature.yaml': 'prefixId: X\n',
+      });
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--file-format']), 0);
+      expect(out.toString(), renderFileFormat());
+      expect(err.toString(), isEmpty);
+    });
+
+    const noAncestorConfig =
+        'an ancestor of the system temp folder holds '
+        '$_configPath';
+    final skipWithAncestor = _tempHasConfigAncestor()
+        ? noAncestorConfig
+        : false;
+
+    Future<Directory> project() =>
+        writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n'});
+
+    String reportOf(Directory project, String name) =>
+        File('${project.path}/.specstone/reports/$name').readAsStringSync();
+
+    test('guide --file-format with a doc type, --pattern, or --json refuses '
+        'with the usage on stderr, status 64', () async {
+      final runner = await runnerIn(await project());
+
+      for (final args in [
+        ['guide', '--file-format', 'feature'],
+        ['guide', '--file-format', '--pattern'],
+        ['guide', '--file-format', '--json'],
+      ]) {
+        out.clear();
+        err.clear();
+        expect(await runner.run(args), 64, reason: '$args');
+        expect(err.toString(), contains(_guideUsage), reason: '$args');
+        expect(err.toString(), isNot(contains('"error"')), reason: '$args');
+        expect(out.toString(), isEmpty, reason: '$args');
+      }
+    });
+
+    test('a refused --file-format combination with --out writes no '
+        'file', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      for (final refused in ['feature', '--pattern', '--json']) {
+        expect(
+          await runner.run(['guide', '--file-format', refused, '--out']),
+          64,
+          reason: refused,
+        );
+        expect(
+          Directory('${folder.path}/.specstone/reports').existsSync(),
+          isFalse,
+          reason: refused,
+        );
+      }
+    });
+
+    test('a refused --file-format combination with a bare --out outside a '
+        'project exits 64, not 73', () async {
+      final folder = await writeTree({});
+      final runner = await runnerIn(folder);
+
+      expect(
+        await runner.run(['guide', '--file-format', 'feature', '--out']),
+        64,
+      );
+      expect(err.toString(), contains(_guideUsage));
+      expect(err.toString(), isNot(contains('output_not_writable')));
+      expect(folder.listSync(), isEmpty);
+    }, skip: skipWithAncestor);
+
+    test('a bare guide --file-format --out writes '
+        'guide-file-format.all.txt', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--file-format', '--out']), 0);
+      expect(reportOf(folder, 'guide-file-format.all.txt'), renderFileFormat());
+      expect(out.toString(), startsWith('==> guide: '));
+    });
+
+    test('guide --file-format --out <path> and --out=<path> write the format '
+        'there', () async {
+      final folder = await writeTree({});
+      final runner = await runnerIn(folder);
+
+      expect(
+        await runner.run([
+          'guide',
+          '--file-format',
+          '--out',
+          '${folder.path}/a.txt',
+        ]),
+        0,
+      );
+      expect(
+        await runner.run([
+          'guide',
+          '--file-format',
+          '--out=${folder.path}/b.txt',
+        ]),
+        0,
+      );
+      expect(
+        File('${folder.path}/a.txt').readAsStringSync(),
+        renderFileFormat(),
+      );
+      expect(
+        File('${folder.path}/b.txt').readAsStringSync(),
+        renderFileFormat(),
+      );
+    });
+
+    test('bare --out for the file format with no project refuses with 73 and '
+        'leaves the folder empty', () async {
+      final folder = await writeTree({});
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--file-format', '--out']), 73);
+      expect(folder.listSync(), isEmpty);
+    }, skip: skipWithAncestor);
+  });
 }

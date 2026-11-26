@@ -1,9 +1,11 @@
+import 'package:args/args.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Prints the doc type list, one doc type's writing guide or merged schema,
 /// or, with `--pattern`, the feature pattern list or each named feature
-/// pattern.
+/// pattern, or, with `--file-format`, the keys a doc type file and a
+/// `pack.yaml` accept.
 ///
 /// A template fault reaches only the commands that resolve templates, `guide`
 /// and `format`.
@@ -15,6 +17,11 @@ class GuideCommand extends SpecstoneCommand {
         'pattern',
         negatable: false,
         help: 'Read feature patterns in place of doc types.',
+      )
+      ..addFlag(
+        'file-format',
+        negatable: false,
+        help: 'Print the keys a doc type file and a pack.yaml accept.',
       );
     addOutOption();
   }
@@ -25,20 +32,40 @@ class GuideCommand extends SpecstoneCommand {
   @override
   String get description =>
       "Print a doc type's writing guide, or list the doc types; "
-      'with --pattern, a feature pattern, or list them.';
+      'with --pattern, a feature pattern, or list them; '
+      'with --file-format, the keys a doc type file accepts.';
 
   @override
   String get invocation =>
       'specstone guide [type …] [--json] [--out [<path>]]\n'
-      '       specstone guide --pattern [id …] [--json] [--out [<path>]]';
+      '       specstone guide --pattern [id …] [--json] [--out [<path>]]\n'
+      '       specstone guide --file-format [--out [<path>]]';
+
+  @override
+  void refuseArgs(ArgResults args) {
+    if (!args.flag('file-format')) return;
+    final refused = [
+      if (args.rest.isNotEmpty) 'a doc type',
+      if (args.flag('pattern')) '--pattern',
+      if (args.flag('json')) '--json',
+    ];
+    if (refused.isEmpty) return;
+    usageException('--file-format does not go with ${refused.join(', ')}.');
+  }
 
   @override
   Future<int> run() async {
     final args = argResults!;
+    refuseArgs(args);
     final rest = args.rest;
     final runner = specstoneRunner;
     final asJson = args.flag('json');
     final isPattern = args.flag('pattern');
+
+    if (args.flag('file-format')) {
+      runner.out.write(renderFileFormat());
+      return 0;
+    }
 
     final MergedSet set;
     try {

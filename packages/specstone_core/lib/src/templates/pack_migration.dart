@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -52,7 +53,7 @@ PackMigration _parseEntry(YamlNode node, int i, {required String file}) {
   };
   checkKeys(
     map,
-    const {'from', 'steps'},
+    formatKeysAt(packFileFormat, 'migrations'),
     file: file,
     format: 'migrations entry',
     prefix: prefix,
@@ -98,81 +99,49 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       key: stepKey,
     );
   }
-  return switch (kind) {
-    'rename_section' => _parseRenameSection(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'rename_field' => _parseRenameField(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'move_file' => _parseMoveFile(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'relink_merged_docs' => _parseRelinkMergedDocs(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'bullet_lines' => _parseBulletLines(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'drop_shared_lines' => _parseDropSharedLines(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'mark_retrim' => _parseMarkRetrim(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'drop_section' => _parseDropSection(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'merge_doc' => _parseMergeDoc(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'drop_doc_type' => _parseDropDocType(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    'regenerate' => _parseRegenerate(
-      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
-      i,
-      j,
-      file: file,
-    ),
-    _ => throw TemplateFault(
+  final parse = _stepParsers[kind];
+  if (parse == null || !_stepKinds.contains(kind)) {
+    throw TemplateFault(
       FaultCode.unknownValue,
       'the step kind $kind is not defined',
       file: file,
       key: stepKey,
-    ),
-  };
+    );
+  }
+  return parse(_stepBody(map.nodes[kind]!, kind, i, j, file: file), i, j, file);
 }
+
+final Set<String> _stepKinds = formatKeysAt(packFileFormat, 'migrations.steps');
+
+typedef _StepParser = MigrationStep Function(
+  YamlMap body,
+  int i,
+  int j,
+  String file,
+);
+
+/// Maps each step kind to the parser of its body.
+final Map<String, _StepParser> _stepParsers = {
+  'rename_section': (map, i, j, file) =>
+      _parseRenameSection(map, i, j, file: file),
+  'rename_field': (map, i, j, file) => _parseRenameField(map, i, j, file: file),
+  'move_file': (map, i, j, file) => _parseMoveFile(map, i, j, file: file),
+  'relink_merged_docs': (map, i, j, file) =>
+      _parseRelinkMergedDocs(map, i, j, file: file),
+  'bullet_lines': (map, i, j, file) => _parseBulletLines(map, i, j, file: file),
+  'drop_shared_lines': (map, i, j, file) =>
+      _parseDropSharedLines(map, i, j, file: file),
+  'mark_retrim': (map, i, j, file) => _parseMarkRetrim(map, i, j, file: file),
+  'drop_section': (map, i, j, file) => _parseDropSection(map, i, j, file: file),
+  'merge_doc': (map, i, j, file) => _parseMergeDoc(map, i, j, file: file),
+  'drop_doc_type': (map, i, j, file) =>
+      _parseDropDocType(map, i, j, file: file),
+  'regenerate': (map, i, j, file) => _parseRegenerate(map, i, j, file: file),
+};
+
+/// The step kinds [parseMigrations] reads; the test of the format table
+/// compares them to its `migrations.steps` keys.
+Set<String> get migrationStepKinds => _stepParsers.keys.toSet();
 
 YamlMap _stepBody(
   YamlNode node,
@@ -192,6 +161,9 @@ YamlMap _stepBody(
   };
 }
 
+const _renameFromPath = 'migrations.steps.rename_section.from';
+const _renameToPath = 'migrations.steps.rename_section.to';
+
 RenameSection _parseRenameSection(
   YamlMap map,
   int i,
@@ -201,7 +173,7 @@ RenameSection _parseRenameSection(
   final prefix = 'migrations[$i].steps[$j].rename_section.';
   checkKeys(
     map,
-    const {'doc_type', 'from', 'to'},
+    formatKeysAt(packFileFormat, 'migrations.steps.rename_section'),
     file: file,
     format: 'rename_section step',
     prefix: prefix,
@@ -210,22 +182,49 @@ RenameSection _parseRenameSection(
   final to = requireValue<YamlMap>(map, 'to', file: file, prefix: prefix);
   return RenameSection(
     docType: requireValue<String>(map, 'doc_type', file: file, prefix: prefix),
-    fromId: _sectionEnd(from, 'id', '${prefix}from.', file: file),
-    fromHeader: _sectionEnd(from, 'header', '${prefix}from.', file: file),
-    toId: _sectionEnd(to, 'id', '${prefix}to.', file: file),
-    toHeader: _sectionEnd(to, 'header', '${prefix}to.', file: file),
+    fromId: _sectionEnd(
+      from,
+      'id',
+      '${prefix}from.',
+      file: file,
+      path: _renameFromPath,
+    ),
+    fromHeader: _sectionEnd(
+      from,
+      'header',
+      '${prefix}from.',
+      file: file,
+      path: _renameFromPath,
+    ),
+    toId: _sectionEnd(
+      to,
+      'id',
+      '${prefix}to.',
+      file: file,
+      path: _renameToPath,
+    ),
+    toHeader: _sectionEnd(
+      to,
+      'header',
+      '${prefix}to.',
+      file: file,
+      path: _renameToPath,
+    ),
   );
 }
 
+/// Reads [key] of the `{id, header}` section reference [map]; [path] is its
+/// dotted pack format path.
 String _sectionEnd(
   YamlMap map,
   String key,
   String prefix, {
   required String file,
+  required String path,
 }) {
   checkKeys(
     map,
-    const {'id', 'header'},
+    formatKeysAt(packFileFormat, path),
     file: file,
     format: 'section reference',
     prefix: prefix,
@@ -242,7 +241,7 @@ RenameField _parseRenameField(
   final prefix = 'migrations[$i].steps[$j].rename_field.';
   checkKeys(
     map,
-    const {'doc_type', 'from', 'to'},
+    formatKeysAt(packFileFormat, 'migrations.steps.rename_field'),
     file: file,
     format: 'rename_field step',
     prefix: prefix,
@@ -258,7 +257,7 @@ MoveFile _parseMoveFile(YamlMap map, int i, int j, {required String file}) {
   final prefix = 'migrations[$i].steps[$j].move_file.';
   checkKeys(
     map,
-    const {'doc_type', 'from', 'to'},
+    formatKeysAt(packFileFormat, 'migrations.steps.move_file'),
     file: file,
     format: 'move_file step',
     prefix: prefix,
@@ -281,7 +280,7 @@ RelinkMergedDocs _parseRelinkMergedDocs(
 }) {
   checkKeys(
     map,
-    const <String>{},
+    formatKeysAt(packFileFormat, 'migrations.steps.relink_merged_docs'),
     file: file,
     format: 'relink_merged_docs step',
     prefix: 'migrations[$i].steps[$j].relink_merged_docs.',
@@ -298,7 +297,7 @@ BulletLines _parseBulletLines(
   final prefix = 'migrations[$i].steps[$j].bullet_lines.';
   checkKeys(
     map,
-    const {'doc_type', 'section', 'prefixes'},
+    formatKeysAt(packFileFormat, 'migrations.steps.bullet_lines'),
     file: file,
     format: 'bullet_lines step',
     prefix: prefix,
@@ -333,7 +332,7 @@ DropSharedLines _parseDropSharedLines(
   final prefix = 'migrations[$i].steps[$j].drop_shared_lines.';
   checkKeys(
     map,
-    const {'ids'},
+    formatKeysAt(packFileFormat, 'migrations.steps.drop_shared_lines'),
     file: file,
     format: 'drop_shared_lines step',
     prefix: prefix,
@@ -358,7 +357,7 @@ MarkRetrim _parseMarkRetrim(YamlMap map, int i, int j, {required String file}) {
   final prefix = 'migrations[$i].steps[$j].mark_retrim.';
   checkKeys(
     map,
-    const {'doc_types', 'sections'},
+    formatKeysAt(packFileFormat, 'migrations.steps.mark_retrim'),
     file: file,
     format: 'mark_retrim step',
     prefix: prefix,
@@ -391,7 +390,7 @@ Regenerate _parseRegenerate(YamlMap map, int i, int j, {required String file}) {
   final prefix = 'migrations[$i].steps[$j].regenerate.';
   checkKeys(
     map,
-    const {'generators'},
+    formatKeysAt(packFileFormat, 'migrations.steps.regenerate'),
     file: file,
     format: 'regenerate step',
     prefix: prefix,
@@ -422,7 +421,7 @@ DropSection _parseDropSection(
   final prefix = 'migrations[$i].steps[$j].drop_section.';
   checkKeys(
     map,
-    const {'doc_types', 'section'},
+    formatKeysAt(packFileFormat, 'migrations.steps.drop_section'),
     file: file,
     format: 'drop_section step',
     prefix: prefix,
@@ -439,12 +438,20 @@ DropSection _parseDropSection(
     file: file,
     prefix: prefix,
   );
-  final sectionId = _sectionEnd(section, 'id', '${prefix}section.', file: file);
+  const sectionPath = 'migrations.steps.drop_section.section';
+  final sectionId = _sectionEnd(
+    section,
+    'id',
+    '${prefix}section.',
+    file: file,
+    path: sectionPath,
+  );
   final sectionHeader = _sectionEnd(
     section,
     'header',
     '${prefix}section.',
     file: file,
+    path: sectionPath,
   );
   if (docTypes.isEmpty) {
     throw TemplateFault(
@@ -470,7 +477,7 @@ DropDocType _parseDropDocType(
   final prefix = 'migrations[$i].steps[$j].drop_doc_type.';
   checkKeys(
     map,
-    const {'id', 'path'},
+    formatKeysAt(packFileFormat, 'migrations.steps.drop_doc_type'),
     file: file,
     format: 'drop_doc_type step',
     prefix: prefix,
@@ -485,7 +492,7 @@ MergeDoc _parseMergeDoc(YamlMap map, int i, int j, {required String file}) {
   final prefix = 'migrations[$i].steps[$j].merge_doc.';
   checkKeys(
     map,
-    const {'from', 'to', 'sections'},
+    formatKeysAt(packFileFormat, 'migrations.steps.merge_doc'),
     file: file,
     format: 'merge_doc step',
     prefix: prefix,
@@ -493,7 +500,7 @@ MergeDoc _parseMergeDoc(YamlMap map, int i, int j, {required String file}) {
   final from = requireValue<YamlMap>(map, 'from', file: file, prefix: prefix);
   checkKeys(
     from,
-    const {'id', 'path'},
+    formatKeysAt(packFileFormat, 'migrations.steps.merge_doc.from'),
     file: file,
     format: 'merge_doc from',
     prefix: '${prefix}from.',
@@ -536,6 +543,8 @@ MergeDoc _parseMergeDoc(YamlMap map, int i, int j, {required String file}) {
   );
 }
 
+const _mergeSectionFromPath = 'migrations.steps.merge_doc.sections.from';
+
 MergeSection _parseMergeSection(
   YamlNode node,
   int k, {
@@ -554,7 +563,7 @@ MergeSection _parseMergeSection(
   };
   checkKeys(
     entry,
-    const {'from', 'to'},
+    formatKeysAt(packFileFormat, 'migrations.steps.merge_doc.sections'),
     file: file,
     format: 'merge_doc section',
     prefix: entryPrefix,
@@ -566,8 +575,20 @@ MergeSection _parseMergeSection(
     prefix: entryPrefix,
   );
   return MergeSection(
-    fromId: _sectionEnd(from, 'id', '${entryPrefix}from.', file: file),
-    fromHeader: _sectionEnd(from, 'header', '${entryPrefix}from.', file: file),
+    fromId: _sectionEnd(
+      from,
+      'id',
+      '${entryPrefix}from.',
+      file: file,
+      path: _mergeSectionFromPath,
+    ),
+    fromHeader: _sectionEnd(
+      from,
+      'header',
+      '${entryPrefix}from.',
+      file: file,
+      path: _mergeSectionFromPath,
+    ),
     toId: requireValue<String>(entry, 'to', file: file, prefix: entryPrefix),
   );
 }

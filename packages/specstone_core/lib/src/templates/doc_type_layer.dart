@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
@@ -359,7 +360,12 @@ final class DocTypeLayer {
       );
     }
     final map = readYamlMap(text, file: file);
-    checkKeys(map, _topKeys, file: file, format: 'doc-type');
+    checkKeys(
+      map,
+      formatKeysAt(docTypeFileFormat, ''),
+      file: file,
+      format: 'doc-type',
+    );
     final id = optionalValue<String>(map, 'id', file: file);
     if (id != null && id != docTypeId) {
       throw TemplateFault(
@@ -400,7 +406,13 @@ final class DocTypeLayer {
       bundle: _parseBundle(map, file: file),
       bundleRefs: optionalValue<bool>(map, 'bundle_refs', file: file),
       summaryFor: _parseSummaryFor(map, file: file),
-      generators: _listWrite(map, 'generators', file: file, prefix: ''),
+      generators: _listWrite(
+        map,
+        'generators',
+        file: file,
+        prefix: '',
+        path: 'generators',
+      ),
     );
   }
 
@@ -575,7 +587,13 @@ const bundleModeWires = <String>{'query', 'implement', 'design'};
 ///
 /// `remove` entries are not checked here; the merger owns that fault.
 ListWrite<String>? _parseBundle(YamlMap map, {required String file}) {
-  final write = _listWrite(map, 'bundle', file: file, prefix: '');
+  final write = _listWrite(
+    map,
+    'bundle',
+    file: file,
+    prefix: '',
+    path: 'bundle',
+  );
   final written = switch (write) {
     null => const <String>[],
     PlainList<String>(:final items) => items,
@@ -644,7 +662,7 @@ ListChange<ReferenceEntry> _referenceChange(
 }) {
   checkKeys(
     map,
-    const {'add', 'remove'},
+    formatKeysAt(docTypeFileFormat, 'reference', change: true),
     file: file,
     format: 'doc-type',
     prefix: 'reference.',
@@ -735,102 +753,6 @@ int? _parseMaxDepth(YamlMap map, {required String file}) {
 /// The doc type id no file may take: `shared.yaml` holds shared lines.
 const reservedDocTypeId = 'shared';
 
-const _topKeys = {
-  'id',
-  'description',
-  'path',
-  'path_from',
-  'file',
-  'title',
-  'max_depth',
-  'per_target',
-  'fixed_numbers',
-  'parent',
-  'extends',
-  'fields',
-  'sections',
-  'lint',
-  'reference',
-  'bundle',
-  'bundle_refs',
-  'summary_for',
-  'generators',
-};
-
-const _fieldKeys = {
-  'id',
-  'type',
-  'list',
-  'enum',
-  'doc_types',
-  'pointer',
-  'root',
-  'bundle_with',
-  'required',
-  'description',
-  'lint',
-  'disabled',
-};
-
-const _fieldLintKeys = {
-  'max_sentences',
-  'max_sentence_words',
-  'max_sentence_chars',
-};
-
-const _sectionKeys = {
-  'id',
-  'prefix_id',
-  'required',
-  'header',
-  'description',
-  'template',
-  'lint',
-  'disabled',
-  'after',
-  'query',
-  'summary',
-  'summary_rows',
-  'skeleton',
-  'when_field',
-  'output_ref',
-};
-
-const _docLintKeys = {
-  'max_chars',
-  'max_lines',
-  'max_item_chars',
-  'banned_words',
-  'allowed_words',
-  'banned_patterns',
-  'required_field_groups',
-  'max_sentence_words',
-  'max_sentence_chars',
-  'trace_note_last',
-  'title_no_number',
-};
-
-const _sectionLintKeys = {
-  'max_chars',
-  'max_lines',
-  'banned_words',
-  'allowed_words',
-  'line_prefix',
-  'banned_patterns',
-  'required_patterns',
-  'min_lines',
-  'catalog',
-  'names_codes',
-  'item_fields',
-  'required_when',
-  'diagram',
-  'max_sentences',
-  'item_count',
-  'max_subsections',
-  'max_item_lines',
-  'max_code_blocks',
-};
-
 List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
   final entries = optionalValue<YamlList>(map, 'fields', file: file);
   if (entries == null) return <FieldEntry>[];
@@ -841,6 +763,8 @@ List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
         index: i,
         file: file,
         keyPrefix: 'fields',
+        formatTable: docTypeFileFormat,
+        formatPath: 'fields',
       ),
   ];
 }
@@ -849,15 +773,17 @@ List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
 ///
 /// The `id` fault key is `<keyPrefix>[<index>].id`. Every other key reads as
 /// `<keyPrefix>.<id>.<key>`, or `<keyPrefix>[<index>].<key>` when
-/// [keyByIndex] is true. [extraKeys] join the keys the field format defines,
-/// and the caller reads them.
+/// [keyByIndex] is true. The keys the entry accepts are the ones [formatPath]
+/// holds in [formatTable]; a key beyond the field format is the caller's to
+/// read.
 FieldEntry parseFieldEntry(
   YamlMap entry, {
   required int index,
   required String file,
   required String keyPrefix,
+  required List<FormatKey> formatTable,
+  required String formatPath,
   bool keyByIndex = false,
-  Set<String> extraKeys = const {},
 }) {
   final id = requireValue<String>(
     entry,
@@ -868,7 +794,7 @@ FieldEntry parseFieldEntry(
   final prefix = keyByIndex ? '$keyPrefix[$index].' : '$keyPrefix.$id.';
   checkKeys(
     entry,
-    {..._fieldKeys, ...extraKeys},
+    formatKeysAt(formatTable, formatPath),
     file: file,
     format: 'doc-type',
     prefix: prefix,
@@ -935,7 +861,12 @@ FieldEntry parseFieldEntry(
       file: file,
       prefix: prefix,
     ),
-    lint: _fieldCaps(entry, file: file, prefix: prefix),
+    lint: _fieldCaps(
+      entry,
+      file: file,
+      prefix: prefix,
+      lintKeys: formatKeysAt(formatTable, '$formatPath.lint'),
+    ),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,
@@ -953,17 +884,12 @@ FieldCaps? _fieldCaps(
   YamlMap entry, {
   required String file,
   required String prefix,
+  required Set<String> lintKeys,
 }) {
   final map = optionalValue<YamlMap>(entry, 'lint', file: file, prefix: prefix);
   if (map == null) return null;
   final lintPrefix = '${prefix}lint.';
-  checkKeys(
-    map,
-    _fieldLintKeys,
-    file: file,
-    format: 'doc-type',
-    prefix: lintPrefix,
-  );
+  checkKeys(map, lintKeys, file: file, format: 'doc-type', prefix: lintPrefix);
   final maxSentences = _wholeNumberFromOne(
     map,
     'max_sentences',
@@ -1048,7 +974,7 @@ SectionEntry _parseSection(
   }
   checkKeys(
     entry,
-    _sectionKeys,
+    formatKeysAt(docTypeFileFormat, 'sections'),
     file: file,
     format: 'doc-type',
     prefix: 'sections.$id.',
@@ -1114,7 +1040,13 @@ SectionEntry _parseSection(
 }
 
 LintLayer _parseLint(YamlMap map, {required String file}) {
-  checkKeys(map, _docLintKeys, file: file, format: 'doc-type', prefix: 'lint.');
+  checkKeys(
+    map,
+    formatKeysAt(docTypeFileFormat, 'lint'),
+    file: file,
+    format: 'doc-type',
+    prefix: 'lint.',
+  );
   return LintLayer(
     maxChars: optionalValue<int>(map, 'max_chars', file: file, prefix: 'lint.'),
     maxLines: optionalValue<int>(map, 'max_lines', file: file, prefix: 'lint.'),
@@ -1124,14 +1056,26 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
       file: file,
       prefix: 'lint.',
     ),
-    bannedWords: _listWrite(map, 'banned_words', file: file, prefix: 'lint.'),
-    allowedWords: _listWrite(map, 'allowed_words', file: file, prefix: 'lint.'),
+    bannedWords: _listWrite(
+      map,
+      'banned_words',
+      file: file,
+      prefix: 'lint.',
+      path: 'lint.banned_words',
+    ),
+    allowedWords: _listWrite(
+      map,
+      'allowed_words',
+      file: file,
+      prefix: 'lint.',
+      path: 'lint.allowed_words',
+    ),
     bannedPatterns: _patternWrite(
       map,
       'banned_patterns',
       file: file,
       prefix: 'lint.',
-      forRequired: false,
+      path: 'lint.banned_patterns',
     ),
     requiredFieldGroups: _fieldGroups(map, file: file),
     maxSentenceWords: _sentenceCaps(
@@ -1202,6 +1146,8 @@ Map<String, int>? _sentenceCaps(
   return entries;
 }
 
+const _sectionLintPath = 'sections.lint';
+
 SectionLint _parseSectionLint(
   YamlMap map, {
   required String file,
@@ -1209,7 +1155,7 @@ SectionLint _parseSectionLint(
 }) {
   checkKeys(
     map,
-    _sectionLintKeys,
+    formatKeysAt(docTypeFileFormat, _sectionLintPath),
     file: file,
     format: 'doc-type',
     prefix: '${prefix}lint.',
@@ -1228,12 +1174,19 @@ SectionLint _parseSectionLint(
       file: file,
       prefix: keyPrefix,
     ),
-    bannedWords: _listWrite(map, 'banned_words', file: file, prefix: keyPrefix),
+    bannedWords: _listWrite(
+      map,
+      'banned_words',
+      file: file,
+      prefix: keyPrefix,
+      path: '$_sectionLintPath.banned_words',
+    ),
     allowedWords: _listWrite(
       map,
       'allowed_words',
       file: file,
       prefix: keyPrefix,
+      path: '$_sectionLintPath.allowed_words',
     ),
     linePrefix: optionalValue<String>(
       map,
@@ -1246,14 +1199,14 @@ SectionLint _parseSectionLint(
       'banned_patterns',
       file: file,
       prefix: keyPrefix,
-      forRequired: false,
+      path: '$_sectionLintPath.banned_patterns',
     ),
     requiredPatterns: _patternWrite(
       map,
       'required_patterns',
       file: file,
       prefix: keyPrefix,
-      forRequired: true,
+      path: '$_sectionLintPath.required_patterns',
     ),
     minLines: optionalValue<int>(
       map,
@@ -1273,6 +1226,7 @@ SectionLint _parseSectionLint(
       'item_fields',
       file: file,
       prefix: keyPrefix,
+      path: '$_sectionLintPath.item_fields',
       parseEntry: (entry, key) => _parseItemField(entry, file: file, key: key),
     ),
     requiredWhen: _parseRequiredWhen(map, file: file, prefix: keyPrefix),
@@ -1310,7 +1264,7 @@ MaxCodeBlocks? _parseMaxCodeBlocks(
   final keyPrefix = '${prefix}max_code_blocks.';
   checkKeys(
     blocks,
-    const {'count', 'per_subsection'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.max_code_blocks'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1375,7 +1329,7 @@ WhenField? _parseWhenField(
   final keyPrefix = '${prefix}when_field.';
   checkKeys(
     map,
-    const {'field', 'values'},
+    formatKeysAt(docTypeFileFormat, 'sections.when_field'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1426,35 +1380,35 @@ List<List<String>>? _fieldGroups(YamlMap map, {required String file}) {
 
 /// Reads the value at [key] as a [PlainList] or a [ListChange] of patterns.
 ///
-/// A `remove` list names entry ids.
+/// A `remove` list names entry ids. [path] is the dotted format path of the
+/// key.
 ListWrite<PatternEntry>? _patternWrite(
   YamlMap map,
   String key, {
   required String file,
   required String prefix,
-  required bool forRequired,
+  required String path,
 }) => _entryWrite<PatternEntry>(
   map,
   key,
   file: file,
   prefix: prefix,
-  parseEntry: (entry, keyPath) => parsePatternEntry(
-    entry,
-    file: file,
-    key: keyPath,
-    forRequired: forRequired,
-  ),
+  path: path,
+  parseEntry: (entry, keyPath) =>
+      parsePatternEntry(entry, file: file, key: keyPath, path: path),
 );
 
 /// Reads the value at [key] as a [PlainList] or a [ListChange] of entries.
 ///
 /// [parseEntry] reads one mapping at its fault key path; a `remove` list names
-/// the merge keys of the entries to drop.
+/// the merge keys of the entries to drop. [path] is the dotted format path of
+/// the key.
 ListWrite<T>? _entryWrite<T>(
   YamlMap map,
   String key, {
   required String file,
   required String prefix,
+  required String path,
   required T Function(YamlMap entry, String keyPath) parseEntry,
 }) {
   T entryAt(Object? entry, String keyPath) =>
@@ -1469,7 +1423,7 @@ ListWrite<T>? _entryWrite<T>(
       final changePrefix = '$prefix$key.';
       checkKeys(
         changeMap,
-        const {'add', 'remove'},
+        formatKeysAt(docTypeFileFormat, path, change: true),
         file: file,
         format: 'doc-type',
         prefix: changePrefix,
@@ -1510,7 +1464,7 @@ CatalogLint? _parseCatalog(
   final keyPrefix = '${prefix}catalog.';
   checkKeys(
     catalog,
-    const {'column'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.catalog'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1536,7 +1490,7 @@ ItemFieldLint _parseItemField(
   final keyPrefix = '$key.';
   checkKeys(
     entry,
-    const {'field', 'values', 'when', 'optional', 'default_from'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.item_fields'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1606,7 +1560,7 @@ ItemFieldWhen? _parseItemFieldWhen(
   final keyPrefix = '${prefix}when.';
   checkKeys(
     when,
-    const {'field', 'value'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.item_fields.when'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1631,7 +1585,7 @@ RequiredWhenLint? _parseRequiredWhen(
   final keyPrefix = '${prefix}required_when.';
   checkKeys(
     rule,
-    const {'section', 'field', 'value'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.required_when'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1660,7 +1614,7 @@ DiagramLint? _parseDiagram(
   final keyPrefix = '${prefix}diagram.';
   checkKeys(
     diagram,
-    const {'title', 'edge_labels', 'banned_labels', 'names'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.diagram'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1716,7 +1670,7 @@ SentenceLimit _parseSentenceLimit(
   final keyPrefix = '$key.';
   checkKeys(
     entry,
-    const {'count', 'line_prefix', 'column'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.max_sentences'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1753,7 +1707,7 @@ ItemCountLint? _parseItemCount(
   final keyPrefix = '${prefix}item_count.';
   checkKeys(
     count,
-    const {'min', 'max', 'per_subsection', 'prefixes', 'waits_for'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.item_count'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1820,7 +1774,7 @@ LinePrefixCount _parsePrefixCount(
   final keyPrefix = '$key.';
   checkKeys(
     entry,
-    const {'line_prefix', 'count'},
+    formatKeysAt(docTypeFileFormat, '$_sectionLintPath.item_count.prefixes'),
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1837,11 +1791,14 @@ LinePrefixCount _parsePrefixCount(
 }
 
 /// Reads the value at [key] as a [PlainList] or a [ListChange].
+///
+/// [path] is the dotted format path of the key.
 ListWrite<String>? _listWrite(
   YamlMap map,
   String key, {
   required String file,
   required String prefix,
+  required String path,
 }) {
   final value = map[key];
   return switch (value) {
@@ -1854,6 +1811,7 @@ ListWrite<String>? _listWrite(
       key,
       file: file,
       prefix: prefix,
+      path: path,
     ),
     _ => throw TemplateFault(
       FaultCode.unknownValue,
@@ -1869,10 +1827,11 @@ ListChange<String> _listChange(
   String key, {
   required String file,
   required String prefix,
+  required String path,
 }) {
   checkKeys(
     map,
-    const {'add', 'remove'},
+    formatKeysAt(docTypeFileFormat, path, change: true),
     file: file,
     format: 'doc-type',
     prefix: '$prefix$key.',
