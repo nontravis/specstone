@@ -5,8 +5,10 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
@@ -125,7 +127,7 @@ void main() {
 
   group('manifest', () {
     test(
-      'ships at 1.5.0, extends software-tech, and carries nineteen doc types',
+      'ships at 1.6.0, extends software-tech, and carries nineteen doc types',
       () {
         final bytes = shippedPackFiles['software-design-system/pack.yaml'];
         expect(bytes, isNotNull);
@@ -134,7 +136,7 @@ void main() {
           file: 'packs/software-design-system/pack.yaml',
         );
         expect(manifest.name, 'software-design-system');
-        expect(manifest.version.toString(), '1.5.0');
+        expect(manifest.version.toString(), '1.6.0');
         expect(manifest.extendsPack, 'software-tech');
         expect(
           shippedPackFiles.keys.where(
@@ -148,6 +150,50 @@ void main() {
         );
       },
     );
+
+    test('ships one mark_retrim entry from 1.5.0 on every section of its nineteen doc types', () async {
+      final migrations = _manifest().migrations;
+      expect(migrations.map((m) => m.from.toString()), ['1.5.0']);
+      final mark = migrations.single.steps.single as MarkRetrim;
+      expect(mark.docTypes, [...softwareDesignSystemIds]..sort());
+      expect(mark.sections.toSet(), {
+        for (final id in softwareDesignSystemIds)
+          for (final section in set.lookup(id)!.sections) section.id,
+      });
+
+      final versions = shippedPackVersions();
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n'
+            '  prd-core: ${versions['prd-core']}\n'
+            '  software-tech: ${versions['software-tech']}\n'
+            '  software-design-system: 1.5.0\n',
+        'docs/$_root/foundations/COLOR.md':
+            '# Color\n\n## Color roles\n\n'
+            '- **Primary** marks the one main action.\n',
+      });
+      final plan = planUpgradeRun(
+        project,
+        templates: TemplateResolver(),
+        homeDirectory: await writeTree({}),
+      );
+
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.5.0',
+          'step': 'mark_retrim',
+          'paths': ['$_root/foundations/COLOR.md'],
+        },
+      ]);
+      expect(
+        plan.rewrites
+            .singleWhere(
+              (rewrite) => rewrite.path == 'docs/$_root/foundations/COLOR.md',
+            )
+            .text,
+        startsWith('---\nretrim:\n  - color_roles\n---\n'),
+      );
+    });
 
     test('ships the shared lines serve_library_builders, library_spec_scope, and library_code_detail_home, naming nineteen doc types, and no shared field', () {
       final shared = _manifest().shared;
