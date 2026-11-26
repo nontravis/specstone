@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/models/migration_step.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
@@ -60,14 +61,26 @@ void main() {
     },
   );
 
-  test('adds no migrations entry for the matrix guide lines', () {
-    final manifest = PackManifest.parse(
-      utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
-      file: 'packs/software-tech/pack.yaml',
-    );
+  test(
+    'adds no migrations step on implementation for the matrix guide lines',
+    () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+        file: 'packs/software-tech/pack.yaml',
+      );
 
-    expect(manifest.migrations, isEmpty);
-  });
+      expect([
+        for (final migration in manifest.migrations)
+          for (final step in migration.steps)
+            if (step is MarkRetrim && step.docTypes.contains('implementation'))
+              step,
+      ], isEmpty);
+      expect(
+        [for (final m in manifest.migrations) m.from.toString()],
+        ['1.26.0'],
+      );
+    },
+  );
 
   test(
     'a record holding an entry for every '
