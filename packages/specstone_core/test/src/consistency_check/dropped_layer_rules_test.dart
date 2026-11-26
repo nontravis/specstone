@@ -78,6 +78,16 @@ void main() {
     },
   );
 
+  test('a layer file with no id over a doc type no loaded pack defines is one layer_doc_type_dropped', () async {
+    final findings = await _findings({'auth': 'path: specs/{slug}/AUTH.md\n'});
+
+    expect(
+      [for (final f in findings) '${f.path}:${f.line}: ${f.kind.wire}'],
+      ['.specstone/templates/auth.yaml:1: layer_doc_type_dropped'],
+    );
+    expect(findings.single.message, contains(' auth;'));
+  });
+
   test('a layer file of a doc type no step folds holds no finding', () async {
     expect(await _findings({'user_story': 'description: A story.\n'}), isEmpty);
   });

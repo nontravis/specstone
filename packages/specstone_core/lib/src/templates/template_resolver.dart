@@ -372,6 +372,27 @@ final class TemplateResolver {
   Set<String> _leftBehindIds(Map<String, String> folded, Set<String> dropped) =>
       {...folded.keys, ...dropped};
 
+  /// Returns the doc type id of each of [projectLayers] that writes neither
+  /// `id` nor `extends` and names a doc type no layer of [packs] defines.
+  ///
+  /// Such a layer only overrides, so it has no type to override. An override
+  /// never writes `extends`, and a new doc type needs `id`.
+  Set<String> _orphanedIds(
+    List<ParsedPack> packs,
+    List<DocTypeLayer> projectLayers,
+  ) {
+    final packDefined = {
+      for (final ParsedPack(:layers) in packs) ...layers.keys,
+    };
+    return {
+      for (final layer in projectLayers)
+        if (layer.id == null &&
+            layer.extendsId == null &&
+            !packDefined.contains(layer.docTypeId))
+          layer.docTypeId,
+    };
+  }
+
   /// Returns the `id` of each `drop_doc_type` step in the manifests of
   /// [packs].
   Set<String> _droppedDocTypes(List<ParsedPack> packs) => {
@@ -384,8 +405,9 @@ final class TemplateResolver {
   /// Merges the [packs] and the [allProjectLayers] into a [MergedSet].
   ///
   /// A project layer whose id is a key of [folded] or the id of a pack's
-  /// `drop_doc_type` step is dropped before any check; [folded] becomes
-  /// `MergedSet.foldedDocTypes` and those ids `MergedSet.droppedDocTypes`.
+  /// `drop_doc_type` step, or an orphan `_orphanedIds` names, is dropped
+  /// before any check; [folded] becomes `MergedSet.foldedDocTypes`, those ids
+  /// `MergedSet.droppedDocTypes`, and the orphans `MergedSet.orphanedDocTypes`.
   ///
   /// Each doc type starts from its built-in base and folds the ordered
   /// layers `_docTypeLayers` collects for it, lowest first (pack layers in
@@ -417,9 +439,12 @@ final class TemplateResolver {
     const merger = DocTypeMerger();
     final dropped = _droppedDocTypes(packs);
     final leftBehind = _leftBehindIds(folded, dropped);
+    final orphaned = _orphanedIds(packs, allProjectLayers);
     final projectLayers = [
       for (final layer in allProjectLayers)
-        if (!leftBehind.contains(layer.docTypeId)) layer,
+        if (!leftBehind.contains(layer.docTypeId) &&
+            !orphaned.contains(layer.docTypeId))
+          layer,
     ];
     final layerLists = _docTypeLayers(packs, projectLayers);
     final patternLayers = _featurePatternLayers(patterns, projectPatterns);
@@ -478,6 +503,7 @@ final class TemplateResolver {
       shared: shared,
       foldedDocTypes: folded,
       droppedDocTypes: dropped,
+      orphanedDocTypes: orphaned,
       leftoverHomes: [
         for (final ParsedPack(:pack) in packs)
           for (final entry in pack.manifest.leftoverHomes)

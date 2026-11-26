@@ -1963,6 +1963,23 @@ path: ops/runbooks/{slug}/RUNBOOK.md
       );
     });
 
+    test('a layer with no id or extends over a doc type no pack defines '
+        'adds no doc type and is orphaned', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/auth.yaml': 'path: specs/{slug}/AUTH.md\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: await writeTree({}),
+      );
+
+      expect(merged.lookup('auth'), isNull);
+      expect(merged.orphanedDocTypes, {'auth'});
+    });
+
     test('a new doc type with extends inherits every key of the target except '
         'id and path', () async {
       final project = await writeTree({

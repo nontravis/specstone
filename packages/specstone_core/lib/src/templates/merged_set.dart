@@ -18,6 +18,7 @@ final class MergedSet {
     this.shared = SharedSet.empty,
     Map<String, String> foldedDocTypes = const {},
     Set<String> droppedDocTypes = const {},
+    Set<String> orphanedDocTypes = const {},
     List<LeftoverHome> leftoverHomes = const [],
   }) : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes))),
        featurePatterns = List.unmodifiable(
@@ -26,6 +27,7 @@ final class MergedSet {
        ),
        foldedDocTypes = Map.unmodifiable(foldedDocTypes),
        droppedDocTypes = Set.unmodifiable(droppedDocTypes),
+       orphanedDocTypes = Set.unmodifiable(orphanedDocTypes),
        leftoverHomes = List.unmodifiable(leftoverHomes);
 
   /// The merged doc types, sorted by id; the caller's list is untouched.
@@ -45,6 +47,13 @@ final class MergedSet {
   /// The id each loaded pack's `drop_doc_type` step drops; empty when no
   /// loaded pack holds such a step.
   final Set<String> droppedDocTypes;
+
+  /// The id of each project layer that overrides a doc type no loaded pack
+  /// defines, writing neither `id` nor `extends`; the layer never loads.
+  ///
+  /// Such a layer outlives a pack that dropped its type: the step that
+  /// dropped it may be gone from the pack, so no step names the id.
+  final Set<String> orphanedDocTypes;
 
   /// The `leftover_homes` entries of every loaded pack, in pack order; empty
   /// when no loaded pack holds any.
