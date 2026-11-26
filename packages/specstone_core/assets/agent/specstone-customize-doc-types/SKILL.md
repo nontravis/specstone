@@ -44,26 +44,28 @@ Each `specstone guide` run here:
 On the Owner's ok, write the files at the paths the ask named with the host's file write. Then run
 `specstone guide <type> --out` for each doc type they touch:
 
-- **0:** read the saved guide and confirm it shows every drafted entry; on an entry it lacks, show the Owner that
-  entry and the file written, and stop.
+- **0:** read the saved guide and confirm it shows every drafted doc-type entry; on an entry it lacks, show the Owner
+  that entry and the file written, and stop. A new pack's pack file and pin line show no entry: the exit 0 of the
+  guide that loads the pack confirms them.
 - **78:** go to step 5.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 5. On exit 78, fix and rerun
 
-Fix the file step 4 wrote and the key the fault names, then rerun that `specstone guide <type> --out` and route its
-exit as step 4 does. When the fault names a file step 4 did not write, show the Owner that fault and stop. After two
-failed fixes of one fault code and key, stop and show the Owner the fault.
+When the fault names a file step 4 did not write, show the Owner that fault and stop. Otherwise fix the file step 4
+wrote and the key the fault names, then rerun that `specstone guide <type> --out` and route its exit as step 4 does.
+After two failed fixes of one fault code and key, stop and show the Owner the fault.
 
 ## 6. Check and route
 
-Once every step 4 `specstone guide` run exits 0 and shows every drafted entry, run
+Once every step 4 `specstone guide` run exits 0 and shows every drafted doc-type entry, run
 `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`: `<folder>` is the path step 1 kept, `XXXXXX`
 six `a-z0-9` characters, picked again while that file exists.
 
 - **0 or 1:** search the file by path, never reading it whole, and route:
+  - **Findings outside the folders below:** show the Owner those findings and the check file's path, and stop,
+    before following any skill below.
   - **Findings under `prds/` or `measurements/`:** follow the `specstone-bootstrap-prd` skill.
   - **Findings under `specs/`:** follow the `specstone-bootstrap-spec` skill.
-  - **Findings anywhere else:** show the Owner those findings and the check file's path, and stop.
   - **None:** report the change done.
 - **Any other exit:** report the CLI's error and stop.

@@ -3288,6 +3288,9 @@ void _customizeDocTypesTests() {
     }
     expect(fix, contains(_wordsPattern('as step 4 does')));
     expect(_hasSentenceWith(fix, ['did not write', 'Owner', 'stop']), isTrue);
+    final notWritten = fix.indexOf('did not write');
+    expect(notWritten, isNonNegative);
+    expect(notWritten, lessThan(fix.indexOf('the file step 4 wrote')));
   });
 
   test('customize-doc-types confirms each saved guide shows the drafted '
@@ -3297,15 +3300,19 @@ void _customizeDocTypesTests() {
         .single;
     final landed = _markedClauseOf(write, '0');
     expect(landed, isNotNull);
-    for (final phrase in [
-      'saved guide',
-      'every drafted entry',
-      'Owner',
-      'the file written',
-      'stop',
-    ]) {
+    for (final phrase in ['saved guide', 'Owner', 'the file written', 'stop']) {
       expect(landed, contains(_wordsPattern(phrase)), reason: phrase);
     }
+    final sentences = _sentencesOf(landed ?? '');
+    final confirm = sentences
+        .where((sentence) => sentence.contains('saved guide'))
+        .single;
+    expect(confirm, contains(_wordsPattern('every drafted doc-type entry')));
+    expect(confirm, isNot(contains('pack')));
+    expect(
+      _hasSentenceWith(landed ?? '', ['pack file', 'pin', 'exit 0']),
+      isTrue,
+    );
   });
 
   test('customize-doc-types names only the format keys its steps use', () {
@@ -3345,11 +3352,26 @@ void _customizeDocTypesTests() {
     final route = _stepsOf(_pluginText(_customizeSkill))
         .where((step) => step.contains('`specs/`'))
         .single;
-    final elsewhere = _markedClauseOf(route, 'Findings anywhere else');
+    final opening = route.substring(0, route.indexOf('`specstone check'));
+    expect(
+      opening,
+      contains(_wordsPattern('shows every drafted doc-type entry')),
+    );
+    const elsewhereMark = '**Findings outside the folders below:**';
+    final elsewhere = _markedClauseOf(
+      route,
+      'Findings outside the folders below',
+    );
     expect(elsewhere, isNotNull);
-    for (final phrase in ['Owner', 'check file', 'stop']) {
+    for (final phrase in [
+      'Owner',
+      'check file',
+      'stop',
+      'before following any skill below',
+    ]) {
       expect(elsewhere, contains(_wordsPattern(phrase)), reason: phrase);
     }
+    expect(route.indexOf(elsewhereMark), lessThan(route.indexOf('`prds/`')));
     expect(
       _markedClauseOf(route, 'None'),
       contains(_wordsPattern('report the change done')),
