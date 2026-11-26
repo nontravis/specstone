@@ -4,6 +4,8 @@
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/specstone_core.dart'
+    show FormatKey, KeyShape, docTypeFileFormat, packFileFormat;
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/models/agent_asset.dart';
 import 'package:specstone_core/src/setup_migration/models/rendered_file.dart';
@@ -32,6 +34,7 @@ void main() {
   group('author mode', _authorModeTests);
   group('small edit', _smallEditTests);
   group('grounding', _groundingTests);
+  group('customize doc types', _customizeDocTypesTests);
   group('plan flow', _planFlowTests);
   group('sync routes', _syncRouteTests);
   group('sync procedure', _syncProcedureTests);
@@ -45,6 +48,7 @@ const _skillNames = [
   'bootstrap-prd',
   'bootstrap-spec',
   'brainstorming-sdd',
+  'customize-doc-types',
   'expert-sdd',
   'init',
   'plan-sdd',
@@ -937,10 +941,13 @@ void _referencesResolveTests() {
   });
 
   test(
-    'the source walk sees the thirteen sources and leaves AGENT.md out',
+    'the source walk sees the fourteen sources and leaves AGENT.md out',
     () async {
       final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
-      expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
+      expect(
+        seen.where((path) => path.endsWith('/SKILL.md')),
+        hasLength(_skillNames.length),
+      );
       expect(
         seen.where((path) => !isSkillSourcePath(path)),
         unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
@@ -961,7 +968,7 @@ void _referencesResolveTests() {
     },
   );
 
-  test('the nine skills and four agents are all there', () {
+  test('the ten skills and four agents are all there', () {
     expect(
       _skillFolders().map(_baseNameOf),
       unorderedEquals([for (final name in _skillNames) 'specstone-$name']),
@@ -3081,6 +3088,7 @@ void _groundingTests() {
       'specstone-brainstorming-sdd/SKILL.md',
       'specstone-plan-sdd/SKILL.md',
       _planAgent,
+      _customizeSkill,
     ]) {
       final text = _pluginText(file);
       final lines = text.split('\n');
@@ -3105,6 +3113,193 @@ void _groundingTests() {
         reason: file,
       );
     }
+  });
+}
+
+// MARK: - customize doc types
+
+const _customizeFolder = 'specstone-customize-doc-types';
+
+const _customizeSkill = '$_customizeFolder/SKILL.md';
+
+/// The title of the customize skill's step that drafts and asks the Owner.
+const _customizeAsk = '3. Draft the layer file and ask the Owner';
+
+/// The format keys the customize skill's steps name; every other key comes
+/// from the `guide --file-format` printout alone.
+const _customizeKeys = {'name', 'version', 'extends'};
+
+/// Each file of the customize skill, relative to the assets folder.
+List<String> _customizeFiles() => [
+  for (final file in _skillAndAgentFiles())
+    if (file.startsWith('$_customizeFolder/')) file,
+];
+
+/// The text of [markdown] after its frontmatter block.
+String _bodyOf(String markdown) => markdown.replaceFirst(_frontmatterBlock, '');
+
+/// Each `## ` step of [markdown]'s body, its title first, every whitespace
+/// run as one space, in order.
+List<String> _stepsOf(String markdown) =>
+    _bodyOf(markdown)
+        .split(RegExp('^## ', multiLine: true))
+        .skip(1)
+        .map(_oneLine)
+        .toList();
+
+/// A pattern matching [words] as whole words, any whitespace run between them.
+RegExp _wordsPattern(String words) =>
+    RegExp('\\b${words.split(' ').map(RegExp.escape).join(r'\s+')}\\b');
+
+/// Every dotted key of [table] under [parent], each variant's keys and each
+/// `add`/`remove` change key included.
+Set<String> _dottedKeysOf(List<FormatKey> table, [String parent = '']) => {
+  for (final key in table) ...{
+    '$parent${key.name}',
+    ..._dottedKeysOf([
+      ...key.children,
+      for (final variant in key.variants) ...variant.children,
+    ], '$parent${key.name}.'),
+    if (key.shape == KeyShape.entriesOrChange ||
+        key.shape == KeyShape.valuesOrChange) ...[
+      '$parent${key.name}.add',
+      '$parent${key.name}.remove',
+    ],
+  },
+};
+
+void _customizeDocTypesTests() {
+  test('customize-doc-types takes a doc type change and leaves doc content and upgrade findings', () {
+    final frontmatter = _frontmatterBlock
+        .firstMatch(_pluginText(_customizeSkill))
+        ?.group(1);
+    final head = loadYaml(frontmatter ?? '') as YamlMap;
+    final description = _oneLine(head['description'] as String);
+    for (final part in [
+      'doc type',
+      'section',
+      'field',
+      'lint value',
+      'list entry',
+      "project's merged doc types",
+      'lack or hold otherwise',
+      "writing a doc's content",
+    ]) {
+      expect(description, matches(_wordsPattern(part)), reason: part);
+    }
+    expect(
+      description,
+      matches(
+        RegExp(
+          r'migration\s+or\s+a\s+pack\s+upgrade\s+with\s+no\s+layer\s+file\s+'
+          'change[^.]*`specstone-bootstrap-prd`[^.]*`specstone-bootstrap-spec`',
+        ),
+      ),
+    );
+  });
+
+  test('customize-doc-types runs the file format guide first', () {
+    // The gate names `specstone init` as the way out; the skill never runs it.
+    final calls = _inlineSpans(_bodyOf(_pluginText(_customizeSkill))).where(
+      (span) => span.startsWith('specstone ') && span != 'specstone init',
+    );
+    expect(calls.take(3), [
+      'specstone folder',
+      'specstone guide --file-format --out',
+      'specstone guide <type> --out',
+    ]);
+    final files = _customizeFiles();
+    expect(files, contains(_customizeSkill));
+    final folderCalls = files.fold(
+      0,
+      (count, file) =>
+          count + 'specstone folder'.allMatches(_pluginText(file)).length,
+    );
+    expect(folderCalls, 1);
+  });
+
+  test(
+    "customize-doc-types shows a new pack's pack.yaml and pin in the same ask",
+    () {
+      final steps = _stepsOf(_pluginText(_customizeSkill));
+      final ask = steps.indexWhere((step) => step.startsWith(_customizeAsk));
+      expect(ask, isNonNegative);
+      expect(
+        [
+          for (final (at, step) in steps.indexed)
+            if (step.contains('`pack.yaml`')) at,
+        ],
+        [ask],
+      );
+      expect(
+        _hasSentenceWith(steps[ask], [
+          '`pack.yaml`',
+          '`name`',
+          '`version`',
+          '`extends`',
+          '`packs:`',
+        ]),
+        isTrue,
+      );
+    },
+  );
+
+  test('customize-doc-types caps its fix loop', () {
+    final fix = _stepsOf(_pluginText(_customizeSkill))
+        .where((step) => step.contains(RegExp(r'\b78\b')))
+        .single;
+    for (final word in [
+      _wordsPattern('fix'),
+      _wordsPattern('rerun'),
+      RegExp('`specstone guide '),
+      _wordsPattern('two'),
+      RegExp(r'\bstops?\b'),
+      _wordsPattern('Owner'),
+    ]) {
+      expect(fix, contains(word), reason: word.pattern);
+    }
+  });
+
+  test('customize-doc-types names only the format keys its steps use', () {
+    final formatKeys = {
+      ..._dottedKeysOf(docTypeFileFormat),
+      ..._dottedKeysOf(packFileFormat),
+    };
+    final files = _customizeFiles();
+    expect(files, contains(_customizeSkill));
+    expect(formatKeys, containsAll(_customizeKeys));
+    for (final file in files) {
+      final named = _inlineSpans(_pluginText(file)).where(formatKeys.contains);
+      expect(_customizeKeys, containsAll(named), reason: file);
+    }
+  });
+
+  test('customize-doc-types routes check findings to the bootstrap skills', () {
+    final body = _bodyOf(_pluginText(_customizeSkill));
+    expect(body, contains('`specstone-bootstrap-prd`'));
+    expect(body, contains('`specstone-bootstrap-spec`'));
+    final checks = _inlineSpans(body)
+        .where((span) => span.startsWith('specstone check'));
+    expect(checks, isNotEmpty);
+    expect(
+      checks,
+      everyElement(
+        'specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"',
+      ),
+    );
+  });
+
+  test('customize-doc-types asks the Owner before any file write', () {
+    final steps = _stepsOf(_pluginText(_customizeSkill));
+    final ask = steps.indexWhere((step) => step.startsWith(_customizeAsk));
+    expect(ask, isNonNegative);
+    expect(steps[ask], contains("Owner's ok"));
+    final writes = [
+      for (final (at, step) in steps.indexed)
+        if (step.contains("the host's file write")) at,
+    ];
+    expect(writes, isNotEmpty);
+    expect(writes, everyElement(greaterThan(ask)));
   });
 }
 
