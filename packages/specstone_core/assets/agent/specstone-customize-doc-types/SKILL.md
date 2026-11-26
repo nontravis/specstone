@@ -23,6 +23,12 @@ Run `specstone folder`; keep the folder it prints as `<folder>`.
 2. For each existing doc type the change reaches, run `specstone guide <type> --out`.
 3. Read each file the header lines name with the host's file read; never open a doc file.
 
+Each `specstone guide` run, here and in step 4:
+
+- **0:** go on.
+- **78:** go to step 5.
+- **Any other exit:** report the CLI's error and stop.
+
 ## 3. Draft the layer file and ask the Owner
 
 1. Draft one layer file per doc type the change reaches, holding only the entries that change, each matched to its
@@ -35,7 +41,8 @@ Run `specstone folder`; keep the folder it prints as `<folder>`.
 
 ## 4. Write the files
 
-On the Owner's ok, write the files with the host's file write. Then run `specstone guide <type> --out` for each doc type they touch.
+On the Owner's ok, write the files with the host's file write. Then run `specstone guide <type> --out` for each doc
+type they touch.
 
 ## 5. On exit 78, fix and rerun
 
@@ -45,9 +52,10 @@ fault code and key, stop and show the Owner the fault.
 ## 6. Check and route
 
 Once every `specstone guide` exits 0, run `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`:
-`<folder>` is the path step 1 kept, `XXXXXX` six `a-z0-9` characters, picked again while that file exists. Search
-the file by path, never reading it whole:
+`<folder>` is the path step 1 kept, `XXXXXX` six `a-z0-9` characters, picked again while that file exists.
 
-- **Findings under `prds/` or `measurements/`:** follow the `specstone-bootstrap-prd` skill.
-- **Findings under `specs/`:** follow the `specstone-bootstrap-spec` skill.
-- **None:** report the change done.
+- **0 or 1:** search the file by path, never reading it whole, and route:
+  - **Findings under `prds/` or `measurements/`:** follow the `specstone-bootstrap-prd` skill.
+  - **Findings under `specs/`:** follow the `specstone-bootstrap-spec` skill.
+  - **None:** report the change done.
+- **Any other exit:** report the CLI's error and stop.

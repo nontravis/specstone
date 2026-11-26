@@ -3151,6 +3151,13 @@ List<String> _stepsOf(String markdown) =>
 RegExp _wordsPattern(String words) =>
     RegExp('\\b${words.split(' ').map(RegExp.escape).join(r'\s+')}\\b');
 
+/// A word of a fenced line that may name a format key: a YAML key, group 1,
+/// or a dotted word, group 2.
+final _fencedKeyWord = RegExp(
+  r'^\s*(?:-\s+)?([a-z_][a-z0-9_]*)\s*:|\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)+)\b',
+  multiLine: true,
+);
+
 /// Every dotted key of [table] under [parent], each variant's keys and each
 /// `add`/`remove` change key included.
 Set<String> _dottedKeysOf(List<FormatKey> table, [String parent = '']) => {
@@ -3175,12 +3182,21 @@ void _customizeDocTypesTests() {
         ?.group(1);
     final head = loadYaml(frontmatter ?? '') as YamlMap;
     final description = _oneLine(head['description'] as String);
+    final needs =
+        RegExp(r"\bneeds\s+(.+?)\s+that\s+the\s+project's")
+            .firstMatch(description)
+            ?.group(1) ??
+        '';
     for (final part in [
       'doc type',
       'section',
       'field',
       'lint value',
       'list entry',
+    ]) {
+      expect(needs, matches(_wordsPattern(part)), reason: part);
+    }
+    for (final part in [
       "project's merged doc types",
       'lack or hold otherwise',
       "writing a doc's content",
@@ -3246,7 +3262,7 @@ void _customizeDocTypesTests() {
 
   test('customize-doc-types caps its fix loop', () {
     final fix = _stepsOf(_pluginText(_customizeSkill))
-        .where((step) => step.contains(RegExp(r'\b78\b')))
+        .where((step) => step.startsWith(RegExp(r'\d+\. On exit 78\b')))
         .single;
     for (final word in [
       _wordsPattern('fix'),
@@ -3265,19 +3281,35 @@ void _customizeDocTypesTests() {
       ..._dottedKeysOf(docTypeFileFormat),
       ..._dottedKeysOf(packFileFormat),
     };
+    final leafKeys = {for (final key in formatKeys) key.split('.').last};
     final files = _customizeFiles();
     expect(files, contains(_customizeSkill));
     expect(formatKeys, containsAll(_customizeKeys));
     for (final file in files) {
-      final named = _inlineSpans(_pluginText(file)).where(formatKeys.contains);
+      final text = _pluginText(file);
+      final fenced = [
+        for (final block in _fencedBlock.allMatches(text))
+          for (final word in _fencedKeyWord.allMatches(block.group(1) ?? ''))
+            word.group(1) ?? word.group(2) ?? '',
+      ];
+      final named = [
+        ..._inlineSpans(text).where(formatKeys.contains),
+        ...fenced.where(
+          (word) => formatKeys.contains(word) || leafKeys.contains(word),
+        ),
+      ];
       expect(_customizeKeys, containsAll(named), reason: file);
     }
   });
 
   test('customize-doc-types routes check findings to the bootstrap skills', () {
     final body = _bodyOf(_pluginText(_customizeSkill));
-    expect(body, contains('`specstone-bootstrap-prd`'));
-    expect(body, contains('`specstone-bootstrap-spec`'));
+    final lines = body.split('\n');
+    final prdRoute = lines.where((line) => line.contains('`prds/`')).single;
+    expect(prdRoute, contains('`measurements/`'));
+    expect(prdRoute, contains('`specstone-bootstrap-prd`'));
+    final specRoute = lines.where((line) => line.contains('`specs/`')).single;
+    expect(specRoute, contains('`specstone-bootstrap-spec`'));
     final checks = _inlineSpans(body)
         .where((span) => span.startsWith('specstone check'));
     expect(checks, isNotEmpty);
