@@ -1762,14 +1762,18 @@ items:
       final folder = await project();
       final runner = await runnerIn(folder);
 
-      expect(
-        await runner.run(['guide', '--file-format', 'feature', '--out']),
-        64,
-      );
-      expect(
-        Directory('${folder.path}/.specstone/reports').existsSync(),
-        isFalse,
-      );
+      for (final refused in ['feature', '--pattern', '--json']) {
+        expect(
+          await runner.run(['guide', '--file-format', refused, '--out']),
+          64,
+          reason: refused,
+        );
+        expect(
+          Directory('${folder.path}/.specstone/reports').existsSync(),
+          isFalse,
+          reason: refused,
+        );
+      }
     });
 
     test('a refused --file-format combination with a bare --out outside a '
