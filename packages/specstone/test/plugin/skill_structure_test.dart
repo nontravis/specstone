@@ -3151,6 +3151,13 @@ List<String> _stepsOf(String markdown) =>
 RegExp _wordsPattern(String words) =>
     RegExp('\\b${words.split(' ').map(RegExp.escape).join(r'\s+')}\\b');
 
+/// The text after the `**<label>:**` bullet mark of a one-line [step], up to
+/// the next bullet mark, or null when [step] holds no such bullet.
+String? _markedClauseOf(String step, String label) =>
+    RegExp('\\*\\*${RegExp.escape(label)}:\\*\\*(.*?)(?: - \\*\\*|\$)')
+        .firstMatch(step)
+        ?.group(1);
+
 /// A word of a fenced line that may name a format key: a YAML key, group 1,
 /// or a dotted word, group 2.
 final _fencedKeyWord = RegExp(
@@ -3279,6 +3286,26 @@ void _customizeDocTypesTests() {
     ]) {
       expect(fix, contains(word), reason: word.pattern);
     }
+    expect(fix, contains(_wordsPattern('as step 4 does')));
+    expect(_hasSentenceWith(fix, ['did not write', 'Owner', 'stop']), isTrue);
+  });
+
+  test('customize-doc-types confirms each saved guide shows the drafted '
+      'entries', () {
+    final write = _stepsOf(_pluginText(_customizeSkill))
+        .where((step) => step.contains("the host's file write"))
+        .single;
+    final landed = _markedClauseOf(write, '0');
+    expect(landed, isNotNull);
+    for (final phrase in [
+      'saved guide',
+      'every drafted entry',
+      'Owner',
+      'the file written',
+      'stop',
+    ]) {
+      expect(landed, contains(_wordsPattern(phrase)), reason: phrase);
+    }
   });
 
   test('customize-doc-types names only the format keys its steps use', () {
@@ -3315,6 +3342,18 @@ void _customizeDocTypesTests() {
     expect(prdRoute, contains('`specstone-bootstrap-prd`'));
     final specRoute = lines.where((line) => line.contains('`specs/`')).single;
     expect(specRoute, contains('`specstone-bootstrap-spec`'));
+    final route = _stepsOf(_pluginText(_customizeSkill))
+        .where((step) => step.contains('`specs/`'))
+        .single;
+    final elsewhere = _markedClauseOf(route, 'Findings anywhere else');
+    expect(elsewhere, isNotNull);
+    for (final phrase in ['Owner', 'check file', 'stop']) {
+      expect(elsewhere, contains(_wordsPattern(phrase)), reason: phrase);
+    }
+    expect(
+      _markedClauseOf(route, 'None'),
+      contains(_wordsPattern('report the change done')),
+    );
     final checks = _inlineSpans(body)
         .where((span) => span.startsWith('specstone check'));
     expect(checks, isNotEmpty);
@@ -3361,26 +3400,30 @@ void _customizeDocTypesTests() {
         .take(ask)
         .where((step) => step.contains('`specstone guide '))
         .single;
-    final fault = RegExp(r'\*\*78:\*\*(.*?)(?: - \*\*|$)')
-        .firstMatch(read)
-        ?.group(1);
+    final fault = _markedClauseOf(read, '78');
     expect(fault, isNotNull);
-    for (final word in ['Owner', 'file', 'key', 'code', 'stop']) {
-      expect(fault, contains(_wordsPattern(word)), reason: word);
+    for (final phrase in ['Owner', "the fault's file, key, and code", 'stop']) {
+      expect(fault, contains(_wordsPattern(phrase)), reason: phrase);
     }
   });
 
-  test('customize-doc-types writes its layer and pin files under the project '
-      'folder', () {
-    final spans = _inlineSpans(_bodyOf(_pluginText(_customizeSkill)));
+  test('customize-doc-types writes each file at the full path its ask '
+      'names', () {
+    final text = _pluginText(_customizeSkill);
+    final spans = _inlineSpans(_bodyOf(text));
     expect(
       spans,
       containsAll([
         '<folder>/templates/<doc_type>.yaml',
+        '~/.specstone/packs/<pack>/<doc_type>.yaml',
         '<folder>/config.yaml',
       ]),
     );
     expect(spans.where((span) => span.startsWith('.specstone/')), isEmpty);
+    final write = _stepsOf(text)
+        .where((step) => step.contains("the host's file write"))
+        .single;
+    expect(write, contains(_wordsPattern('at the paths the ask named')));
   });
 }
 

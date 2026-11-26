@@ -34,7 +34,7 @@ Each `specstone guide` run here:
 1. Draft one layer file per doc type the change reaches, holding only the entries that change, each matched to its
    entry in the layer below by its merge key, as the printout gives.
 2. Show the Owner the draft text and one question: the project layer `<folder>/templates/<doc_type>.yaml`, which git
-   keeps, or a personal pack `~/.specstone/packs/<pack>/`, which git does not keep.
+   keeps, or a personal pack file `~/.specstone/packs/<pack>/<doc_type>.yaml`, which git does not keep.
 3. For a new personal pack, the same ask also shows its `pack.yaml`, with `name`, `version`, and `extends` when it
    changes a shipped doc type, and the `packs:` pin line in `<folder>/config.yaml`.
 4. Write no file before the Owner's ok.
@@ -44,23 +44,26 @@ Each `specstone guide` run here:
 On the Owner's ok, write the files at the paths the ask named with the host's file write. Then run
 `specstone guide <type> --out` for each doc type they touch:
 
-- **0:** go on.
+- **0:** read the saved guide and confirm it shows every drafted entry; on an entry it lacks, show the Owner that
+  entry and the file written, and stop.
 - **78:** go to step 5.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 5. On exit 78, fix and rerun
 
-Fix the file step 4 wrote and the key the fault names, then rerun that `specstone guide <type> --out`. After two
+Fix the file step 4 wrote and the key the fault names, then rerun that `specstone guide <type> --out` and route its
+exit as step 4 does. When the fault names a file step 4 did not write, show the Owner that fault and stop. After two
 failed fixes of one fault code and key, stop and show the Owner the fault.
 
 ## 6. Check and route
 
-Once every step 4 `specstone guide` run exits 0, run
+Once every step 4 `specstone guide` run exits 0 and shows every drafted entry, run
 `specstone check --out "<folder>/reports/check.done.<XXXXXX>.txt"`: `<folder>` is the path step 1 kept, `XXXXXX`
 six `a-z0-9` characters, picked again while that file exists.
 
 - **0 or 1:** search the file by path, never reading it whole, and route:
   - **Findings under `prds/` or `measurements/`:** follow the `specstone-bootstrap-prd` skill.
   - **Findings under `specs/`:** follow the `specstone-bootstrap-spec` skill.
+  - **Findings anywhere else:** show the Owner those findings and the check file's path, and stop.
   - **None:** report the change done.
 - **Any other exit:** report the CLI's error and stop.
