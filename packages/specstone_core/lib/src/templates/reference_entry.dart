@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/models/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -22,7 +23,13 @@ ReferenceEntry parseReferenceEntry(
     file: file,
     prefix: '$key.',
   );
-  checkKeys(entry, _entryKeys, file: file, format: 'doc-type', prefix: '$key.');
+  checkKeys(
+    entry,
+    formatKeysAt(docTypeFileFormat, 'reference'),
+    file: file,
+    format: 'doc-type',
+    prefix: '$key.',
+  );
   final prefix = '$key.';
   final url = optionalValue<String>(entry, 'url', file: file, prefix: prefix);
   final citedFile = optionalValue<String>(
@@ -61,8 +68,6 @@ ReferenceEntry parseReferenceEntry(
     ),
   );
 }
-
-const _entryKeys = {'title', 'url', 'file', 'doc', 'locator'};
 
 /// Returns the pattern sources line of [entry]:
 /// `- <title>[, <locator>][: <target>]`, where the target is its url, file,

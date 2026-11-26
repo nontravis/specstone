@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -12,12 +13,6 @@ const _forDocTypesKey = 'for_doc_types';
 const _sectionsKey = 'sections';
 const _disabledKey = 'disabled';
 const _patternsId = 'patterns';
-const Set<String> _lineKeys = {'id', 'text', _forDocTypesKey, _disabledKey};
-const Set<String> _patternExtraKeys = {
-  _forDocTypesKey,
-  _sectionsKey,
-  _disabledKey,
-};
 
 /// The shared list a [SharedPattern] comes from.
 ///
@@ -224,7 +219,13 @@ SharedLine _parseLine(
 }) {
   final prefix = '$_linesKey[$index].';
   final id = requireValue<String>(entry, 'id', file: file, prefix: prefix);
-  checkKeys(entry, _lineKeys, file: file, format: format, prefix: prefix);
+  checkKeys(
+    entry,
+    formatKeysAt(packFileFormat, _linesKey),
+    file: file,
+    format: format,
+    prefix: prefix,
+  );
   if (!isDocTypeIdShaped(id)) {
     throw TemplateFault(
       FaultCode.unknownValue,
@@ -279,10 +280,9 @@ SharedPattern _parsePattern(
 }) {
   final prefix = '${kind.listKey}[$index].';
   final id = requireValue<String>(entry, 'id', file: file, prefix: prefix);
-  final isRequired = kind == SharedPatternKind.required;
   checkKeys(
     entry,
-    {...patternEntryKeys(forRequired: isRequired), ..._patternExtraKeys},
+    formatKeysAt(packFileFormat, kind.listKey),
     file: file,
     format: format,
     prefix: prefix,
@@ -366,7 +366,8 @@ SharedField _parseField(
     file: file,
     keyPrefix: _fieldsKey,
     keyByIndex: true,
-    extraKeys: const {_forDocTypesKey},
+    formatTable: packFileFormat,
+    formatPath: _fieldsKey,
   );
   _checkFieldId(field.id, file: file, key: '${prefix}id');
   if (field.type == FieldType.recordStatus) {

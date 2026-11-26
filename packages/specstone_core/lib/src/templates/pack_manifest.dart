@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/leftover_home.dart';
 import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/models/migration_step.dart';
@@ -7,18 +8,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shared_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
-
-const _keys = {
-  'name',
-  'version',
-  'extends',
-  'migrations',
-  'leftover_homes',
-  'shared_lines',
-  'shared_fields',
-  'shared_banned_patterns',
-  'shared_required_patterns',
-};
 
 /// The `pack.yaml` of one pack: its name, version, and optional base pack.
 final class PackManifest {
@@ -39,7 +28,12 @@ final class PackManifest {
   /// lists is `unknown_key`.
   static PackManifest parse(String text, {required String file}) {
     final map = readYamlMap(text, file: file);
-    checkKeys(map, _keys, file: file, format: 'pack');
+    checkKeys(
+      map,
+      formatKeysAt(packFileFormat, ''),
+      file: file,
+      format: 'pack',
+    );
     final name = requireValue<String>(map, 'name', file: file);
     requireValue<Object>(map, 'version', file: file);
     final version = PackVersion.fromYaml(

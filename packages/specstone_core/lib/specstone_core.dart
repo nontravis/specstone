@@ -147,6 +147,7 @@ export 'src/templates/cleanup_bounds.dart' show CleanupBounds;
 export 'src/templates/component_catalog.dart'
     show componentCatalogBlocks, componentCatalogKind;
 export 'src/templates/feature_pattern.dart' show FeaturePatternBody;
+export 'src/templates/format_keys.dart';
 export 'src/templates/generator_kinds.dart'
     show groupFeatureCatalogKind, shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';

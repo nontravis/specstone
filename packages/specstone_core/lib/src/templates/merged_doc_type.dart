@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/guide_limits.dart';
 import 'package:specstone_core/src/templates/models/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart';
@@ -49,10 +50,16 @@ MergedSection? verificationMatrixOf(MergedDocType recordType) {
 }
 
 /// The language keys `max_sentence_words` takes.
-const sentenceWordLanguages = {'default', 'ko', 'ar', 'he', 'hi', 'el'};
+final Set<String> sentenceWordLanguages = formatKeysAt(
+  docTypeFileFormat,
+  'lint.max_sentence_words',
+);
 
 /// The language keys `max_sentence_chars` takes.
-const sentenceCharLanguages = {'default', 'th', 'lo', 'km', 'my', 'zh', 'ja'};
+final Set<String> sentenceCharLanguages = formatKeysAt(
+  docTypeFileFormat,
+  'lint.max_sentence_chars',
+);
 
 /// Renders the writing guide of a [MergedDocType].
 extension DocTypeGuide on MergedDocType {

@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/models/pattern_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
@@ -5,20 +6,20 @@ import 'package:yaml/yaml.dart';
 
 /// Parses one entry, at fault key [key].
 ///
-/// With [forRequired], the entry allows `id`, `pattern`, `message`, `in`, and
-/// `per_subsection`, not `except`.
+/// [path] is the dotted doc-type format path of the pattern list the entry
+/// sits in; the keys it holds are the keys of that path.
 /// Throws `unknown_value` for a `pattern` or `except` entry that does not
 /// compile, so no later reader meets a `FormatException`.
 PatternEntry parsePatternEntry(
   YamlMap map, {
   required String file,
   required String key,
-  required bool forRequired,
+  required String path,
 }) {
   final prefix = '$key.';
   checkKeys(
     map,
-    patternEntryKeys(forRequired: forRequired),
+    formatKeysAt(docTypeFileFormat, path),
     file: file,
     format: 'doc-type',
     prefix: prefix,
@@ -57,15 +58,6 @@ PatternEntry parsePatternEntry(
     rethrow;
   }
 }
-
-const _bannedKeys = {'id', 'pattern', 'message', 'in', 'except'};
-
-const _requiredKeys = {'id', 'pattern', 'message', 'in', 'per_subsection'};
-
-/// Returns the keys one entry allows; [forRequired] picks the
-/// `required_patterns` set.
-Set<String> patternEntryKeys({required bool forRequired}) =>
-    forRequired ? _requiredKeys : _bannedKeys;
 
 /// Throws `unknown_value` at `<prefix>pattern` or `<prefix>except` for the
 /// first source that does not compile.

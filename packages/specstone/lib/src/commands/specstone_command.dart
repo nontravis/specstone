@@ -63,6 +63,12 @@ abstract class SpecstoneCommand extends Command<int> {
   bool writesOut(ArgResults args) =>
       args.option('out') != null || args.flag(bareOutFlag);
 
+  /// Throws through `usageException` when [args] name a refused combination.
+  ///
+  /// The runner calls it before it resolves any `--out` path, so a refusal is
+  /// the same with or without `--out`.
+  void refuseArgs(ArgResults args) {}
+
   /// Whether the run [args] name prints a reply `--out` may save.
   ///
   /// A command whose parser declares `dry-run` prints a reply only under it;
