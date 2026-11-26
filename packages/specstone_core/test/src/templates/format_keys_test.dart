@@ -191,11 +191,44 @@ void main() {
     );
   });
 
-  test('the sentence word languages come from the table', () {
-    expect(
-      formatKeysAt(docTypeFileFormat, 'lint.max_sentence_words'),
-      equals({'default', 'ko', 'ar', 'he', 'hi', 'el'}),
-    );
+  test('the sentence cap languages come from the table at doc and field '
+      'level', () {
+    for (final (key, languages) in [
+      ('max_sentence_words', {'default', 'ko', 'ar', 'he', 'hi', 'el'}),
+      ('max_sentence_chars', {'default', 'th', 'lo', 'km', 'my', 'zh', 'ja'}),
+    ]) {
+      expect(
+        formatKeysAt(docTypeFileFormat, 'lint.$key'),
+        equals(languages),
+        reason: key,
+      );
+      expect(
+        formatKeysAt(docTypeFileFormat, 'fields.lint.$key'),
+        equals(languages),
+        reason: key,
+      );
+    }
+  });
+
+  test('each sentence cap key prints the rule its loader applies', () {
+    final text = renderFileFormat();
+
+    for (final (dotted, rule) in [
+      ('lint.max_sentence_words', 'optional'),
+      ('lint.max_sentence_words.default', 'optional'),
+      ('lint.max_sentence_chars.default', 'optional'),
+      ('fields.lint.max_sentence_words', 'when max_sentence_chars is set'),
+      ('fields.lint.max_sentence_chars', 'when max_sentence_words is set'),
+      ('fields.lint.max_sentence_words.default', 'required'),
+      ('fields.lint.max_sentence_chars.default', 'required'),
+      (
+        'shared_fields.lint.max_sentence_words',
+        'when max_sentence_chars is set',
+      ),
+      ('shared_fields.lint.max_sentence_chars.default', 'required'),
+    ]) {
+      expect(text, contains('\n- `$dotted` ($rule, '), reason: dotted);
+    }
   });
 
   test('the migration step kinds come from the table', () {
@@ -252,7 +285,8 @@ void main() {
     }
   });
 
-  test('a key the loader refuses never prints', () {
+  test('no printed key holds an uppercase letter, and sections.prefix_id '
+      'prints', () {
     final text = renderFileFormat();
     final dotted = RegExp(
       '^- `([^`]+)`',

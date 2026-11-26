@@ -178,13 +178,27 @@ FormatKey _walkTo(List<FormatKey> table, String dottedPath) {
   return node;
 }
 
+const _capDefaultMeaning = 'the cap for every language the map does not name';
+
+/// The `default` cap of a doc-level map; optional, as the map lays over the
+/// built-in caps.
+const _docCapDefault = FormatKey(
+  'default',
+  whenRequired: 'optional',
+  valueForm: 'integer of 1 or more',
+  meaning: _capDefaultMeaning,
+);
+
+/// The `default` cap of a field-level map, which the loader requires.
+const _fieldCapDefault = FormatKey(
+  'default',
+  whenRequired: 'required',
+  valueForm: 'integer of 1 or more',
+  meaning: _capDefaultMeaning,
+);
+
+/// The languages a word cap names besides `default`.
 const _wordLanguages = <FormatKey>[
-  FormatKey(
-    'default',
-    whenRequired: 'required',
-    valueForm: 'integer of 1 or more',
-    meaning: 'the cap for every language the map does not name',
-  ),
   FormatKey(
     'ko',
     whenRequired: 'optional',
@@ -217,13 +231,8 @@ const _wordLanguages = <FormatKey>[
   ),
 ];
 
+/// The languages a character cap names besides `default`.
 const _charLanguages = <FormatKey>[
-  FormatKey(
-    'default',
-    whenRequired: 'required',
-    valueForm: 'integer of 1 or more',
-    meaning: 'the cap for every language the map does not name',
-  ),
   FormatKey(
     'th',
     whenRequired: 'optional',
@@ -262,24 +271,48 @@ const _charLanguages = <FormatKey>[
   ),
 ];
 
-const _wordsKey = FormatKey(
+const _wordsMeaning = 'most words one sentence holds, by language';
+
+const _charsMeaning =
+    'most characters one sentence holds in a script with no spaces, by '
+    'language';
+
+const _docWordsKey = FormatKey(
   'max_sentence_words',
   whenRequired: 'optional',
   valueForm: 'map of language to integer',
-  meaning: 'most words one sentence holds, by language',
+  meaning: _wordsMeaning,
   shape: KeyShape.map,
-  children: _wordLanguages,
+  children: [_docCapDefault, ..._wordLanguages],
 );
 
-const _charsKey = FormatKey(
+const _docCharsKey = FormatKey(
   'max_sentence_chars',
   whenRequired: 'optional',
   valueForm: 'map of language to integer',
-  meaning:
-      'most characters one sentence holds in a script with no spaces, by '
-      'language',
+  meaning: _charsMeaning,
   shape: KeyShape.map,
-  children: _charLanguages,
+  children: [_docCapDefault, ..._charLanguages],
+);
+
+/// A field's word cap; the loader refuses it without its char partner.
+const _fieldWordsKey = FormatKey(
+  'max_sentence_words',
+  whenRequired: 'when max_sentence_chars is set',
+  valueForm: 'map of language to integer',
+  meaning: _wordsMeaning,
+  shape: KeyShape.map,
+  children: [_fieldCapDefault, ..._wordLanguages],
+);
+
+/// A field's char cap; the loader refuses it without its word partner.
+const _fieldCharsKey = FormatKey(
+  'max_sentence_chars',
+  whenRequired: 'when max_sentence_words is set',
+  valueForm: 'map of language to integer',
+  meaning: _charsMeaning,
+  shape: KeyShape.map,
+  children: [_fieldCapDefault, ..._charLanguages],
 );
 
 const _bannedPatternKeys = <FormatKey>[
@@ -439,8 +472,8 @@ const _fieldChildren = <FormatKey>[
         valueForm: 'integer of 1 or more',
         meaning: 'most sentences the field holds',
       ),
-      _wordsKey,
-      _charsKey,
+      _fieldWordsKey,
+      _fieldCharsKey,
     ],
   ),
   FormatKey(
@@ -1000,8 +1033,8 @@ const docTypeFileFormat = <FormatKey>[
         valueForm: 'list of lists of strings',
         meaning: 'a doc must fill at least one field of every group',
       ),
-      _wordsKey,
-      _charsKey,
+      _docWordsKey,
+      _docCharsKey,
       FormatKey(
         'trace_note_last',
         whenRequired: 'optional',

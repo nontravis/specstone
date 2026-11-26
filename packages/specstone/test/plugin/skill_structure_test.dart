@@ -3232,6 +3232,11 @@ void _customizeDocTypesTests() {
           count + 'specstone folder'.allMatches(_pluginText(file)).length,
     );
     expect(folderCalls, 1);
+    final gate = _pluginText(_customizeSkill)
+        .split('\n')
+        .where((line) => line.contains('project_not_found'))
+        .single;
+    expect(gate, contains('**78, `project_not_found`:**'));
   });
 
   test(
@@ -3292,11 +3297,11 @@ void _customizeDocTypesTests() {
           for (final word in _fencedKeyWord.allMatches(block.group(1) ?? ''))
             word.group(1) ?? word.group(2) ?? '',
       ];
+      bool isKey(String word) =>
+          formatKeys.contains(word) || leafKeys.contains(word);
       final named = [
-        ..._inlineSpans(text).where(formatKeys.contains),
-        ...fenced.where(
-          (word) => formatKeys.contains(word) || leafKeys.contains(word),
-        ),
+        ..._inlineSpans(text).where(isKey),
+        ...fenced.where(isKey),
       ];
       expect(_customizeKeys, containsAll(named), reason: file);
     }
@@ -3332,6 +3337,50 @@ void _customizeDocTypesTests() {
     ];
     expect(writes, isNotEmpty);
     expect(writes, everyElement(greaterThan(ask)));
+  });
+
+  test('customize-doc-types enters its fix loop only from the post-write '
+      'guide', () {
+    final steps = _stepsOf(_pluginText(_customizeSkill));
+    final ask = steps.indexWhere((step) => step.startsWith(_customizeAsk));
+    final fix = steps.indexWhere(
+      (step) => step.startsWith(RegExp(r'\d+\. On exit 78\b')),
+    );
+    expect(ask, isNonNegative);
+    expect(fix, greaterThan(ask));
+    final toFix = _wordsPattern(
+      'step ${RegExp(r'^\d+').stringMatch(steps[fix])}',
+    );
+    final routes = [
+      for (final (at, step) in steps.indexed)
+        if (step.contains(toFix)) at,
+    ];
+    expect(routes, isNotEmpty);
+    expect(routes, everyElement(allOf(greaterThan(ask), lessThan(fix))));
+    final read = steps
+        .take(ask)
+        .where((step) => step.contains('`specstone guide '))
+        .single;
+    final fault = RegExp(r'\*\*78:\*\*(.*?)(?: - \*\*|$)')
+        .firstMatch(read)
+        ?.group(1);
+    expect(fault, isNotNull);
+    for (final word in ['Owner', 'file', 'key', 'code', 'stop']) {
+      expect(fault, contains(_wordsPattern(word)), reason: word);
+    }
+  });
+
+  test('customize-doc-types writes its layer and pin files under the project '
+      'folder', () {
+    final spans = _inlineSpans(_bodyOf(_pluginText(_customizeSkill)));
+    expect(
+      spans,
+      containsAll([
+        '<folder>/templates/<doc_type>.yaml',
+        '<folder>/config.yaml',
+      ]),
+    );
+    expect(spans.where((span) => span.startsWith('.specstone/')), isEmpty);
   });
 }
 
