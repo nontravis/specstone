@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/format_keys.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
@@ -49,9 +50,11 @@ final class LeftoverHome {
     final isPath = map.containsKey('path');
     checkKeys(
       map,
-      isPath
-          ? const {'path', 'to', 'home'}
-          : const {'doc_types', 'section', 'to', 'home'},
+      formatKeysAt(
+        packFileFormat,
+        'leftover_homes',
+        variant: isPath ? 'path' : 'section',
+      ),
       file: file,
       format: 'leftover_homes entry',
       prefix: prefix,
@@ -83,7 +86,7 @@ final class LeftoverHome {
     final sectionPrefix = '${prefix}section.';
     checkKeys(
       section,
-      const {'id', 'header'},
+      formatKeysAt(packFileFormat, 'leftover_homes.section'),
       file: file,
       format: 'leftover_homes section',
       prefix: sectionPrefix,

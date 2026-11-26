@@ -262,6 +262,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// run that faulted write no file.
   Future<int?> _runSaving(ArgResults top, SpecstoneCommand command) async {
     final args = top.command!;
+    command.refuseArgs(args);
     final parser = command.argParser;
     final asJson = parser.options.containsKey('json') && args.flag('json');
     if (!command.isReplyRun(args)) {
