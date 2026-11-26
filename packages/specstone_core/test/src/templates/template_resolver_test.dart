@@ -16,6 +16,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -3407,6 +3408,109 @@ path: features/{slug}/FEATURE.md
       expect(fault.file, '~/.specstone/packs/nont-x/feature.yaml');
       expect(fault.relatedFiles, ['packs/prd-core/feature.yaml']);
       expect(fault.exitStatus, 78);
+    });
+  });
+
+  group('TemplateResolver grouped child types', () {
+    Future<MergedSet> resolveGrouped(Directory project) async =>
+        TemplateResolver().resolve(
+          workingDirectory: project,
+          homeDirectory: await writeTree({}),
+        );
+
+    test('a feature-only grouped project reads its child types '
+        'with the group level', () async {
+      final merged = await resolveGrouped(await writeFeatureGroupedProject());
+
+      expect(
+        [
+          for (final id in ['user_story', 'fr', 'api', 'implementation'])
+            merged.lookup(id)!.path,
+        ],
+        [
+          'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md',
+          'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md',
+          'specs/{slug}/f{nn}_{slug}/API.md',
+          '.specstone/records/{slug}/f{nn}_{slug}/IMPLEMENTATION.md',
+        ],
+      );
+    });
+
+    test('the stratum-ui child overrides keep the group level once', () async {
+      final merged = await resolveGrouped(await writeGroupedProject());
+
+      expect(merged.lookup('api')!.path, 'specs/{slug}/f{nn}_{slug}/API.md');
+      expect(
+        merged.lookup('implementation')!.path,
+        'specs/{slug}/f{nn}_{slug}/IMPLEMENTATION.md',
+      );
+    });
+
+    test(
+      'a grouped child type nests its feature folder after the group level',
+      () async {
+        final merged = await resolveGrouped(await writeFeatureGroupedProject());
+
+        expect(merged.lookup('api')!.paths, [
+          for (var depth = 0; depth <= 3; depth++)
+            'specs/{slug}/f{nn}_{slug}${'/f{nn}_{slug}' * depth}/API.md',
+        ]);
+      },
+    );
+
+    test(
+      'a project type at the grouped api pattern conflicts with api',
+      () async {
+        final project = await writeFeatureGroupedProject(
+          extra: {
+            '.specstone/templates/grid.yaml':
+                'id: grid\ndescription: A grid.\n'
+                'path: specs/{slug}/f{nn}_{slug}/API.md\n',
+          },
+        );
+
+        final home = await writeTree({});
+
+        expect(
+          () => TemplateResolver().resolve(
+            workingDirectory: project,
+            homeDirectory: home,
+          ),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+                .having((f) => f.file, 'file', '.specstone/templates/grid.yaml')
+                .having((f) => f.relatedFiles, 'relatedFiles', [
+                  'packs/software-tech/api.yaml',
+                ]),
+          ),
+        );
+      },
+    );
+
+    test('a project api override with two group folders fails at its own '
+        'file', () async {
+      final project = await writeFeatureGroupedProject(
+        extra: {
+          '.specstone/templates/api.yaml':
+              'path: specs/{slug}/{slug}/f{nn}_{slug}/API.md\n',
+        },
+      );
+
+      final home = await writeTree({});
+
+      expect(
+        () => TemplateResolver().resolve(
+          workingDirectory: project,
+          homeDirectory: home,
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', '.specstone/templates/api.yaml')
+              .having((f) => f.key, 'key', 'path'),
+        ),
+      );
     });
   });
 

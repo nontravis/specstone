@@ -23,6 +23,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/cold_node.dart';
+import '../../helpers/grouped_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -55,6 +56,14 @@ void main() {
     final report = await checkOf(await writeCheckProject());
     expect(report.findings, isEmpty);
     expect(report.exitStatus, 0);
+  });
+
+  test('a feature-only grouped project types every child doc '
+      'and finds its feature', () async {
+    final report = await checkOf(await writeFeatureGroupedProject());
+
+    expect(spots(report, FindingKind.parentMissing), isEmpty);
+    expect(spots(report, FindingKind.untypedDoc), isEmpty);
   });
 
   test('two rules stating the same warning text print it once, in the order '

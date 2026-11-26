@@ -197,6 +197,37 @@ void main() {
       );
     });
 
+    test('a grouped child pattern equal to another type path is '
+        'doc_type_path_conflict', () {
+      const apiFile = '.specstone/templates/api.yaml';
+      const gridFile = '.specstone/templates/grid.yaml';
+      final layers = {
+        'api': [
+          layerOf('api', 'path: specs/f{nn}_{slug}/API.md\n', file: apiFile),
+        ],
+        'grid': [
+          layerOf(
+            'grid',
+            'path: specs/{slug}/f{nn}_{slug}/API.md\n',
+            file: gridFile,
+          ),
+        ],
+      };
+      expect(
+        () => check([
+          _groupedFeature,
+          builtIn('api')
+              .copyWith(parent: 'feature', path: 'specs/f{nn}_{slug}/API.md'),
+          builtIn('grid').copyWith(path: 'specs/{slug}/f{nn}_{slug}/API.md'),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.docTypePathConflict)
+              .having((f) => f.key, 'key', 'path'),
+        ),
+      );
+    });
+
     test('two path_from types with one file in a grouped set are '
         'doc_type_path_conflict at file', () {
       final layers = {
@@ -1696,6 +1727,78 @@ void main() {
         'section', () {
       expect(
         () => checkRunbook(['$header$field', disableField]),
+        returnsNormally,
+      );
+    });
+  });
+
+  group('checkMergedSet group levels', () {
+    const apiFile = '.specstone/templates/api.yaml';
+
+    void checkApi(String featurePath, String apiPath) {
+      final layers = {
+        'api': [layerOf('api', 'path: $apiPath\n', file: apiFile)],
+      };
+      check([
+        builtIn('feature').copyWith(path: featurePath),
+        builtIn('api').copyWith(parent: 'feature', path: apiPath),
+      ], layers);
+    }
+
+    for (final (name, featurePath, apiPath, n, m) in [
+      (
+        'a child path with two group levels under a one-level feature path',
+        'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
+        'specs/{slug}/{slug}/f{nn}_{slug}/API.md',
+        2,
+        1,
+      ),
+      (
+        'a child path with one group level under a two-level feature path',
+        'prds/features/{slug}/{slug}/f{nn}_{slug}/FEATURE.md',
+        'specs/{slug}/f{nn}_{slug}/API.md',
+        1,
+        2,
+      ),
+    ]) {
+      test('$name is unknown_value at path', () {
+        expect(
+          () => checkApi(featurePath, apiPath),
+          throwsA(
+            isA<TemplateFault>()
+                .having((f) => f.code, 'code', FaultCode.unknownValue)
+                .having((f) => f.key, 'key', 'path')
+                .having((f) => f.file, 'file', apiFile)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'path holds $n group levels before f{nn}_{slug}; '
+                      'the feature path holds $m',
+                ),
+          ),
+        );
+      });
+    }
+
+    test('a type off the feature parent chain with group levels loads', () {
+      expect(
+        () => check([
+          builtIn('feature')
+              .copyWith(path: 'prds/features/{slug}/f{nn}_{slug}/FEATURE.md'),
+          builtIn('grid')
+              .copyWith(path: 'specs/{slug}/{slug}/f{nn}_{slug}/GRID.md'),
+        ], const {}),
+        returnsNormally,
+      );
+    });
+
+    test('a child path with group levels under an ungrouped feature path '
+        'loads', () {
+      expect(
+        () => checkApi(
+          'prds/features/f{nn}_{slug}/FEATURE.md',
+          'specs/{slug}/f{nn}_{slug}/API.md',
+        ),
         returnsNormally,
       );
     });
