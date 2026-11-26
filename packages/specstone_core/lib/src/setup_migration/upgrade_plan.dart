@@ -233,7 +233,18 @@ RunPlan _upgradeRunOf(
     projectLayers: projectLayers,
     projectSharedLines: projectSharedLines,
   );
-  refuseUnequalStepPlaceholders(steps, finalSet);
+  final frozen = _namesAbsentType(stepKinds, finalSet)
+      ? templates.frozenDocTypes(
+          packNames: packNames,
+          homeDirectory: homeDirectory,
+        )
+      : const <String, MergedDocType>{};
+  final stepTypes = StepDocTypes(
+    finalSet,
+    frozen: frozen,
+    layerPathOf: (id) => _layerPathOf(root, id),
+  );
+  refuseUnequalStepPlaceholders(steps, stepTypes);
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
   final docPaths = docPathsOf(docsRoot, root)..sort(compareCodePoints);
@@ -247,7 +258,8 @@ RunPlan _upgradeRunOf(
     olderPatterns: [
       for (final PackStep(:step) in steps)
         if (step is MoveFile && _isPerTargetStep(step, finalSet, firstTarget))
-          for (final pair in _movePatternsOf(step, finalSet)) pair.from,
+          for (final pair in _movePatternsOf(step, finalSet, stepTypes))
+            pair.from,
     ],
   );
   final _PlannedPaths(:planned, :movedAt, :movedBy, :treeMoved) = _plannedPaths(
@@ -255,6 +267,7 @@ RunPlan _upgradeRunOf(
     steps,
     treeMoves: treeMoves,
     set: finalSet,
+    stepTypes: stepTypes,
     targetNames: config.targetNames,
   );
   final moveCollisions = _moveCollisions(
@@ -305,6 +318,7 @@ RunPlan _upgradeRunOf(
     originals: originals,
     planned: planned,
     set: finalSet,
+    stepTypes: stepTypes,
     twinNames: twinNamesOf(config.targetNames),
   );
   renameCollisions.addAll(folds.collisions);
@@ -321,15 +335,7 @@ RunPlan _upgradeRunOf(
   // that stepped text.
   final frozenFromDocs = folds.fromPaths.isEmpty
       ? const <String, _FrozenFromDoc>{}
-      : _frozenFromDocsOf(
-          upgrades,
-          folds,
-          frozen: templates.frozenDocTypes(
-            packNames: packNames,
-            homeDirectory: homeDirectory,
-          ),
-          matcher: matcher,
-        );
+      : _frozenFromDocsOf(upgrades, folds, frozen: frozen, matcher: matcher);
   final steppedTextByDocPath = <String, String>{};
   final ledger = HeadingLedger();
   void refuse(MigrateFault fault) {
@@ -1143,6 +1149,7 @@ _Folds _foldsOf(
   required Map<String, DocText?> originals,
   required Map<String, String> planned,
   required MergedSet set,
+  required StepDocTypes stepTypes,
   required List<String> twinNames,
 }) {
   final unreadable = {
@@ -1163,9 +1170,12 @@ _Folds _foldsOf(
         docPaths: docPaths,
         set: set,
         twinNames: twinNames,
-        fromPattern:
-            _layerPathOf(root, step.fromId) ??
-            groupedStepPattern(step.fromPath, toType),
+        // The from docs sit where the project's current pins put them; a pack
+        // that ships no frozen copy leaves the `to` type's group levels.
+        fromPattern: groupedStepPattern(
+          _layerPathOf(root, step.fromId) ?? step.fromPath,
+          stepTypes.lookup(step.fromId) ?? toType,
+        ),
       ))
         if (originals[source.fromPath] != null &&
             source.fromPath != source.toPath)
@@ -1861,16 +1871,30 @@ String _withKeyBlock(String text, String key, String block) {
   );
 }
 
+/// Whether a `merge_doc` or `move_file` of [steps] names a doc type [set]
+/// lacks, so the run reads the frozen doc types.
+bool _namesAbsentType(List<MigrationStep> steps, MergedSet set) => steps.any(
+  (step) => switch (step) {
+    MergeDoc() => true,
+    MoveFile(:final docType) => set.lookup(docType) == null,
+    _ => false,
+  },
+);
+
 /// Whether [step] moves docs of a per-target doc type of [set] while the
 /// project holds two or more targets, [firstTarget] set.
 bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
     firstTarget != null && (set.lookup(step.docType)?.isPerTarget ?? false);
 
 /// Returns the patterns [step] moves by: its `from` and `to` with the group
-/// levels the merge inserted into its doc type's path, repeated once per
-/// nesting depth when its doc type nests in [set].
-List<PatternMove> _movePatternsOf(MoveFile step, MergedSet set) {
-  final type = set.lookup(step.docType);
+/// levels the merge inserted into its doc type's path in [stepTypes], repeated
+/// once per nesting depth when its doc type nests in [set].
+List<PatternMove> _movePatternsOf(
+  MoveFile step,
+  MergedSet set,
+  StepDocTypes stepTypes,
+) {
+  final type = stepTypes.lookup(step.docType);
   final from = groupedStepPattern(step.from, type);
   final to = groupedStepPattern(step.to, type);
   final nesting = set.nestingType;
@@ -1910,6 +1934,7 @@ _PlannedPaths _plannedPaths(
   List<PackStep> steps, {
   required List<PathMove> treeMoves,
   required MergedSet set,
+  required StepDocTypes stepTypes,
   required List<String> targetNames,
 }) {
   final planned = {for (final path in docPaths) path: path};
@@ -1928,7 +1953,7 @@ _PlannedPaths _plannedPaths(
           in _isPerTargetStep(step, set, firstTarget)
               ? targetNames
               : const <String?>[null])
-        for (final pair in _movePatternsOf(step, set))
+        for (final pair in _movePatternsOf(step, set, stepTypes))
           (
             from: _patternIn(pair.from, target),
             to: _patternIn(pair.to, target),

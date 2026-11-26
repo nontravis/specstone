@@ -6192,6 +6192,30 @@ const Map<String, String> _apiMergeLayerFiles = {
 };
 const _groupedFromDoc = '# Button playbook\n\n## Moves\n\nRun it.\n';
 const _groupedToDoc = '# Button\n';
+const _frozenChildPlaybook =
+    'id: playbook\ndescription: A playbook.\nparent: feature\n'
+    'path: specs/f{nn}_{slug}/PLAYBOOK.md\n'
+    'sections:\n  - {id: moves, header: Moves}\n';
+final _twinTargetsConfig =
+    '${shippedPinsConfig()}  acme: 1.0.0\ntargets:\n  flutter:\n'
+    '    code_root: flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n';
+
+/// A pack that moves `playbook` docs to [to] at 1.0.0 and folds them into
+/// `api` at 1.1.0, so the move's type is absent at the new pins.
+String _foldedTypeMoveMigrations(String to) =>
+    '''
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: playbook, from: "specs/f{nn}_{slug}/PLAYBOOK.md", to: "$to"}
+  - from: 1.1.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "$to"}
+          to: api
+          sections:
+            - from: {id: moves, header: Moves}
+              to: playbook_moves
+''';
 
 /// A project folder and the personal pack home it pins `acme` in.
 final class _GroupedStepFixture {
@@ -6527,10 +6551,7 @@ void _groupedStepPatternTests() {
 ''',
         packFiles: {
           ..._apiMergeLayerFiles,
-          '.specstone/packs/acme/frozen/playbook.yaml':
-              'id: playbook\ndescription: A playbook.\n'
-              'path: specs/f{nn}_{slug}/PLAYBOOK.md\n'
-              'sections:\n  - {id: moves, header: Moves}\n',
+          '.specstone/packs/acme/frozen/playbook.yaml': _frozenChildPlaybook,
         },
         docs: const {
           'specs/ui/f01_button/PLAYBOOK.md':
@@ -6568,11 +6589,14 @@ void _groupedStepPatternTests() {
     });
 
     test('a from layer path without a group folder in a grouped project is '
-        'never grouped', () async {
+        'read with the group folders inserted', () async {
       final plan = _planGroupedStep(
         await _groupedStepFixture(
           migrations: _groupedMergeYaml,
-          packFiles: _apiMergeLayerFiles,
+          packFiles: {
+            ..._apiMergeLayerFiles,
+            '.specstone/packs/acme/frozen/playbook.yaml': _frozenChildPlaybook,
+          },
           projectFiles: const {
             '.specstone/templates/playbook.yaml':
                 'path: specs/f{nn}_{slug}/old/PLAYBOOK.md\n',
@@ -6585,10 +6609,141 @@ void _groupedStepPatternTests() {
         ),
       );
 
-      // The layer path takes two values and the grouped `to` path three, so
-      // the ungrouped doc pairs with nothing; grouping the layer path would
-      // fold the grouped doc.
-      expect(plan.trashedDocs, isEmpty);
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/old/PLAYBOOK.md']);
+      expect(
+        _rewriteAt(plan, 'docs/specs/ui/f01_button/API.md').text,
+        contains('## Playbook moves\n\nRun it.\n'),
+      );
+    });
+
+    test('a from layer path in a grouped project whose pack ships no frozen '
+        'copy is read with the group folders inserted', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedMergeYaml,
+          packFiles: _apiMergeLayerFiles,
+          projectFiles: const {
+            '.specstone/templates/playbook.yaml':
+                'path: specs/f{nn}_{slug}/old/PLAYBOOK.md\n',
+          },
+          docs: const {
+            'specs/ui/f01_button/old/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.trashedDocs, ['docs/specs/ui/f01_button/old/PLAYBOOK.md']);
+    });
+
+    test('a move_file step on a type a later merge_doc folds moves its '
+        'grouped docs', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _foldedTypeMoveMigrations(
+            'specs/f{nn}_{slug}/old/PLAYBOOK.md',
+          ),
+          packFiles: {
+            ..._apiMergeLayerFiles,
+            '.specstone/packs/acme/frozen/playbook.yaml': _frozenChildPlaybook,
+          },
+          docs: const {
+            'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc,
+            'specs/ui/f01_button/API.md': _groupedToDoc,
+          },
+        ),
+      );
+
+      expect(plan.moves, [
+        const PathMove(
+          from: 'specs/ui/f01_button/PLAYBOOK.md',
+          to: 'specs/ui/f01_button/old/PLAYBOOK.md',
+        ),
+      ]);
+    });
+
+    test('a move_file step on a type a later merge_doc folds refuses unequal '
+        'grouped placeholder counts', () async {
+      final fixture = await _groupedStepFixture(
+        migrations: _foldedTypeMoveMigrations(
+          'specs/plays/p{nn}_{slug}/PLAYBOOK.md',
+        ),
+        packFiles: {
+          ..._apiMergeLayerFiles,
+          '.specstone/packs/acme/frozen/playbook.yaml': _frozenChildPlaybook,
+        },
+        docs: const {'specs/ui/f01_button/PLAYBOOK.md': _groupedFromDoc},
+      );
+
+      expect(
+        () => _planGroupedStep(fixture),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].move_file.to',
+              ),
+        ),
+      );
+    });
+
+    test('a move_file step moves each target folder of a two-level grouped '
+        'project at every depth', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          config: _twinTargetsConfig,
+          projectFiles: const {
+            '.specstone/templates/feature.yaml':
+                'path: prds/features/{slug}/{slug}/f{nn}_{slug}/FEATURE.md\n',
+          },
+          docs: const {
+            'specs/flutter/ui/kit/f01_button/API.md': '# Button\n',
+            'specs/flutter/ui/kit/f01_button/f01_icon/API.md': '# Icon\n',
+            'specs/jaspr/ui/kit/f01_button/API.md': '# Button\n',
+          },
+        ),
+      );
+
+      expect(
+        plan.moves,
+        unorderedEquals(const [
+          PathMove(
+            from: 'specs/flutter/ui/kit/f01_button/API.md',
+            to: 'specs/flutter/ui/kit/f01_button/api/API.md',
+          ),
+          PathMove(
+            from: 'specs/flutter/ui/kit/f01_button/f01_icon/API.md',
+            to: 'specs/flutter/ui/kit/f01_button/f01_icon/api/API.md',
+          ),
+          PathMove(
+            from: 'specs/jaspr/ui/kit/f01_button/API.md',
+            to: 'specs/jaspr/ui/kit/f01_button/api/API.md',
+          ),
+        ]),
+      );
+    });
+
+    test('a per-target move_file step moves a one-target grouped doc into '
+        'the first target folder', () async {
+      final plan = _planGroupedStep(
+        await _groupedStepFixture(
+          migrations: _groupedStepYaml,
+          packFiles: _apiPackFiles,
+          config: _twinTargetsConfig,
+          docs: const {'specs/ui/f01_button/API.md': '# Button\n'},
+        ),
+      );
+
+      expect(plan.moves, [
+        const PathMove(
+          from: 'specs/ui/f01_button/API.md',
+          to: 'specs/flutter/ui/f01_button/api/API.md',
+        ),
+      ]);
     });
 
     test('a merge_doc from pattern that already holds a group folder is read '
