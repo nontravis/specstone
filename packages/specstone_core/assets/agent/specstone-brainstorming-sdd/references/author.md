@@ -18,18 +18,7 @@ their readers alone; then sections 4 to 6.
 
 ## 2. Find the readers
 
-Run one reader step per decision before your first write:
-
-- Each term a decision adds, changes, or supersedes, and each short form (the key noun alone): one
-  `specstone search "<term>"`, narrowed by `--type` or `--under` when the term is common.
-- Each doc you change: the `Inbound` lines of one `specstone refs` call on it. A reader the step changes gets no
-  `refs` call: one hop, no recursion.
-- Each feature you touch, and each of its ancestors: its summary sections: `benefit_hypothesis`,
-  `flow`, and `out_of_scope`, and each spec doc section that lists the feature's parts or traces its FRs.
-- A reader stating a changed rule is changed, or its copy gives way to a link to the owner's item; no copy stays
-  beside the link. A `--repeats` check is no part of this step.
-
-Each reader gets one `Readers:` line.
+Follow `author-readers.md` once per decision before your first write, each reader on one `Readers:` line.
 
 ## 3. Write
 

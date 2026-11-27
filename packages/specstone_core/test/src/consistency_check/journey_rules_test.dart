@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -52,6 +54,8 @@ Future<List<Finding>> _check(
       },
     ),
     docPath: _journeyPath,
+    // The journey rules are judged alone; the copy block has its own rule.
+    generators: GeneratorRegistry<DocIndex>({}),
   );
   return report.findings;
 }

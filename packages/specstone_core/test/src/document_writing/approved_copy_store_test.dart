@@ -16,6 +16,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -40,8 +41,13 @@ void _saveCopy(Directory root, String hash, String text) =>
 
 void _walkApproving(Directory root, String name) => writeIn(
   root,
-  (s) =>
-      approveDrafts(s, names: [name], readLine: () => 'y', out: StringBuffer()),
+  (s) => approveDrafts(
+    s,
+    names: [name],
+    readLine: () => 'y',
+    out: StringBuffer(),
+    generators: noGenerators,
+  ),
 );
 
 /// Writes the doc at [from] to [docPath] as a draft with a sentence more, its
@@ -59,8 +65,10 @@ void _editAsDraft(Directory root, String from, String docPath) {
 SeenDraft _seenDraft(Directory root, String address) =>
     SeenDraft(name: address, hash: getDoc(root, address)['base']! as String);
 
-String _dryRunView(Directory root, String name) =>
-    writeIn(root, (s) => approveDryRun(s, names: [name])).text;
+String _dryRunView(Directory root, String name) => writeIn(
+  root,
+  (s) => approveDryRun(s, names: [name], generators: noGenerators),
+).text;
 
 void main() {
   final skipGit = hasGit ? null : 'git is not available';
@@ -236,7 +244,10 @@ void main() {
 
       writeIn(
         root,
-        (s) => approveNamed(s, [seen('feature:signup'), seen('persona:buyer')]),
+        (s) => approveNamed(s, [
+          seen('feature:signup'),
+          seen('persona:buyer'),
+        ], generators: noGenerators),
       );
 
       for (final docPath in [signupFeature, persona]) {
@@ -378,8 +389,24 @@ void main() {
 
   group('a move that re-stamps an approved doc', () {
     for (final (tag, move) in <(String, void Function(WriteSession))>[
-      ('a reorder', (s) => answerReorder(s, 'feature:signup', place: '1')),
-      ('a rename', (s) => answerRename(s, 'feature:signup', slug: 'join')),
+      (
+        'a reorder',
+        (s) => answerReorder(
+          s,
+          'feature:signup',
+          place: '1',
+          generators: noGenerators,
+        ),
+      ),
+      (
+        'a rename',
+        (s) => answerRename(
+          s,
+          'feature:signup',
+          slug: 'join',
+          generators: noGenerators,
+        ),
+      ),
     ]) {
       test('$tag saves its approved copy, which the next view compares against', () async {
         final root = await writeWriteProject();
@@ -394,7 +421,12 @@ void main() {
         file.writeAsStringSync(
           '${readDoc(root, featuresIndex).replaceFirst('---\n', '---\ndraft: true\n')}\nAdded line.\n',
         );
-        final drafts = writeIn(root, approveDryRun).json['drafts']! as List;
+        final drafts =
+            writeIn(
+                  root,
+                  (s) => approveDryRun(s, generators: noGenerators),
+                ).json['drafts']!
+                as List;
         final view = drafts.cast<Map<String, Object?>>().singleWhere(
           (draft) => draft['path'] == featuresIndex,
         );
@@ -407,11 +439,23 @@ void main() {
     for (final (tag, move) in <(String, void Function(WriteSession))>[
       (
         'a dry-run reorder',
-        (s) => answerReorder(s, 'feature:signup', place: '1', dryRun: true),
+        (s) => answerReorder(
+          s,
+          'feature:signup',
+          place: '1',
+          dryRun: true,
+          generators: noGenerators,
+        ),
       ),
       (
         'a dry-run rename',
-        (s) => answerRename(s, 'feature:signup', slug: 'join', dryRun: true),
+        (s) => answerRename(
+          s,
+          'feature:signup',
+          slug: 'join',
+          dryRun: true,
+          generators: noGenerators,
+        ),
       ),
     ]) {
       test('$tag saves no copy', () async {
@@ -601,6 +645,7 @@ void main() {
           names: ['persona:buyer'],
           readLine: answer,
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
 
@@ -652,7 +697,12 @@ void main() {
       test('a walk ended by q prunes', () {
         writeIn(
           root,
-          (s) => approveDrafts(s, readLine: () => 'q', out: StringBuffer()),
+          (s) => approveDrafts(
+            s,
+            readLine: () => 'q',
+            out: StringBuffer(),
+            generators: noGenerators,
+          ),
         );
 
         expect(_copyFile(root, _orphan).existsSync(), isFalse);
@@ -661,7 +711,12 @@ void main() {
       test('a walk answered n to every draft prunes', () {
         writeIn(
           root,
-          (s) => approveDrafts(s, readLine: () => 'n', out: StringBuffer()),
+          (s) => approveDrafts(
+            s,
+            readLine: () => 'n',
+            out: StringBuffer(),
+            generators: noGenerators,
+          ),
         );
 
         expect(_copyFile(root, _orphan).existsSync(), isFalse);
@@ -671,7 +726,9 @@ void main() {
       test('--yes prunes after its writes, keeping the copy it saved', () {
         writeIn(
           root,
-          (s) => approveNamed(s, [_seenDraft(root, 'persona:buyer')]),
+          (s) => approveNamed(s, [
+            _seenDraft(root, 'persona:buyer'),
+          ], generators: noGenerators),
         );
 
         expect(_copyFile(root, _orphan).existsSync(), isFalse);
@@ -687,6 +744,7 @@ void main() {
               names: ['feature:nosuch'],
               readLine: () => 'y',
               out: StringBuffer(),
+              generators: noGenerators,
             ),
           ),
           throwsA(isA<IndexFault>()),
@@ -698,7 +756,10 @@ void main() {
         const stale = SeenDraft(name: 'persona:buyer', hash: '000000000000');
 
         expect(
-          () => writeIn(root, (s) => approveNamed(s, [stale])),
+          () => writeIn(
+            root,
+            (s) => approveNamed(s, [stale], generators: noGenerators),
+          ),
           throwsA(isA<WriteFault>()),
         );
         expect(_copyFile(root, _orphan).existsSync(), isTrue);
@@ -714,6 +775,7 @@ void main() {
             names: ['user_story:login/sign_out'],
             readLine: () => 'y',
             out: out,
+            generators: noGenerators,
           ),
         );
 
@@ -732,7 +794,12 @@ void main() {
 
         writeIn(
           root,
-          (s) => approveDrafts(s, readLine: answer, out: StringBuffer()),
+          (s) => approveDrafts(
+            s,
+            readLine: answer,
+            out: StringBuffer(),
+            generators: noGenerators,
+          ),
           busyTimeout: const Duration(milliseconds: 200),
         );
 
@@ -754,7 +821,12 @@ void main() {
 
           writeIn(
             root,
-            (s) => approveDrafts(s, readLine: answer, out: StringBuffer()),
+            (s) => approveDrafts(
+              s,
+              readLine: answer,
+              out: StringBuffer(),
+              generators: noGenerators,
+            ),
           );
 
           expect(_copyFile(root, _orphan).existsSync(), isTrue);
@@ -776,7 +848,12 @@ void main() {
 
           writeIn(
             root,
-            (s) => approveDrafts(s, readLine: answer, out: StringBuffer()),
+            (s) => approveDrafts(
+              s,
+              readLine: answer,
+              out: StringBuffer(),
+              generators: noGenerators,
+            ),
           );
 
           expect(_copyFile(root, _orphan).existsSync(), isTrue);

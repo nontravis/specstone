@@ -95,6 +95,18 @@ Future<Directory> writeTwinProject({
       ...edit(loginFeature, [
         ('Users forget passwords.', 'Users forget passwords.$brokenLink'),
       ]),
+      // The catalog block reads each target's own status and story count.
+      ...edit('prds/FEATURES.md', [
+        (
+          '1 features · 1 stories · 1 implemented',
+          '1 features · flutter: 1 stories, 1 planned · '
+              'jaspr: 1 stories, 1 planned',
+        ),
+        (
+          '| implemented | 1/1 |',
+          '| flutter: planned, jaspr: planned | flutter: 0/1, jaspr: 0/1 |',
+        ),
+      ]),
       'flutter_ws/app/lib/login.dart': code('Flutter'),
       'jaspr_ws/app/lib/login.dart': code('Jaspr'),
       ...extra,

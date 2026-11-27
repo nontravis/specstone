@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/write_fixture.dart'
@@ -89,7 +90,10 @@ void main() {
   test('new glossary with no stdin writes the bare Terms header', () async {
     final root = await writeWriteProject();
 
-    final answer = writeIn(root, (s) => answerNew(s, docTypeId: 'glossary'));
+    final answer = writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'glossary', generators: noGenerators),
+    );
 
     expect(answer.exitStatus, 0);
     final text = readDoc(root, _glossaryDoc);

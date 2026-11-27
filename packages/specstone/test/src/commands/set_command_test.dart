@@ -21,6 +21,22 @@ import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
+/// Returns a clone of the check project whose `docs` links out of it, with no
+/// trust record, holding two features its feature map does not list yet.
+Future<Directory> _linkedCloneWithStaleMap() async {
+  final base = await writeTree({
+    for (final MapEntry(:key, :value) in check.checkProjectFiles().entries)
+      if (key.startsWith('docs/'))
+        'ext/${key.substring('docs/'.length)}': value
+      else
+        'src/clone/$key': value,
+    'ext/prds/features/f02_billing/FEATURE.md': '# Billing\n',
+    'ext/prds/features/f03_shop/FEATURE.md': '# Shop\n',
+  });
+  createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+  return Directory('${base.path}/src/clone');
+}
+
 void main() {
   test('set refuses while a migration is unfinished', () async {
     final root = await writeWriteProject();
@@ -141,7 +157,12 @@ void main() {
         reason: err.toString(),
       );
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(json.keys, ['docs', 'warnings'], reason: '$flags');
+      expect(json.keys, [
+        'docs',
+        'rewritten',
+        'deleted',
+        'warnings',
+      ], reason: '$flags');
       final docs = json['docs']! as List;
       expect(docs, hasLength(1), reason: '$flags');
       expect((docs.single as Map).keys, [
@@ -1025,6 +1046,25 @@ void main() {
       expect(plain.err.toString(), contains('run specstone trust'));
     });
 
+    // D17: a dry run checks the docs its refresh would write as the write
+    // does, the trust record excepted, since it writes nothing.
+    test('set --dry-run in a project whose roots wait for the trust record lists the stale feature map and no output_not_writable', () async {
+      final clone = await _linkedCloneWithStaleMap();
+      final dry = writeRunner(clone, console: FakeConsole(input: 'x\n'));
+      expect(
+        await dry.runner.run([
+          'set',
+          'user_story:login/email_login#use_case',
+          '--dry-run',
+        ]),
+        0,
+        reason: dry.err.toString(),
+      );
+      expect(dry.err.toString(), isEmpty);
+      expect(dry.out.toString(), contains('rewrites $featuresIndex\n'));
+      expect(dry.out.toString(), isNot(contains('output_not_writable')));
+    });
+
     test('set --dry-run --json prints findings and warnings', () async {
       final root = await projectWithLongEdge();
       File('${root.path}/docs/prds/GLOSSARY.md')
@@ -1039,7 +1079,7 @@ void main() {
 
       expect(err.toString(), isEmpty);
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(json.keys, ['findings', 'warnings']);
+      expect(json.keys, ['findings', 'rewritten', 'deleted', 'warnings']);
       expect(json['findings'], [containsPair('kind', 'item_over_limit')]);
       expect(json['warnings'], [
         'prds/GLOSSARY.md: frontmatter is not valid YAML; its values are not indexed',

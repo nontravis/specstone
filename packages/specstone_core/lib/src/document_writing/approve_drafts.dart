@@ -13,6 +13,7 @@ import 'package:specstone_core/src/document_writing/clean_draft_judge.dart'
     show AuditSequence, ReportFiles;
 import 'package:specstone_core/src/document_writing/draft_sections.dart'
     show draftDeltaOf;
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -23,6 +24,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -43,7 +46,9 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// end of input from [readLine] end the walk; any other answer asks again. An
 /// approval removes `draft` and writes the doc's ApprovalHash as `approved:`,
 /// and saves the approved text in an [ApprovedCopyStore], which the walk's end
-/// prunes.
+/// prunes. Each approval also rewrites the generated blocks of [generators] it
+/// makes stale ([writeApprovals]), prints a `rewrote` line per such doc, and
+/// adds each refused doc's line to the session's warnings.
 /// Reads every selected draft, the approved copy of each, and every doc of the
 /// tree once, before the first view shows; with no draft waiting it reads none
 /// of them.
@@ -62,6 +67,7 @@ void approveDrafts(
   bool color = false,
   ApprovalHistory? history,
   String? codeTarget,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final drafts = _shownDraftsUnder(
     _DraftSource.ofWrite(session),
@@ -90,7 +96,7 @@ void approveDrafts(
       color: color,
       codeTarget: codeTarget,
     );
-    if (!_approveOne(session, doc, viewOf, readLine, out)) break;
+    if (!_approveOne(session, doc, viewOf, readLine, out, generators)) break;
   }
   _pruneApprovedCopies(session);
 }
@@ -117,7 +123,9 @@ void approveDrafts(
 /// cannot be read, or a draft that is not UTF-8, all before any view prints,
 /// and `output_not_writable` for roots the Owner has not recorded, before git
 /// runs. Throws [ArgumentError] when [auditPaths] is set without
-/// [workingDirectory].
+/// [workingDirectory]. The text ends with one `rewrites` line per doc whose
+/// generated blocks of [generators] approving every listed draft would
+/// rewrite ([planBlockRefresh]), each in the json's `rewritten`.
 ReadAnswer approveDryRun(
   WriteSession session, {
   List<String> names = const [],
@@ -129,6 +137,7 @@ ReadAnswer approveDryRun(
   bool saveAuditedCopies = false,
   List<String> auditPaths = const [],
   Directory? workingDirectory,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final ApproveMode(:mode, warnings: modeWarnings) = approveModeOf(
     approveModeVariable,
@@ -162,7 +171,12 @@ ReadAnswer approveDryRun(
   if (views.isEmpty) {
     return ReadAnswer(
       text: _nothingWaits,
-      json: {'drafts': <Object>[], 'count': 0, 'approveMode': mode},
+      json: {
+        'drafts': <Object>[],
+        'count': 0,
+        'approveMode': mode,
+        ...BlockRefresh.none.json,
+      },
       warnings: warnings,
     );
   }
@@ -171,17 +185,19 @@ ReadAnswer approveDryRun(
       store.save(view.docPath, toLf(view.text));
     }
   }
+  final refresh = _approvalRefreshOf(session, views, generators);
+  final rendered = [
+    for (final (at, view) in views.indexed)
+      renderApprovalView(
+        view,
+        position: at + 1,
+        count: views.length,
+        context: context,
+        color: color,
+      ),
+  ].join('\n');
   return ReadAnswer(
-    text: [
-      for (final (at, view) in views.indexed)
-        renderApprovalView(
-          view,
-          position: at + 1,
-          count: views.length,
-          context: context,
-          color: color,
-        ),
-    ].join('\n'),
+    text: '$rendered${refresh.linesOf(dryRun: true)}',
     json: {
       'drafts': [
         for (final view in views)
@@ -189,10 +205,29 @@ ReadAnswer approveDryRun(
       ],
       'count': views.length,
       'approveMode': mode,
+      ...refresh.json,
     },
-    warnings: warnings,
+    warnings: [...warnings, ...refresh.refused],
   );
 }
+
+/// Returns the block refresh an approval of every draft of [views] plans.
+BlockRefresh _approvalRefreshOf(
+  WriteSession session,
+  List<DraftView> views,
+  GeneratorRegistry<DocIndex> generators,
+) => planBlockRefresh(
+  session.project,
+  session.index,
+  generators,
+  WrittenDocs(
+    texts: {
+      for (final view in views)
+        if (session.index.at(view.docPath) case final doc?)
+          view.docPath: approvedTextOf(session, doc, utf8.encode(view.text)),
+    },
+  ),
+);
 
 /// Returns, by DocPath, the changed sections of each of [views] that has them:
 /// every section when [audit] names no part for the draft, else those that
@@ -275,6 +310,9 @@ List<DraftView> _draftViewsOf(
 /// draft approves nothing. The answer prints `approved <doc type>:<name>` per
 /// draft, in tree order, and its JSON is `{"approved": [...]}`. [codeTarget]
 /// keeps each name to that code target's docs and the shared docs.
+/// The generated blocks of [generators] the approvals make stale are
+/// rewritten in the same write ([writeApprovals]); each such doc gets a
+/// `rewrote` line and a place in the json's `rewritten`.
 /// Throws [IndexFault] for a name that is no write target, [WriteFault]
 /// `draft_not_found` for a doc that is no draft, `base_mismatch` naming each
 /// draft whose text changed, and `index_busy` when another call holds the
@@ -283,6 +321,7 @@ ReadAnswer approveNamed(
   WriteSession session,
   List<SeenDraft> seen, {
   String? codeTarget,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final hashesByPath = <String, Set<String>>{};
   for (final draft in seen) {
@@ -293,7 +332,7 @@ ReadAnswer approveNamed(
     for (final doc in session.index.docs)
       if (hashesByPath.containsKey(doc.docPath)) doc,
   ];
-  final approved = session.locked(() {
+  final refresh = session.locked(() {
     final current = {
       for (final doc in drafts) doc.docPath: session.readDocBytes(doc.docPath),
     };
@@ -305,15 +344,19 @@ ReadAnswer approveNamed(
           doc,
     ];
     if (changed.isNotEmpty) throw changedSinceHashed(changed);
-    for (final doc in drafts) {
-      writeApproval(session, doc, current[doc.docPath]!);
-    }
+    final written = writeApprovals(session, [
+      for (final doc in drafts) ApprovalWrite(doc, current[doc.docPath]!),
+    ], generators: generators);
     pruneApprovedCopiesLocked(session);
-    return drafts.map(addressOf).toList();
+    return written;
   });
+  final approved = drafts.map(addressOf).toList();
   return ReadAnswer(
-    text: approved.map((address) => 'approved $address\n').join(),
-    json: {'approved': approved},
+    text:
+        '${approved.map((address) => 'approved $address\n').join()}'
+        '${refresh.linesOf()}',
+    json: {'approved': approved, ...refresh.json},
+    warnings: refresh.refused,
   );
 }
 
@@ -444,6 +487,7 @@ bool _approveOne(
   String Function(List<int> bytes) viewOf,
   String? Function() readLine,
   StringSink out,
+  GeneratorRegistry<DocIndex> generators,
 ) {
   while (true) {
     final shown = session.readDocBytes(doc.docPath);
@@ -453,7 +497,9 @@ bool _approveOne(
       ..write(_prompt);
     switch (_answer(readLine, out)) {
       case 'y':
-        if (_approveIfUnchanged(session, doc, shown)) return true;
+        if (_approveIfUnchanged(session, doc, shown, out, generators)) {
+          return true;
+        }
       case 'n':
         return true;
       case _:
@@ -670,7 +716,9 @@ String _viewOf(
   color: color,
 );
 
-/// Writes the approval under the lock; returns false when the bytes changed.
+/// Writes the approval under the lock, with the generated blocks it makes
+/// stale, each such doc a `rewrote` line on [out] and each refused one a line
+/// of the session's warnings; returns false when the bytes changed.
 ///
 /// Reads the index afresh first, so a peer commit during the prompt wait does
 /// not make the lock rerun the walk; a draft the fresh index lacks is gone.
@@ -678,6 +726,8 @@ bool _approveIfUnchanged(
   WriteSession session,
   IndexedDoc shownDoc,
   List<int> shown,
+  StringSink out,
+  GeneratorRegistry<DocIndex> generators,
 ) {
   session.refresh();
   // A draft the fresh index lacks still goes to the re-read under the lock,
@@ -691,7 +741,12 @@ bool _approveIfUnchanged(
     final current = session.readDocBytes(doc.docPath);
     if (current == null) return true;
     if (!_sameBytes(current, shown)) return false;
-    writeApproval(session, doc, current);
+    final refresh = writeApprovals(session, [
+      ApprovalWrite(doc, current),
+    ], generators: generators);
+    out.write(refresh.linesOf());
+    final warnings = session.warnings;
+    warnings.addAll(refresh.refused.where((line) => !warnings.contains(line)));
     return true;
   });
 }

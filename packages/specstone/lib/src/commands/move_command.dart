@@ -102,6 +102,7 @@ class MoveCommand extends WriteCommand {
         top: args.flag('top'),
         codeTarget: targetOf(args),
         dryRun: args.flag('dry-run'),
+        generators: specstoneRunner.generators,
       ),
       asJson: asJson,
     );
@@ -137,6 +138,7 @@ class MoveCommand extends WriteCommand {
         parseMovePlan(text, path: planFile),
         codeTarget: targetOf(args),
         dryRun: args.flag('dry-run'),
+        generators: specstoneRunner.generators,
       ),
       asJson: asJson,
     );

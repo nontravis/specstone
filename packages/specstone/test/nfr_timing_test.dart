@@ -2,11 +2,14 @@
 @Timeout(Duration(minutes: 10))
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
+import '../../specstone_core/test/helpers/no_generators.dart';
+import '../../specstone_core/test/helpers/shape_matrix.dart';
 import '../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../specstone_core/test/helpers/write_fixture.dart' show testHome;
 import 'helpers/baseline_tree.dart';
@@ -395,6 +398,172 @@ void main() {
     );
   });
 
+  // D17: each write command, its generated block refresh included, answers
+  // within the bound `check` keeps.
+  test('set, new, move, rename, approve, delete, and reorder on the baseline '
+      'tree each finish within 2 s in the fastest of five calls', () async {
+    final root = makeWorkTree(await writeBaselineTree());
+    final home = {'HOME': testHome().path, 'USERPROFILE': testHome().path};
+    ProcessResult run(List<String> args) => runSpecstoneSync(
+      exe,
+      args,
+      workingDirectory: root.path,
+      environment: home,
+    );
+    String ran(List<String> args) {
+      final result = run(args);
+      expect(result.exitCode, 0, reason: '$args: ${result.stderr}');
+      return result.stdout as String;
+    }
+
+    Duration timedWrite(List<String> args) {
+      final measured = measureChild(() => run(args));
+      expect(
+        measured.result.exitCode,
+        0,
+        reason: '$args: ${measured.result.stderr}',
+      );
+      return measured.elapsed;
+    }
+
+    String baseOf(String address) {
+      final docs = jsonDecode(ran(['get', address, '--json'])) as Map;
+      return ((docs['docs']! as List).first as Map)['base']! as String;
+    }
+
+    final batch = File('${root.path}/batch.md');
+    var summaries = 0;
+    Duration setSummary() {
+      final got = ran(['get', 'feature:feature_1']);
+      final cut = got.indexOf('\n') + 1;
+      final body = got.substring(cut);
+      // The doc's other fields, `draft` among them, stay as they are: a batch
+      // that drops one writes it.
+      var fields = <String>[];
+      var rest = '\n$body';
+      if (body.startsWith('---\n')) {
+        final end = body.indexOf('\n---\n');
+        fields = [
+          for (final line in LineSplitter.split(body.substring(4, end)))
+            if (!line.startsWith('summary:')) line,
+        ];
+        rest = body.substring(end + '\n---\n'.length);
+      }
+      batch.writeAsStringSync(
+        '${got.substring(0, cut)}---\n'
+        '${[for (final line in fields) '$line\n'].join()}'
+        'summary: Summary ${summaries++}.\n---\n$rest',
+      );
+      return timedWrite(['set', '--batch', batch.path]);
+    }
+
+    Duration best(String label, Duration Function() write) => bestOf(
+      timingRuns,
+      write,
+      label: label,
+      metric: timingMetric,
+      scale: scale,
+    );
+
+    setSummary(); // warm-up: the feature map holds its block after it
+    expectWithinBound(
+      best('set calls', setSummary),
+      const Duration(seconds: 2),
+    );
+
+    var stories = 0;
+    expectWithinBound(
+      best(
+        'new calls',
+        () => timedWrite([
+          'new',
+          'user_story',
+          '--parent',
+          'feature:feature_1',
+          '--slug',
+          'probe_${stories++}',
+        ]),
+      ),
+      const Duration(seconds: 2),
+    );
+
+    var feature = 1;
+    expectWithinBound(
+      best('move calls', () {
+        final from = feature;
+        feature = from == 2 ? 1 : 2;
+        return timedWrite([
+          'move',
+          'user_story:feature_$from/probe_0',
+          '--under',
+          'feature:feature_$feature',
+        ]);
+      }),
+      const Duration(seconds: 2),
+    );
+
+    var slug = 'story_1';
+    var renames = 0;
+    expectWithinBound(
+      best('rename calls', () {
+        final from = slug;
+        slug = 'renamed_${renames++}';
+        return timedWrite([
+          'rename',
+          'user_story:feature_3/$from',
+          '--to',
+          slug,
+        ]);
+      }),
+      const Duration(seconds: 2),
+    );
+
+    var drafts = 0;
+    expectWithinBound(
+      best('approve calls', () {
+        final draft = 'user_story:feature_4/draft_${drafts++}';
+        ran([
+          'new',
+          'user_story',
+          '--parent',
+          'feature:feature_4',
+          '--slug',
+          draft.split('/').last,
+        ]);
+        return timedWrite(['approve', '$draft@${baseOf(draft)}', '--yes']);
+      }),
+      const Duration(seconds: 2),
+    );
+
+    var doomed = 0;
+    expectWithinBound(
+      best('delete calls', () {
+        final story = 'gone_${doomed++}';
+        ran([
+          'new',
+          'user_story',
+          '--parent',
+          'feature:feature_4',
+          '--slug',
+          story,
+        ]);
+        return timedWrite(['delete', 'user_story:feature_4/$story']);
+      }),
+      const Duration(seconds: 2),
+    );
+
+    // Each call moves the feature map row of feature_1 between first and
+    // second, so every call changes the order.
+    var place = '1';
+    expectWithinBound(
+      best('reorder calls', () {
+        place = place == '1' ? '2' : '1';
+        return timedWrite(['reorder', 'feature:feature_1', '--to', place]);
+      }),
+      const Duration(seconds: 2),
+    );
+  });
+
   test('specstone context for a story whose FR cites an item of another FR '
       'appends the item and answers within 500 ms in the fastest of five '
       'calls', () {
@@ -697,6 +866,7 @@ void main() {
         (session) => approveDryRun(
           session,
           history: ApprovalHistory(runGit: _approvedHistory),
+          generators: noGenerators,
         ),
         templates: TemplateResolver(),
         workingDirectory: root,
@@ -743,6 +913,22 @@ void main() {
       lessThanOrEqualTo(watch.elapsed * Platform.numberOfProcessors + _tick),
     );
   }, testOn: 'mac-os || linux');
+
+  // D8: every write command on the baseline tree adds only content waits.
+  test(
+    'every write command adds only content waits on the baseline tree',
+    () async {
+      final red = <String>[];
+      for (final command in writeCommands) {
+        final root = makeWorkTree(await writeBaselineTree());
+        final added = await newFindingsOf(root, command);
+        red.addAll([
+          for (final line in unallowedLines(command, added)) '$command $line',
+        ]);
+      }
+      expect(red, isEmpty);
+    },
+  );
 }
 
 int _residueSum(int count) {

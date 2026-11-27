@@ -182,7 +182,8 @@ enum FindingKind {
   taskRefLeftover('task_ref_leftover'),
   retrimDue('retrim_due'),
   singularDocMissing('singular_doc_missing'),
-  layerDocTypeDropped('layer_doc_type_dropped');
+  layerDocTypeDropped('layer_doc_type_dropped'),
+  generatedBlockStale('generated_block_stale');
 
   new(this.wire);
 

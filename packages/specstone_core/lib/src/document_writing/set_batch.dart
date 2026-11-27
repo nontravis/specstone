@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/models/batch_block.dart';
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
 import 'package:specstone_core/src/document_writing/models/parsed_batch.dart';
@@ -18,6 +19,7 @@ import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/fault.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart'
     show basesOf, printedPart, sectionBaseOf, wholeDocBaseOf;
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -26,6 +28,8 @@ import 'package:specstone_core/src/index_query/matrix_rows.dart'
     show withoutMatrixSection;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The `key` a whole-doc block carries in its result and its fault line.
@@ -44,8 +48,13 @@ const _titleKey = 'title';
 /// write lock; any refusal throws one [BatchFault] naming all, before a write.
 /// Each doc a changed block reaches is written once, through one journal.
 /// `json` is `{'blocks': [...]}`: `name`, `docType`, `path`, `key`, `base`,
-/// `draft`, and `written` per block.
-ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
+/// `draft`, and `written` per block, and `rewritten`: each generated block of
+/// [generators] the write makes stale joins the journal ([blockRefreshOf]).
+ReadAnswer answerSetBatch(
+  WriteSession session,
+  ParsedBatch parsed, {
+  required GeneratorRegistry<DocIndex> generators,
+}) {
   final refusals = <_Refusal>[
     for (final entry in parsed.lineFaults)
       _Refusal(line: entry.line!, entry: entry),
@@ -56,10 +65,41 @@ ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
   return session.locked(() {
     final checks = _checkDocs(session, planned, refusals);
     if (refusals.isNotEmpty) throw _refused(refusals);
-    final writes = _writesOf(session, checks);
-    final steps = [for (final write in writes.values) write.step];
+    final own = _writesOf(session, checks);
+    final refresh = blockRefreshOf(
+      session,
+      generators,
+      WrittenDocs(
+        texts: {
+          for (final MapEntry(:key, :value) in own.entries) key: value.lfText,
+        },
+      ),
+    );
+    final writes = {
+      for (final MapEntry(key: docPath, value: write) in own.entries)
+        docPath: switch (refresh.ownTexts[docPath]) {
+          final filled? => _Write(
+            step: session.docWriteStep(
+              docPath,
+              filled,
+              checks[docPath]!.disk.bytes,
+            ),
+            lfText: filled,
+          ),
+          null => write,
+        },
+    };
+    final steps = [
+      for (final write in writes.values) write.step,
+      ...refresh.steps,
+    ];
     if (steps.isNotEmpty) MoveJournal(steps).run(session.journalTarget);
-    return _answerOf(planned, checks, writes);
+    final answer = _answerOf(planned, checks, writes);
+    return ReadAnswer(
+      text: '${answer.text}${refresh.linesOf()}',
+      json: {...answer.json, ...refresh.json},
+      warnings: refresh.refused,
+    );
   });
 }
 

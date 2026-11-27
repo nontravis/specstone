@@ -19,6 +19,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
@@ -1271,7 +1272,12 @@ void main() {
     final nested = await writeNestedProject();
     final answer = writeIn(
       nested,
-      (s) => answerRename(s, 'feature:shop/cart', slug: 'basket'),
+      (s) => answerRename(
+        s,
+        'feature:shop/cart',
+        slug: 'basket',
+        generators: noGenerators,
+      ),
     );
     expect(answer.json['rewritten'], contains(shopApi));
     final stock = fingerprintFor(checkStockStatement);
@@ -1460,7 +1466,12 @@ void main() {
         );
         writeIn(
           nested,
-          (s) => answerRename(s, 'feature:shop/cart', slug: 'basket'),
+          (s) => answerRename(
+            s,
+            'feature:shop/cart',
+            slug: 'basket',
+            generators: noGenerators,
+          ),
         );
         final text = readDoc(nested, shopApi);
         expect(text, contains('| basket/add_item/check_stock | `addItem` |'));

@@ -1,11 +1,10 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/models/nesting_segment.dart';
 import 'package:specstone_core/src/templates/models/pattern_move.dart';
 
-final _placeholder = RegExp(r'\{nn\}|\{slug\}');
-
 int _placeholderCount(Iterable<String> segments) =>
-    segments.fold(0, (sum, s) => sum + _placeholder.allMatches(s).length);
+    segments.fold(0, (sum, s) => sum + PathSegment.placeholderCount(s));
 
 /// Returns the folder segment of [path] that repeats for [nesting], or null.
 ///

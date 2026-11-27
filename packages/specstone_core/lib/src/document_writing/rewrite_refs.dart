@@ -582,6 +582,10 @@ final class _Rewritten {
 /// landing, which runs before the other rewrites. [blocks] gives where a moved
 /// block sits after the call. [createdTexts] gives, by DocPath, the text of
 /// each doc the call creates, which the re-stamp pass reads as written.
+/// [prefilter] parses for links and mentions only the docs whose stored text
+/// can name a moved path or an old Name ([docPathsNamingMoves],
+/// [docPathsNamingOldNames]); false parses every doc, the same rewrites
+/// slower, so a test can compare the two.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 PlannedRewrites planRewrites(
@@ -593,25 +597,34 @@ PlannedRewrites planRewrites(
   Map<String, String> createdTexts = const {},
   List<CreateStep> creates = const [],
   BlockMoves blocks = const BlockMoves.none(),
+  bool prefilter = true,
 }) {
   final index = session.index;
   final renamedDocs = _renamedDocsOf(index, moves, renamed);
+  final namingMoves = prefilter ? docPathsNamingMoves(index, moves) : null;
+  final namingOldNames = prefilter
+      ? docPathsNamingOldNames(index, renamed)
+      : null;
   final candidates = <String, IndexedDoc>{};
   for (final doc in index.docs) {
-    if (movedPath(doc.docPath, moves) != doc.docPath) {
+    final isMoved = movedPath(doc.docPath, moves) != doc.docPath;
+    if (isMoved) {
       for (final linker in index.linkingTo(doc)) {
         candidates[linker.docPath] = linker;
       }
     }
-    if (_linksToMovedFile(index, doc, moves) ||
+    final mayReachMoves =
+        isMoved || (namingMoves?.contains(doc.docPath) ?? true);
+    if ((mayReachMoves && _linksToMovedFile(index, doc, moves)) ||
         _movesWithChangedLink(index, doc, moves) ||
-        _mentionsMovedFile(session, doc, moves)) {
+        (mayReachMoves && _mentionsMovedFile(session, doc, moves))) {
       candidates[doc.docPath] = doc;
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
         _mentionsRenamedDoc(index, doc, renamed) ||
         _namesRenamedLabel(session, doc, renamed) ||
-        _textsRenamedDoc(index, doc, moves, renamed, renamedDocs)) {
+        ((namingOldNames?.contains(doc.docPath) ?? true) &&
+            _textsRenamedDoc(index, doc, moves, renamed, renamedDocs))) {
       candidates[doc.docPath] = doc;
     }
   }
@@ -662,6 +675,49 @@ PlannedRewrites planRewrites(
         ),
     ],
   );
+}
+
+/// The marks a link destination may spell a path character with: a percent
+/// escape, a backslash escape, and an entity reference.
+const _spellingMarks = ['%', r'\', '&'];
+
+/// Returns the DocPath of each doc of [index] whose text may hold a link or a
+/// path mention that reaches a path [moves] move, the docs that move left out.
+///
+/// From a doc that stays, a path into a moved folder or file walks into it by
+/// its last segment, so the text holds that segment as written, or a mark
+/// that spells one of its characters. A doc outside the set that does not
+/// move holds no such link or mention, so the planner never parses it.
+Set<String> docPathsNamingMoves(DocIndex index, List<PathMove> moves) {
+  final segments = {
+    for (final move in moves)
+      if (move.from.split('/').where((s) => s.isNotEmpty) case final parts
+          when parts.isNotEmpty)
+        parts.last,
+  };
+  if (segments.isEmpty) return const {};
+  return {
+    for (final needle in [...segments, ..._spellingMarks])
+      for (final doc in index.holding(needle)) doc.docPath,
+  };
+}
+
+/// Returns the DocPath of each doc of [index] whose text holds the old Name of
+/// a doc [renamed] renames, as [RenamedNames.anyOldNameIn] reads it.
+///
+/// An old Name that holds another is left out of the search, since a text
+/// that holds it holds the other too.
+Set<String> docPathsNamingOldNames(DocIndex index, RenamedNames renamed) {
+  final names = renamed.oldNames.toList()
+    ..sort((a, b) => a.length.compareTo(b.length));
+  final needles = <String>[];
+  for (final name in names) {
+    if (!needles.any(name.contains)) needles.add(name);
+  }
+  return {
+    for (final needle in needles)
+      for (final doc in index.holding(needle)) doc.docPath,
+  };
 }
 
 /// Returns the docs of [index] whose Name [renamed] changes under [moves], by

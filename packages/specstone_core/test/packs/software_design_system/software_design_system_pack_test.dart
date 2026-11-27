@@ -20,6 +20,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/sentence_case.dart';
@@ -726,7 +727,10 @@ void main() {
         'docs/.keep': '',
       });
 
-      final answer = writeIn(root, (s) => answerNew(s, docTypeId: 'motion'));
+      final answer = writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'motion', generators: noGenerators),
+      );
 
       const path = 'specs/design_system/foundations/MOTION.md';
       expect(answer.text, startsWith('==> motion (motion) · $path <=='));

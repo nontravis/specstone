@@ -28,6 +28,7 @@ import '../../helpers/failing_rename.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
@@ -128,6 +129,7 @@ void main() {
         codeTarget: codeTarget,
         readLine: () => queue.isEmpty ? null : queue.removeAt(0),
         prompts: prompts ?? StringBuffer(),
+        generators: noGenerators,
       ),
     );
   }
@@ -170,6 +172,8 @@ void main() {
       expect(answer.text, '$story3\n$fr31\n$fr32\n');
       expect(answer.json, {
         'removed': [story3, fr31, fr32],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
         'mentions': <Object>[],
       });
       expect(
@@ -277,6 +281,7 @@ void main() {
           return 'y';
         },
         prompts: prompts,
+        generators: noGenerators,
       );
     });
     expect(runs, 1);
@@ -300,7 +305,9 @@ void main() {
     final root = await writeWriteProject(extra: approvedSignOut);
     final answer = writeIn(
       root,
-      (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+      (s) => answerDeleteDryRun(s, [
+        'user_story:login/sign_out',
+      ], generators: noGenerators),
     );
     final hashed = signOutUnit
         .map((path) => '$path ${baseHashOf(toLf(readDoc(root, path)))}\n')
@@ -316,6 +323,8 @@ void main() {
       'files': signOutUnit,
       'guarded': signOutUnit,
       'records': isEmpty,
+      'rewritten': <Object>[],
+      'deleted': <Object>[],
       'mentions': <Object>[],
       'plan': hash,
     });
@@ -331,7 +340,9 @@ void main() {
     ).writeAsStringSync('---\ndraft: true\n---\n\n# End session\n');
     final answer = writeIn(
       root,
-      (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+      (s) => answerDeleteDryRun(s, [
+        'user_story:login/sign_out',
+      ], generators: noGenerators),
     );
     final guarded = [story2, signOutUnit[2]];
     expect(
@@ -352,7 +363,9 @@ void main() {
     final root = await writeWriteProject(extra: withoutLink);
     final answer = writeIn(
       root,
-      (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+      (s) => answerDeleteDryRun(s, [
+        'user_story:login/reset_password',
+      ], generators: noGenerators),
     );
     expect(answer.text, isNot(contains('guarded:')));
     expect(answer.text, isNot(contains('(guarded)')));
@@ -391,7 +404,9 @@ void main() {
         final root = await withMentions();
         final answer = writeIn(
           root,
-          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+          (s) => answerDeleteDryRun(s, [
+            'user_story:login/reset_password',
+          ], generators: noGenerators),
         );
         expect(
           answer.text,
@@ -443,7 +458,9 @@ void main() {
     String planOf() =>
         writeIn(
               root,
-              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+              (s) => answerDeleteDryRun(s, [
+                'user_story:login/sign_out',
+              ], generators: noGenerators),
             ).json['plan']!
             as String;
 
@@ -460,7 +477,9 @@ void main() {
     final hash =
         writeIn(
               root,
-              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+              (s) => answerDeleteDryRun(s, [
+                'user_story:login/sign_out',
+              ], generators: noGenerators),
             ).json['plan']!
             as String;
     final edited = signOutUnit[1];
@@ -487,7 +506,9 @@ void main() {
   String signOutPlan(Directory root) =>
       writeIn(
             root,
-            (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+            (s) => answerDeleteDryRun(s, [
+              'user_story:login/sign_out',
+            ], generators: noGenerators),
           ).json['plan']!
           as String;
 
@@ -550,7 +571,9 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        (s) => answerDeleteDryRun(s, [
+          'user_story:login/reset_password',
+        ], generators: noGenerators),
       ),
       refusesWith(WriteFaultCode.docReferenced),
     );
@@ -562,7 +585,9 @@ void main() {
     final hash =
         writeIn(
               root,
-              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+              (s) => answerDeleteDryRun(s, [
+                'user_story:login/sign_out',
+              ], generators: noGenerators),
             ).json['plan']!
             as String;
     final prompts = StringBuffer();
@@ -616,7 +641,9 @@ void main() {
     String planOf() =>
         writeIn(
               root,
-              (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+              (s) => answerDeleteDryRun(s, [
+                'user_story:login/reset_password',
+              ], generators: noGenerators),
             ).json['plan']!
             as String;
     final hash = planOf();
@@ -668,7 +695,9 @@ void main() {
     Future<void> expectMentions(Directory root, List<String> paths) async {
       final dry = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        (s) => answerDeleteDryRun(s, [
+          'user_story:login/reset_password',
+        ], generators: noGenerators),
       );
       expect(mentionPaths(dry), paths);
       final applied = del(
@@ -782,7 +811,12 @@ void main() {
 
     writeIn(
       root,
-      (s) => answerReorder(s, 'user_story:login/reset_password', place: '2'),
+      (s) => answerReorder(
+        s,
+        'user_story:login/reset_password',
+        place: '2',
+        generators: noGenerators,
+      ),
     );
 
     expect(
@@ -832,6 +866,7 @@ void main() {
               base: 'abc',
             ),
             'Back again.\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -864,6 +899,7 @@ void main() {
             confirmation: OwnerConfirmation.missing,
             readLine: () => null,
             prompts: StringBuffer(),
+            generators: noGenerators,
           );
         }),
         throwsA(
@@ -970,6 +1006,7 @@ void main() {
             confirmation: OwnerConfirmation.missing,
             readLine: () => null,
             prompts: StringBuffer(),
+            generators: noGenerators,
           ),
           templates: templates,
         ),
@@ -1035,6 +1072,7 @@ void main() {
           return 'y';
         },
         prompts: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     expect(otherWriteLanded, isTrue);
@@ -1058,6 +1096,7 @@ void main() {
             confirmation: OwnerConfirmation.prompt,
             readLine: () => 'y',
             prompts: prompts,
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1087,6 +1126,7 @@ void main() {
           confirmation: OwnerConfirmation.prompt,
           readLine: () => 'y',
           prompts: prompts,
+          generators: noGenerators,
         ),
         templates: TemplateResolver(),
         workingDirectory: root,
@@ -1122,7 +1162,9 @@ void main() {
     final hash =
         writeIn(
               root,
-              (s) => answerDeleteDryRun(s, ['user_story:login/sign_out']),
+              (s) => answerDeleteDryRun(s, [
+                'user_story:login/sign_out',
+              ], generators: noGenerators),
             ).json['plan']!
             as String;
     final prompts = StringBuffer();
@@ -1218,6 +1260,7 @@ void main() {
               return 'y';
             },
             prompts: prompts,
+            generators: noGenerators,
           ),
         );
         expect(asked, 2, reason: change);
@@ -1270,7 +1313,12 @@ void main() {
       'user_story:login/sign_out',
     ], confirmation: OwnerConfirmation.prompt);
     expect(answer.text, isEmpty);
-    expect(answer.json, {'removed': <String>[], 'mentions': <Object>[]});
+    expect(answer.json, {
+      'removed': <String>[],
+      'rewritten': <Object>[],
+      'deleted': <Object>[],
+      'mentions': <Object>[],
+    });
     expect(hasDoc(root, story2), isTrue);
   });
 
@@ -1347,6 +1395,7 @@ void main() {
             return 'y';
           },
           prompts: StringBuffer(),
+          generators: noGenerators,
         ),
       );
     } on WriteFault catch (fault) {
@@ -1377,6 +1426,7 @@ void main() {
             return 'y';
           },
           prompts: StringBuffer(),
+          generators: noGenerators,
         ),
       ),
       throwsA(isA<RenderFault>()),
@@ -1427,6 +1477,8 @@ void main() {
         final answer = del(root, ['$prefix$scratch']);
         expect(answer.json, {
           'removed': [scratch],
+          'rewritten': <Object>[],
+          'deleted': <Object>[],
           'mentions': <Object>[],
         }, reason: 'prefix "$prefix"');
         expect(hasDoc(root, scratch), isFalse, reason: 'prefix "$prefix"');
@@ -1475,6 +1527,8 @@ void main() {
       expect(prompts.toString(), endsWith('delete 3 files? [y/N] '));
       expect(answer.json, {
         'removed': [errors, notes, index]..sort(),
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
         'mentions': <Object>[],
       });
       for (final path in [notes, errors, index]) {
@@ -1548,6 +1602,8 @@ void main() {
 
       expect(answer.json, {
         'removed': [scratch],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
         'mentions': <Object>[],
       });
       expect(answer.warnings, [
@@ -1562,7 +1618,10 @@ void main() {
       () async {
         final root = await writeWriteProject(extra: withPlan);
 
-        final answer = writeIn(root, (s) => answerDeleteDryRun(s, [scratch]));
+        final answer = writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, [scratch], generators: noGenerators),
+        );
 
         expect(answer.json['files'], [scratch]);
         expect(answer.warnings, [
@@ -1626,6 +1685,8 @@ void main() {
 
         expect(answer.json, {
           'removed': [scratch, plan]..sort(),
+          'rewritten': <Object>[],
+          'deleted': <Object>[],
           'mentions': <Object>[],
         });
         expect(answer.warnings, isEmpty);
@@ -1640,6 +1701,8 @@ void main() {
       ]);
       expect(answer.json, {
         'removed': [story3, fr31, fr32],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
         'mentions': <Object>[],
       });
     });
@@ -1655,7 +1718,9 @@ void main() {
       final alone =
           writeIn(
                 root,
-                (s) => answerDeleteDryRun(s, ['feature:login']),
+                (s) => answerDeleteDryRun(s, [
+                  'feature:login',
+                ], generators: noGenerators),
               ).json['files']!
               as List;
       final prompts = StringBuffer();
@@ -1687,6 +1752,8 @@ void main() {
       final answer = del(root, [scratch, scratch]);
       expect(answer.json, {
         'removed': [scratch],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
         'mentions': <Object>[],
       });
     });
@@ -1767,7 +1834,8 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['feature:login']),
+        (s) =>
+            answerDeleteDryRun(s, ['feature:login'], generators: noGenerators),
       );
 
       expect(answer.warnings, [mentionWarning]);
@@ -1919,7 +1987,8 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['feature:login']),
+        (s) =>
+            answerDeleteDryRun(s, ['feature:login'], generators: noGenerators),
       );
 
       expect(answer.warnings, [
@@ -2125,7 +2194,12 @@ void main() {
       final root = await writeWriteProject(extra: _withRecords());
       final signupBefore = readDoc(root, _signupRecord);
       final answer = del(root, ['user_story:login/reset_password']);
-      expect(answer.json, {'removed': removedStory3, 'mentions': <Object>[]});
+      expect(answer.json, {
+        'removed': removedStory3,
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
+        'mentions': <Object>[],
+      });
       expect(answer.text, '${removedStory3.join('\n')}\n');
       expect(
         readDoc(root, _loginRecord),
@@ -2254,7 +2328,9 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+          (s) => answerDeleteDryRun(s, [
+            'user_story:login/reset_password',
+          ], generators: noGenerators),
         ),
         refusesRecord(),
       );
@@ -2284,7 +2360,9 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+          (s) => answerDeleteDryRun(s, [
+            'user_story:login/reset_password',
+          ], generators: noGenerators),
         ),
         refusesRecord,
       );
@@ -2327,7 +2405,9 @@ void main() {
       );
       final answer = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['feature:shop/cart']),
+        (s) => answerDeleteDryRun(s, [
+          'feature:shop/cart',
+        ], generators: noGenerators),
       );
       expect(answer.json['records'], isEmpty);
       expect(answer.json['files'], contains(_cartRecord));
@@ -2342,7 +2422,9 @@ void main() {
       final root = await writeWriteProject(extra: _withRecords());
       final answer = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        (s) => answerDeleteDryRun(s, [
+          'user_story:login/reset_password',
+        ], generators: noGenerators),
       );
       final hashed = [
         for (final path in removedStory3)
@@ -2368,6 +2450,8 @@ void main() {
             ],
           },
         ],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
         'mentions': <Object>[],
         'plan': hash,
       });
@@ -2380,8 +2464,9 @@ void main() {
       String planOf() =>
           writeIn(
                 root,
-                (s) =>
-                    answerDeleteDryRun(s, ['user_story:login/reset_password']),
+                (s) => answerDeleteDryRun(s, [
+                  'user_story:login/reset_password',
+                ], generators: noGenerators),
               ).json['plan']!
               as String;
       final hash = planOf();
@@ -2409,7 +2494,12 @@ void main() {
         confirmation: OwnerConfirmation.given,
         planHash: hash,
       );
-      expect(answer.json, {'removed': removedStory3, 'mentions': <Object>[]});
+      expect(answer.json, {
+        'removed': removedStory3,
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
+        'mentions': <Object>[],
+      });
       expect(hasDoc(root, story3), isFalse);
       expect(readDoc(root, _loginRecord), isNot(contains('reset_password')));
     });
@@ -2436,7 +2526,9 @@ void main() {
 
       final dry = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        (s) => answerDeleteDryRun(s, [
+          'user_story:login/reset_password',
+        ], generators: noGenerators),
       );
       expect(
         dry.text,
@@ -2480,6 +2572,7 @@ void main() {
             return 'n';
           },
           prompts: prompts,
+          generators: noGenerators,
         ),
       );
       const list =
@@ -2579,7 +2672,7 @@ void main() {
           root,
           (s) => answerDeleteDryRun(s, [
             'fr:login/reset_password/expire_reset_link',
-          ]),
+          ], generators: noGenerators),
         );
 
         expect(answer.json['records'], [
@@ -2614,6 +2707,8 @@ void main() {
         jasprRecord: recordText(statuses: twinStatuses),
         // the API doc names the story's FR in its trace; free it of the link
         'docs/${check.loginApi}': '# Login API\n',
+        // the feature map's catalog links the feature; free it of the link
+        'docs/prds/FEATURES.md': '# Feature map\n',
       },
     );
 
@@ -2669,8 +2764,12 @@ void main() {
     test('--target names one twin of a per-target doc, and the delete takes that file alone', () async {
       final root = await twins();
       expect(
-        () =>
-            writeIn(root, (s) => answerDeleteDryRun(s, ['architecture:login'])),
+        () => writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, [
+            'architecture:login',
+          ], generators: noGenerators),
+        ),
         throwsA(
           isA<IndexFault>().having(
             (f) => f.code,
@@ -2681,8 +2780,12 @@ void main() {
       );
       final dry = writeIn(
         root,
-        (s) =>
-            answerDeleteDryRun(s, ['architecture:login'], codeTarget: 'jaspr'),
+        (s) => answerDeleteDryRun(
+          s,
+          ['architecture:login'],
+          codeTarget: 'jaspr',
+          generators: noGenerators,
+        ),
       );
       expect(dry.json['files'], [jasprArchitecture]);
       final answer = del(
@@ -2700,9 +2803,12 @@ void main() {
       final root = await twins();
       final answer = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, [
-          'user_story:login/email_login',
-        ], codeTarget: 'jaspr'),
+        (s) => answerDeleteDryRun(
+          s,
+          ['user_story:login/email_login'],
+          codeTarget: 'jaspr',
+          generators: noGenerators,
+        ),
       );
       expect(answer.json['files'], hasLength(3));
       expect(answer.json['records'], [
@@ -2712,9 +2818,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerDeleteDryRun(s, [
-            'user_story:login/email_login',
-          ], codeTarget: 'dart'),
+          (s) => answerDeleteDryRun(
+            s,
+            ['user_story:login/email_login'],
+            codeTarget: 'dart',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>().having(
@@ -2771,7 +2880,8 @@ void main() {
       final root = await recordProject();
       final answer = writeIn(
         root,
-        (s) => answerDeleteDryRun(s, ['feature:login']),
+        (s) =>
+            answerDeleteDryRun(s, ['feature:login'], generators: noGenerators),
       );
       expect(answer.json['files'], contains(record));
       expect(answer.text, contains('$record (guarded)\n'));
@@ -2801,7 +2911,9 @@ void main() {
         final root = await signupProject(approved: true);
         final answer = writeIn(
           root,
-          (s) => answerDeleteDryRun(s, ['feature:signup']),
+          (s) => answerDeleteDryRun(s, [
+            'feature:signup',
+          ], generators: noGenerators),
         );
         expect(answer.json['guarded'], [signupRecord]);
         expect(

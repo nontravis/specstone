@@ -6,6 +6,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart';
 
 const _target = 'fr:login/reset_password/expire_reset_link';
@@ -22,6 +23,7 @@ void _delete(Directory root) => writeIn(
     confirmation: OwnerConfirmation.missing,
     readLine: () => null,
     prompts: StringBuffer(),
+    generators: noGenerators,
   ),
 );
 

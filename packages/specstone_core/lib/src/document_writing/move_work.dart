@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart'
     show MatchedDocType;
+import 'package:specstone_core/src/document_writing/doc_placement.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/item_landing.dart'
     show numberedByPosition;
 import 'package:specstone_core/src/document_writing/item_mentions.dart';
@@ -34,10 +36,13 @@ import 'package:specstone_core/src/document_writing/sibling_ledger.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -121,6 +126,9 @@ final class MoveWork {
 ///
 /// The numbers of created docs and moved docs are taken again under the
 /// lock, since a concurrent `new` can claim one in between.
+/// Each doc whose generated blocks the call makes stale is rewritten with
+/// [generators] in its journal and listed in its reply ([blockRefreshOf]); a
+/// dry run lists them.
 /// Throws the faults of [DocMoveGroup]'s move, [planNewDoc], and
 /// `RenderFault` `output_not_writable`.
 ReadAnswer applyMoveWork(
@@ -128,6 +136,7 @@ ReadAnswer applyMoveWork(
   MoveWork work, {
   required MoveReplyShape shape,
   required bool dryRun,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final placed = _Placed.of(session, work);
   if (placed.isEmpty &&
@@ -147,16 +156,52 @@ ReadAnswer applyMoveWork(
       {for (final created in now.created) created.docPath: created.content},
       () => _Writes.of(session, work, now),
     );
+    requireMovePlaced(
+      session,
+      now.moves,
+      created: [
+        for (final created in now.created)
+          LandedDoc(
+            docPath: created.docPath,
+            docTypeId: created.doc.docTypeId,
+            target: created.doc.target,
+          ),
+      ],
+      creates: writes.planned.creates,
+    );
+    final createdSteps = [
+      for (final created in now.created)
+        CreateStep(
+          session.projectPathOf(created.docPath),
+          writes.createdTexts[created.docPath]!,
+        ),
+    ];
+    final creates = [...createdSteps, ...writes.planned.creates];
+    final refresh = blockRefreshOf(
+      session,
+      generators,
+      movedDocsOf(
+        session,
+        now.moves,
+        rewrites: writes.planned.rewrites,
+        creates: creates,
+      ),
+      dryRun: dryRun,
+    );
+    final filled = withOwnTexts(
+      session,
+      refresh,
+      now.moves,
+      rewrites: writes.planned.rewrites,
+      creates: creates,
+    );
     if (!dryRun) {
       MoveJournal([
-        for (final created in now.created)
-          CreateStep(
-            session.projectPathOf(created.docPath),
-            writes.createdTexts[created.docPath]!,
-          ),
+        ...filled.creates.take(createdSteps.length),
         ...now.steps(session),
-        ...writes.planned.rewrites,
-        ...writes.planned.creates,
+        ...filled.rewrites,
+        ...filled.creates.skip(createdSteps.length),
+        ...refresh.steps,
       ]).run(session.journalTarget);
     }
     return moveReplyOf(
@@ -164,13 +209,18 @@ ReadAnswer applyMoveWork(
       shape: shape,
       created: [for (final created in now.created) created.docPath],
       moves: now.moves,
-      landings: work.landings,
-      keyed: work.keyed,
+      landed: writes.landed,
       renumberings: work.renumberings,
-      rewrites: writes.planned.rewrites,
-      recordCreates: writes.planned.creates,
+      rewrites: filled.rewrites,
+      recordCreates: [...filled.creates.skip(createdSteps.length)],
       mentions: writes.mentions,
       dryRun: dryRun,
+      refreshed: [
+        for (final docPath in refresh.docPaths)
+          if (!now.creates(docPath)) docPath,
+      ],
+      deleted: refresh.deletedPaths,
+      warnings: refresh.refused,
     );
   });
 }
@@ -185,7 +235,7 @@ RenamedNames renamedNamesAfter(WriteSession session, MoveWork work) =>
 /// The writes of one move call, planned under its lock, and the mentions
 /// they leave.
 final class _Writes {
-  const new(this.planned, this.createdTexts, this.mentions);
+  const new(this.planned, this.createdTexts, this.landed, this.mentions);
 
   /// Plans the reference rewrites, record edits, item landings, and position
   /// numbers of [work] with [now]'s moves, through one re-stamp pass.
@@ -216,10 +266,8 @@ final class _Writes {
       itemRefs.edits,
       _numberingEdits(session, work.renumberings, now),
     );
-    final itemEdits = chainedEdits(
-      numbered,
-      _keyedEdits(session, work, numbered, now),
-    );
+    final keyedWrites = _keyedEdits(session, work, numbered, now);
+    final itemEdits = chainedEdits(numbered, keyedWrites.edits);
     final rows = planEdgeCaseRowMoves(
       session,
       work.landings,
@@ -258,7 +306,7 @@ final class _Writes {
       creates: [...records.creates, ...rows.creates],
       blocks: items.isEmpty ? const BlockMoves.none() : BlockMoves.of(items),
     );
-    return _Writes(planned, createdTexts, [
+    return _Writes(planned, createdTexts, _landedOf(work, keyedWrites), [
       if (now.moves.isNotEmpty)
         ...staleMentions(
           session,
@@ -283,8 +331,33 @@ final class _Writes {
 
   /// The text of each doc the call creates, by DocPath.
   final Map<String, String> createdTexts;
+
+  /// Each unit as the write lands it, items first, then blocks and rows, in
+  /// plan line order.
+  final List<LandedUnit> landed;
   final List<StaleMention> mentions;
 }
+
+/// Returns each unit of [work] as the writes land it: an item at its landed
+/// ID, a block or row at the key [keyedWrites] wrote.
+List<LandedUnit> _landedOf(MoveWork work, KeyedWrites keyedWrites) => [
+  for (final landing in work.landings)
+    LandedUnit(
+      fromDoc: landing.from.doc.docPath,
+      fromAddress: landing.from.id,
+      toDoc: landing.to.docPath,
+      toAddress: landing.newId,
+      isItem: true,
+    ),
+  for (final (at, landing) in work.keyed.indexed)
+    LandedUnit(
+      fromDoc: landing.from.docPath,
+      fromAddress: landing.address,
+      toDoc: landing.to.docPath,
+      toAddress: keyedWrites.landed[at],
+      isItem: false,
+    ),
+];
 
 /// Throws [WriteFault] `doc_exists` when a doc took the place of a doc the
 /// call creates between [judged] and [now], which items were planned to land
@@ -315,10 +388,10 @@ String _createdText(
   return layOutDoc(linked, session.index.typeOf(created.doc));
 }
 
-/// Returns, by DocPath, the edits that move and order the blocks and rows of
-/// [work], each doc read from its text once [itemEdits] ran on it, a doc
-/// [now] creates from its skeleton.
-Map<String, TextEdit> _keyedEdits(
+/// Returns the edits, by DocPath, that move and order the blocks and rows of
+/// [work] with the addresses they land at, each doc read from its text once
+/// [itemEdits] ran on it, a doc [now] creates from its skeleton.
+KeyedWrites _keyedEdits(
   WriteSession session,
   MoveWork work,
   Map<String, TextEdit> itemEdits,

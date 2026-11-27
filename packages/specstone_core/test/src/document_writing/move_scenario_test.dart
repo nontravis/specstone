@@ -19,6 +19,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -111,6 +112,7 @@ ReadAnswer _move(
     top: top,
     codeTarget: codeTarget,
     dryRun: dryRun,
+    generators: noGenerators,
   ),
 );
 
@@ -345,6 +347,7 @@ void main() {
         session,
         parseMovePlan('$_addItem#S1 keep\n$_addItem#S2 keep\n', path: 'p'),
         dryRun: false,
+        generators: noGenerators,
       ),
     );
     expect(

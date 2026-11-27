@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/nested_fixture.dart' show shopDomain, writeNestedProject;
+import '../../helpers/no_generators.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/write_fixture.dart' show writeIn;
 
@@ -84,9 +85,12 @@ void main() {
     expect(before, ['$payDomain INV-3 docs/$payDomain']);
     final answer = writeIn(
       project,
-      (session) => answerMove(session, [
-        'rulebook:shop#INV-1',
-      ], under: 'rulebook:shop/cart'),
+      (session) => answerMove(
+        session,
+        ['rulebook:shop#INV-1'],
+        under: 'rulebook:shop/cart',
+        generators: noGenerators,
+      ),
     );
     expect(answer.json['mentions'], isEmpty);
     expect(await missing(), before);

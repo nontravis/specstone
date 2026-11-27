@@ -550,4 +550,28 @@ void main() {
       },
     );
   });
+
+  // D7
+  test('a rename landing a doc at an unplaced path exits 64', () async {
+    final root = await writeWriteProject(
+      extra: {
+        '.specstone/templates/spike.yaml':
+            'id: spike\ndescription: A spike.\n'
+            'path: specs/f{nn}_login/SPIKE.md\n',
+        'docs/specs/f01_login/SPIKE.md': '# Spike\n',
+      },
+    );
+    final before = _docsOf(root);
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run(['rename', 'feature:login', '--to', 'sign_in']),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains('specs/f01_sign_in/SPIKE.md matches no doc type'),
+    );
+    expect(_docsOf(root), before);
+  });
 }

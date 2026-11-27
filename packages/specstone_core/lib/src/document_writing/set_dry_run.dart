@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/document_writing/clean_draft_judge.dart'
     show carriedFindingsOf, findingKeyOf;
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/held_items.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/retired_ids.dart';
@@ -22,6 +23,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -102,13 +105,17 @@ final class DryRunRequest {
 /// `WriteFault` `base_mismatch`, `required_target`, or `migrate_pending`, and a
 /// `RenderFault` for a pending journal no run on this machine wrote; never one
 /// for a missing trust record. A target that is no section or lead throws
-/// `IndexFault` `argument_conflict`.
+/// `IndexFault` `argument_conflict`. It also prints one `rewrites` line per
+/// doc whose generated blocks the write would rewrite with [generators]
+/// ([planBlockRefresh]), listed in the json's `rewritten`, and refuses a
+/// read-only one as the write does.
 Future<ReadAnswer> answerSetDryRun(
   ReadSession session,
   DryRunRequest request,
   String text, {
   required Directory? homeDirectory,
   MermaidNodeRun? mermaidRunner,
+  required GeneratorRegistry<DocIndex> generators,
 }) async {
   final target = request.target;
   if (target is! SectionTarget && target is! LeadTarget) {
@@ -161,10 +168,18 @@ Future<ReadAnswer> answerSetDryRun(
     written: written,
     mermaidRunner: mermaidRunner,
   );
+  final refresh = planBlockRefresh(
+    session.project,
+    session.index,
+    generators,
+    WrittenDocs(texts: {doc.docPath: written}),
+  );
   return ReadAnswer(
-    text: '${partNamingLineOf(doc, target, currentBase)}\n${report.text}',
-    json: {'findings': report.json['findings']!},
-    warnings: report.warnings,
+    text:
+        '${partNamingLineOf(doc, target, currentBase)}\n${report.text}'
+        '${refresh.linesOf(dryRun: true)}',
+    json: {'findings': report.json['findings']!, ...refresh.json},
+    warnings: [...report.warnings, ...refresh.refused],
   );
 }
 

@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/approval_writes.dart'
+    show writeApprovals;
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/audited_copy_store.dart';
 import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
@@ -28,6 +30,8 @@ import '../../helpers/check_fixture.dart'
     as check
     show checkOf, edit, loginRecord, loginStory, writeCheckProject;
 import '../../helpers/git_repo.dart';
+import '../../helpers/no_generators.dart';
+import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/temp_tree.dart';
@@ -47,8 +51,13 @@ String approvedMark(Directory root, String docPath) {
 }
 
 /// Whether a walk of [root] shows the doc at [docPath].
-bool walksDoc(Directory root, String docPath) =>
-    writeIn(root, (s) => approveDryRun(s).text.contains('`docs/$docPath`'));
+bool walksDoc(Directory root, String docPath) => writeIn(
+  root,
+  (s) => approveDryRun(
+    s,
+    generators: noGenerators,
+  ).text.contains('`docs/$docPath`'),
+);
 
 /// Returns an LF feature body whose ApprovalHash matches `shape`, found by
 /// trying a counter in the text.
@@ -83,6 +92,7 @@ void main() {
         names: ['signup'],
         readLine: answers(['y', 'y']),
         out: out,
+        generators: noGenerators,
       ),
     );
     expect(
@@ -118,6 +128,7 @@ void main() {
               s,
               SetRequest.parse('feature:signup#problem', base: base),
               'Users sign up.\n',
+              generators: noGenerators,
             ),
           );
         }
@@ -131,6 +142,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answer,
           out: out,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -169,6 +181,7 @@ void main() {
         names: ['feature:signup'],
         readLine: answer,
         out: out,
+        generators: noGenerators,
       ),
     );
     expect('### Draft 1/2 · Signup\n'.allMatches(out.toString()), hasLength(1));
@@ -205,6 +218,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['q']),
           out: out,
+          generators: noGenerators,
         ),
       );
       expect(out.toString(), contains('@@ -'));
@@ -232,7 +246,8 @@ void main() {
 
     final view = writeIn(
       root,
-      (s) => approveDryRun(s, names: ['feature:signup']),
+      (s) =>
+          approveDryRun(s, names: ['feature:signup'], generators: noGenerators),
     ).text;
 
     expect(
@@ -260,6 +275,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['q']),
           out: out,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -296,6 +312,7 @@ void main() {
           names: ['feature:signup', 'user_story:login/reset_password', 'login'],
           readLine: answers(List.filled(12, 'n')),
           out: out,
+          generators: noGenerators,
         ),
       );
       final shown = out.toString();
@@ -330,6 +347,7 @@ void main() {
             names: ['feature:signup', 'feature:nosuch'],
             readLine: answers(['y']),
             out: out,
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -355,6 +373,7 @@ void main() {
         names: ['architecture:signup'],
         readLine: answers(['q']),
         out: out,
+        generators: noGenerators,
       ),
     );
     final shown = out.toString();
@@ -370,7 +389,11 @@ void main() {
         final root = await writeWriteProject();
         final answer = writeIn(
           root,
-          (s) => approveDryRun(s, names: ['feature:signup']),
+          (s) => approveDryRun(
+            s,
+            names: ['feature:signup'],
+            generators: noGenerators,
+          ),
         );
         final shown = answer.text;
         expect(shown.indexOf('### Draft 1/2 · '), isNonNegative);
@@ -397,7 +420,11 @@ void main() {
       final answer = writeIn(root, (s) {
         // the index already holds both drafts; the file goes before selection
         docFile(root, signupFeature).deleteSync();
-        return approveDryRun(s, names: ['feature:signup']);
+        return approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        );
       });
       expect(answer.text, startsWith('### Draft 1/1 · Signup architecture\n'));
       expect(answer.text, isNot(contains('/2')));
@@ -420,6 +447,7 @@ void main() {
             out: out,
             context: context,
             color: color,
+            generators: noGenerators,
           ),
         );
         final dry = writeIn(
@@ -429,6 +457,7 @@ void main() {
             names: ['login'],
             context: context,
             color: color,
+            generators: noGenerators,
           ),
         );
         expect(_prompt.allMatches(out.toString()), hasLength(5));
@@ -443,13 +472,19 @@ void main() {
       final root = await writeWriteProject();
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['architecture:login']),
+        (s) => approveDryRun(
+          s,
+          names: ['architecture:login'],
+          generators: noGenerators,
+        ),
       );
       expect(answer.text, 'no draft waits for approval\n');
       expect(answer.json, {
         'drafts': <Object>[],
         'count': 0,
         'approveMode': 'ask',
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
       });
     });
 
@@ -465,6 +500,7 @@ void main() {
                 s,
                 names: ['feature:signup'],
                 approveModeVariable: variable,
+                generators: noGenerators,
               ),
             );
             expect(answer.json['approveMode'], 'ask');
@@ -481,6 +517,7 @@ void main() {
             s,
             names: ['feature:signup'],
             approveModeVariable: 'auto',
+            generators: noGenerators,
           ),
         );
         expect(answer.json['approveMode'], 'auto');
@@ -498,6 +535,7 @@ void main() {
                 s,
                 names: ['feature:signup'],
                 approveModeVariable: value,
+                generators: noGenerators,
               ),
             );
             expect(answer.json['approveMode'], 'ask');
@@ -516,12 +554,15 @@ void main() {
             s,
             names: ['architecture:login'],
             approveModeVariable: 'auto',
+            generators: noGenerators,
           ),
         );
         expect(answer.json, {
           'drafts': <Object>[],
           'count': 0,
           'approveMode': 'auto',
+          'rewritten': <Object>[],
+          'deleted': <Object>[],
         });
       });
     });
@@ -531,7 +572,11 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => approveDryRun(s, names: ['feature:signup', 'feature:nosuch']),
+          (s) => approveDryRun(
+            s,
+            names: ['feature:signup', 'feature:nosuch'],
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>().having(
@@ -547,7 +592,12 @@ void main() {
       final root = await writeWriteProject();
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup'], color: true),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          color: true,
+          generators: noGenerators,
+        ),
       );
       expect(answer.text, contains('\x1b[32m+# Signup'));
     });
@@ -569,7 +619,12 @@ void main() {
       commitAll(root, 'edited as a draft');
       String viewWith(int? context) => writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup'], context: context),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          context: context,
+          generators: noGenerators,
+        ),
       ).text;
       final whole = viewWith(null);
       final narrow = viewWith(0);
@@ -593,7 +648,8 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, saveAuditedCopies: true),
+        (s) =>
+            approveDryRun(s, saveAuditedCopies: true, generators: noGenerators),
       );
 
       expect(answer.json, containsPair('count', isPositive));
@@ -610,7 +666,7 @@ void main() {
     test('a text dry run saves no audited copy', () async {
       final root = await project();
 
-      writeIn(root, approveDryRun);
+      writeIn(root, (s) => approveDryRun(s, generators: noGenerators));
 
       expect(
         Directory('${root.path}/.specstone/audited').existsSync(),
@@ -639,13 +695,17 @@ void main() {
 
     test("an approval prunes the audited copies of the draft it approves and keeps another draft's", () async {
       final root = await project();
-      writeIn(root, (s) => approveDryRun(s, saveAuditedCopies: true));
+      writeIn(
+        root,
+        (s) =>
+            approveDryRun(s, saveAuditedCopies: true, generators: noGenerators),
+      );
       final seen = SeenDraft(
         name: 'feature:signup',
         hash: getDoc(root, 'feature:signup')['base']! as String,
       );
 
-      writeIn(root, (s) => approveNamed(s, [seen]));
+      writeIn(root, (s) => approveNamed(s, [seen], generators: noGenerators));
 
       expect(
         Directory('${root.path}/.specstone/audited/$signupFeature')
@@ -663,7 +723,11 @@ void main() {
     Future<(Directory, String)> auditedProject() async {
       final root = await writeWriteProject();
       final hash = getDoc(root, address)['base']! as String;
-      writeIn(root, (s) => approveDryRun(s, saveAuditedCopies: true));
+      writeIn(
+        root,
+        (s) =>
+            approveDryRun(s, saveAuditedCopies: true, generators: noGenerators),
+      );
       return (root, hash);
     }
 
@@ -687,6 +751,7 @@ void main() {
         saveAuditedCopies: true,
         auditPaths: audits,
         workingDirectory: root,
+        generators: noGenerators,
       ),
     );
 
@@ -852,7 +917,7 @@ void main() {
           seen(root, 'feature:signup'),
           seen(root, 'fr:login/email_login/lock_after_failures'),
           seen(root, 'user_story:login/email_login'),
-        ]),
+        ], generators: noGenerators),
       );
       expect(
         answer.text,
@@ -866,6 +931,8 @@ void main() {
           'fr:login/email_login/lock_after_failures',
           'feature:signup',
         ],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
       });
       expect(
         readDoc(root, signupFeature),
@@ -879,11 +946,70 @@ void main() {
       expect(readDoc(root, fr12), isNot(contains('draft: true')));
     });
 
+    test('writing no approval writes no file and needs no home folder, as an all-asked approve --auto does', () async {
+      final root = await writeWriteProject();
+      // A session's index files are no write of the call.
+      writeInNoHome(root, (_) {});
+      Set<String> paths() => {
+        for (final path in treeBytes(root).keys)
+          if (!path.startsWith('.specstone/index.')) path,
+      };
+      final before = paths();
+
+      final refresh = writeInNoHome(
+        root,
+        (s) => writeApprovals(s, const [], generators: noGenerators),
+      );
+
+      expect(refresh.steps, isEmpty);
+      expect(paths(), before);
+    });
+
+    test('a read-only draft among the named ones refuses them all and approves none', () async {
+      // Anti-goal: a refusal leaves no file behind, with or without a block
+      // refresh in the write.
+      final root = await writeWriteProject();
+      final drafts = [
+        seen(root, 'feature:signup'),
+        seen(root, 'fr:login/email_login/lock_after_failures'),
+        seen(root, 'user_story:login/email_login'),
+      ];
+      final signup = docFile(root, signupFeature);
+      Process.runSync('chmod', ['444', signup.path]);
+      addTearDown(() => Process.runSync('chmod', ['644', signup.path]));
+      final before = {
+        for (final docPath in [story1, fr11, signupFeature])
+          docPath: readDoc(root, docPath),
+      };
+
+      expect(
+        () => writeIn(
+          root,
+          (s) => approveNamed(s, drafts, generators: noGenerators),
+        ),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.outputNotWritable,
+          ),
+        ),
+      );
+      expect({
+        for (final docPath in before.keys) docPath: readDoc(root, docPath),
+      }, before);
+    }, skip: unreadablePathSkipReason() ?? false);
+
     test(
       'a name approves only the draft it names, never the drafts under it',
       () async {
         final root = await writeWriteProject();
-        writeIn(root, (s) => approveNamed(s, [seen(root, 'feature:signup')]));
+        writeIn(
+          root,
+          (s) => approveNamed(s, [
+            seen(root, 'feature:signup'),
+          ], generators: noGenerators),
+        );
         expect(
           readDoc(root, signupFeature),
           contains(approvedMark(root, signupFeature)),
@@ -907,9 +1033,15 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['y', 'n']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
-      writeIn(named, (s) => approveNamed(s, [seen(named, 'feature:signup')]));
+      writeIn(
+        named,
+        (s) => approveNamed(s, [
+          seen(named, 'feature:signup'),
+        ], generators: noGenerators),
+      );
       expect(
         docFile(named, signupFeature).readAsBytesSync(),
         docFile(walked, signupFeature).readAsBytesSync(),
@@ -935,6 +1067,7 @@ void main() {
           s,
           SetRequest.parse('feature:signup#problem', base: base),
           'Users sign up.\n',
+          generators: noGenerators,
         ),
       );
       docFile(
@@ -944,7 +1077,10 @@ void main() {
       final signupBefore = readDoc(root, signupFeature);
       final archBefore = readDoc(root, signupArch);
       expect(
-        () => writeIn(root, (s) => approveNamed(s, drafts)),
+        () => writeIn(
+          root,
+          (s) => approveNamed(s, drafts, generators: noGenerators),
+        ),
         throwsA(
           isA<WriteFault>()
               .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
@@ -974,7 +1110,7 @@ void main() {
           (s) => approveNamed(s, [
             seen(root, 'feature:signup'),
             seen(root, 'feature:login'),
-          ]),
+          ], generators: noGenerators),
         ),
         throwsA(
           isA<WriteFault>()
@@ -1001,7 +1137,7 @@ void main() {
             (s) => approveNamed(s, [
               seen(root, 'feature:signup'),
               const SeenDraft(name: 'feature:nosuch', hash: '000000000000'),
-            ]),
+            ], generators: noGenerators),
           ),
           throwsA(
             isA<IndexFault>().having(
@@ -1022,7 +1158,7 @@ void main() {
           root,
           (s) => approveNamed(s, [
             const SeenDraft(name: 'signup', hash: '000000000000'),
-          ]),
+          ], generators: noGenerators),
         ),
         throwsA(
           isA<IndexFault>().having(
@@ -1039,8 +1175,9 @@ void main() {
       final hash = seen(root, 'user_story:login/email_login').hash;
       writeIn(
         root,
-        (s) =>
-            approveNamed(s, [SeenDraft(name: 'login/email_login', hash: hash)]),
+        (s) => approveNamed(s, [
+          SeenDraft(name: 'login/email_login', hash: hash),
+        ], generators: noGenerators),
       );
       expect(readDoc(root, story1), contains(approvedMark(root, story1)));
     });
@@ -1057,6 +1194,7 @@ void main() {
         names: ['login'],
         readLine: answers(['n', 'q']),
         out: out,
+        generators: noGenerators,
       ),
     );
     expect(_prompt.allMatches(out.toString()), hasLength(2));
@@ -1075,6 +1213,7 @@ void main() {
         names: ['architecture:signup'],
         readLine: answers(['x', 'y']),
         out: out,
+        generators: noGenerators,
       ),
     );
     expect(_prompt.allMatches(out.toString()), hasLength(2));
@@ -1098,6 +1237,7 @@ void main() {
         names: ['architecture:login'],
         readLine: answers([]),
         out: out,
+        generators: noGenerators,
       ),
     );
     expect(out.toString(), 'no draft waits for approval\n');
@@ -1110,8 +1250,12 @@ void main() {
     final out = StringBuffer();
     writeIn(
       root,
-      (s) =>
-          approveDrafts(s, readLine: answers(List.filled(12, 'n')), out: out),
+      (s) => approveDrafts(
+        s,
+        readLine: answers(List.filled(12, 'n')),
+        out: out,
+        generators: noGenerators,
+      ),
     );
     expect(_prompt.allMatches(out.toString()), hasLength(9));
     expect(out.toString(), isNot(contains('notes.md')));
@@ -1131,6 +1275,7 @@ void main() {
         names: ['feature:signup'],
         readLine: answers(['y', 'q']),
         out: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1150,7 +1295,13 @@ void main() {
 
     writeIn(
       root,
-      (s) => approveDrafts(s, names: ['signup'], readLine: answer, out: out),
+      (s) => approveDrafts(
+        s,
+        names: ['signup'],
+        readLine: answer,
+        out: out,
+        generators: noGenerators,
+      ),
     );
     expect(hasDoc(root, signupFeature), isFalse);
     expect(readDoc(root, signupArch), contains('draft: true'));
@@ -1175,7 +1326,13 @@ void main() {
         return 'y';
       }
 
-      approveDrafts(s, names: ['signup'], readLine: answer, out: out);
+      approveDrafts(
+        s,
+        names: ['signup'],
+        readLine: answer,
+        out: out,
+        generators: noGenerators,
+      );
     });
     expect(runs, 1);
     expect(_prompt.allMatches(out.toString()), hasLength(2));
@@ -1201,6 +1358,7 @@ void main() {
           names: ['signup'],
           readLine: answer,
           out: StringBuffer(),
+          generators: noGenerators,
         ),
         busyTimeout: const Duration(milliseconds: 200),
       ),
@@ -1213,7 +1371,15 @@ void main() {
   test('the end of input ends the walk', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
-    writeIn(root, (s) => approveDrafts(s, readLine: answers([]), out: out));
+    writeIn(
+      root,
+      (s) => approveDrafts(
+        s,
+        readLine: answers([]),
+        out: out,
+        generators: noGenerators,
+      ),
+    );
     expect(_prompt.allMatches(out.toString()), hasLength(1));
     expect(readDoc(root, signupFeature), contains('draft: true'));
     expect(readDoc(root, story1), contains('draft: true'));
@@ -1230,6 +1396,7 @@ void main() {
         names: ['feature:signup'],
         readLine: answers(['y', 'q']),
         out: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1256,6 +1423,7 @@ void main() {
             names: ['feature:signup'],
             readLine: answers(['y']),
             out: StringBuffer(),
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1281,6 +1449,7 @@ void main() {
         names: ['feature:signup'],
         readLine: answers(['y', 'q']),
         out: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     final after = file.readAsBytesSync();
@@ -1304,6 +1473,7 @@ void main() {
         names: ['architecture:signup'],
         readLine: answers(['y']),
         out: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1327,6 +1497,7 @@ void main() {
         names: ['architecture:signup'],
         readLine: answers(['y']),
         out: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1359,6 +1530,7 @@ void main() {
           names: ['fr:login/email_login/validate_credentials'],
           readLine: answers(['q']),
           out: out,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1412,6 +1584,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1434,6 +1607,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1459,6 +1633,7 @@ void main() {
           names: ['fr:login/email_login/validate_credentials'],
           readLine: answers(['n']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, fr11), before);
@@ -1481,6 +1656,7 @@ void main() {
             names: ['fr:login/email_login/validate_credentials'],
             readLine: answers(['y', 'q']),
             out: StringBuffer(),
+            generators: noGenerators,
           ),
         );
         expect(readDoc(root, fr11), contains(approvedMark(root, fr11)));
@@ -1502,6 +1678,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1523,6 +1700,7 @@ void main() {
           names: ['architecture:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1547,6 +1725,7 @@ void main() {
           names: ['architecture:signup'],
           readLine: answers(['y']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       final text = readDoc(root, signupArch);
@@ -1571,6 +1750,7 @@ void main() {
             names: ['architecture:signup'],
             readLine: answers(['y']),
             out: StringBuffer(),
+            generators: noGenerators,
           ),
         );
         expect(walksDoc(root, signupArch), isFalse);
@@ -1602,7 +1782,7 @@ void main() {
           root,
           (s) => approveNamed(s, [
             seen(root, 'fr:login/email_login/validate_credentials'),
-          ]),
+          ], generators: noGenerators),
         );
         expect(
           answer.text,
@@ -1626,7 +1806,7 @@ void main() {
             (s) => approveNamed(s, [
               seen(root, 'feature:signup'),
               seen(root, 'architecture:signup'),
-            ]),
+            ], generators: noGenerators),
           );
           expect(
             answer.text,
@@ -1660,7 +1840,12 @@ void main() {
             root,
             signupFeature,
           ).writeAsStringSync('---\napproved: $hash\n---\n\n$body');
-          writeIn(root, (s) => approveNamed(s, [seen(root, 'feature:signup')]));
+          writeIn(
+            root,
+            (s) => approveNamed(s, [
+              seen(root, 'feature:signup'),
+            ], generators: noGenerators),
+          );
           expect(
             readDoc(root, signupFeature),
             '---\napproved: "$hash"\n---\n\n$body',
@@ -1703,7 +1888,11 @@ void main() {
 
       final dry = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ),
       ).text;
       writeIn(
         root,
@@ -1712,6 +1901,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['q']),
           out: out,
+          generators: noGenerators,
         ),
       );
 
@@ -1752,6 +1942,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answer,
           out: out,
+          generators: noGenerators,
         ),
       );
 
@@ -1789,7 +1980,11 @@ void main() {
 
       final views = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ),
       ).text.split('### Draft 2/2');
 
       expect(views[0], contains('| dropped | 0 sentences dropped |\n'));
@@ -1810,7 +2005,11 @@ void main() {
 
       final view = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ),
       ).text.split('### Draft 2/2').first;
 
       expect(view, contains('| old     | unknown: git cannot answer |\n'));
@@ -1850,7 +2049,11 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ),
       );
 
       final hash = baseHashOf(toLf(readDoc(root, signupFeature)));
@@ -1871,6 +2074,8 @@ void main() {
         ],
         'count': 2,
         'approveMode': 'ask',
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
       });
       expect(answer.text, contains('| hash    | `$hash` |'));
     }, skip: skipGit);
@@ -1881,7 +2086,11 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ),
       );
 
       final drafts = answer.json['drafts']! as List<Object>;
@@ -1910,7 +2119,10 @@ void main() {
         ).writeAsStringSync('---\ndraft: true\n---\n\n${body}One more line.\n');
         commitAll(root, 'moved and drafted');
 
-        final answer = writeIn(root, approveDryRun);
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(s, generators: noGenerators),
+        );
 
         final drafts = (answer.json['drafts']! as List)
             .cast<Map<String, Object?>>();
@@ -1927,7 +2139,11 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
+        (s) => approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ),
       );
 
       final drafts = answer.json['drafts']! as List<Object>;
@@ -1977,7 +2193,11 @@ void main() {
 
       final text = writeIn(root, (s) {
         makeUnreadable(root);
-        return approveDryRun(s, names: ['user_story:login/sign_out']).text;
+        return approveDryRun(
+          s,
+          names: ['user_story:login/sign_out'],
+          generators: noGenerators,
+        ).text;
       });
 
       expect(text, 'no draft waits for approval\n');
@@ -1994,6 +2214,7 @@ void main() {
           names: ['user_story:login/sign_out'],
           readLine: answers(['q']),
           out: out,
+          generators: noGenerators,
         );
       });
 
@@ -2006,7 +2227,11 @@ void main() {
 
       final view = writeIn(root, (s) {
         docFile(root, 'prds/d01_context.md').deleteSync();
-        return approveDryRun(s, names: ['feature:signup']).text;
+        return approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ).text;
       });
 
       expect(view, contains('Dropped sentences:\n- $dropped\n- $moved\n'));
@@ -2020,7 +2245,11 @@ void main() {
         expect(
           () => writeIn(root, (s) {
             makeUnreadable(root);
-            return approveDryRun(s, names: ['feature:signup']);
+            return approveDryRun(
+              s,
+              names: ['feature:signup'],
+              generators: noGenerators,
+            );
           }),
           throwsA(
             isA<RenderFault>().having(
@@ -2045,6 +2274,7 @@ void main() {
             names: ['feature:signup'],
             readLine: answers(['q']),
             out: out,
+            generators: noGenerators,
           );
         }),
         throwsA(
@@ -2069,8 +2299,14 @@ void main() {
       },
     );
 
-    String walked(Directory root, {String? codeTarget}) =>
-        writeIn(root, (s) => approveDryRun(s, codeTarget: codeTarget).text);
+    String walked(Directory root, {String? codeTarget}) => writeIn(
+      root,
+      (s) => approveDryRun(
+        s,
+        codeTarget: codeTarget,
+        generators: noGenerators,
+      ).text,
+    );
 
     test('a walk keeps both twins without --target and the shared docs and one target with it', () async {
       final root = await twinDrafts();
@@ -2086,7 +2322,11 @@ void main() {
       final root = await twinDrafts();
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['architecture:login']),
+        (s) => approveDryRun(
+          s,
+          names: ['architecture:login'],
+          generators: noGenerators,
+        ),
       );
       expect(answer.text, isNot(contains('| status')));
       for (final draft in answer.json['drafts']! as List) {
@@ -2111,6 +2351,7 @@ void main() {
         (s) => approveDryRun(
           s,
           names: ['architecture:login', 'user_story:login/email_login'],
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2136,6 +2377,7 @@ void main() {
             s,
             names: ['architecture:login'],
             codeTarget: 'flutter',
+            generators: noGenerators,
           ),
         );
         expect(answer.text, contains('`docs/$flutterArchitecture`'));
@@ -2157,6 +2399,7 @@ void main() {
             codeTarget: 'jaspr',
             readLine: answers(['y']),
             out: out,
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2178,9 +2421,12 @@ void main() {
         final hash = getDoc(root, jasprArchitecture)['base']! as String;
         final answer = writeIn(
           root,
-          (s) => approveNamed(s, [
-            SeenDraft(name: 'architecture:login', hash: hash),
-          ], codeTarget: 'jaspr'),
+          (s) => approveNamed(
+            s,
+            [SeenDraft(name: 'architecture:login', hash: hash)],
+            codeTarget: 'jaspr',
+            generators: noGenerators,
+          ),
         );
         expect(answer.text, 'approved architecture:login\n');
         expect(
@@ -2202,7 +2448,7 @@ void main() {
           root,
           (s) => approveNamed(s, [
             const SeenDraft(name: 'architecture:login', hash: 'x'),
-          ]),
+          ], generators: noGenerators),
         ),
         throwsA(
           isA<IndexFault>()
@@ -2260,6 +2506,7 @@ void main() {
               s,
               names: ['user_story:login/email_login'],
               codeTarget: target,
+              generators: noGenerators,
             ),
           );
           return ((answer.json['drafts']! as List).single as Map)['status'];
@@ -2283,7 +2530,11 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => approveDryRun(s, names: ['user_story:login/email_login']),
+        (s) => approveDryRun(
+          s,
+          names: ['user_story:login/email_login'],
+          generators: noGenerators,
+        ),
       );
 
       expect(
@@ -2310,7 +2561,11 @@ void main() {
         );
         final answer = writeIn(
           oneTarget,
-          (s) => approveDryRun(s, names: ['user_story:login/email_login']),
+          (s) => approveDryRun(
+            s,
+            names: ['user_story:login/email_login'],
+            generators: noGenerators,
+          ),
         );
         expect(answer.text, contains('| status  | `implemented` |'));
         expect(
@@ -2333,6 +2588,7 @@ void main() {
             s,
             names: ['user_story:login/email_login'],
             codeTarget: 'flutter',
+            generators: noGenerators,
           ),
         );
         expect(twinAnswer.text, contains('| status  | `implemented` |'));
@@ -2357,7 +2613,12 @@ void main() {
       );
       writeIn(
         root,
-        (s) => approveDrafts(s, readLine: answers(['y']), out: StringBuffer()),
+        (s) => approveDrafts(
+          s,
+          readLine: answers(['y']),
+          out: StringBuffer(),
+          generators: noGenerators,
+        ),
       );
       return root;
     }
@@ -2368,7 +2629,10 @@ void main() {
 
     bool walksRecord(Directory root) => writeIn(
       root,
-      (s) => approveDryRun(s).text.contains('`${check.loginRecord}`'),
+      (s) => approveDryRun(
+        s,
+        generators: noGenerators,
+      ).text.contains('`${check.loginRecord}`'),
     );
 
     test('the index stores the hash approve writes, and a statuses set compares by it', () async {
@@ -2403,6 +2667,7 @@ void main() {
             base: base,
           ),
           "- 'email_login:implemented'\n- '$to'\n",
+          generators: noGenerators,
         ),
       );
 
@@ -2448,6 +2713,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['y', 'q']),
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       final written = RegExp('approved: "[0-9a-f]{12}"')
@@ -2460,6 +2726,7 @@ void main() {
           s,
           SetRequest.parse('feature:signup#problem', base: base),
           'Users sign up.\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, signupFeature), contains('$written\n'));
@@ -2477,6 +2744,7 @@ void main() {
               base: emptyBaseHash,
             ),
             '',
+            generators: noGenerators,
           ),
         ),
         isWriteFault(WriteFaultCode.fieldNotWritable, 64),
@@ -2497,6 +2765,7 @@ void main() {
             base: fieldBaseOf(root, 'implementation:login', 'covers'),
           ),
           '- app/lib/src/login/\n- app/lib/src/other/\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2514,11 +2783,19 @@ void main() {
       );
       writeIn(
         root,
-        (s) => approveDrafts(s, readLine: answers(['y']), out: StringBuffer()),
+        (s) => approveDrafts(
+          s,
+          readLine: answers(['y']),
+          out: StringBuffer(),
+          generators: noGenerators,
+        ),
       );
       bool walksRecord() => writeIn(
         root,
-        (s) => approveDryRun(s).text.contains('`${check.loginRecord}`'),
+        (s) => approveDryRun(
+          s,
+          generators: noGenerators,
+        ).text.contains('`${check.loginRecord}`'),
       );
       expect(readDoc(root, check.loginRecord), contains('approved: "'));
       expect(walksRecord(), isFalse);
@@ -2545,6 +2822,7 @@ void main() {
               base: fieldBaseOf(root, 'implementation:login', field),
             ),
             value,
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2599,6 +2877,7 @@ void main() {
             names: ['signup'],
             readLine: answer,
             out: StringBuffer(),
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -2621,8 +2900,12 @@ void main() {
       final out = StringBuffer();
       writeIn(
         root,
-        (s) =>
-            approveDrafts(s, readLine: answers(List.filled(12, 'n')), out: out),
+        (s) => approveDrafts(
+          s,
+          readLine: answers(List.filled(12, 'n')),
+          out: out,
+          generators: noGenerators,
+        ),
       );
       final shown = out.toString();
       final order = [
@@ -2659,7 +2942,11 @@ void main() {
         );
         final answer = writeIn(
           root,
-          (s) => approveDryRun(s, names: ['feature:signup']),
+          (s) => approveDryRun(
+            s,
+            names: ['feature:signup'],
+            generators: noGenerators,
+          ),
         );
         expect(answer.text, 'no draft waits for approval\n', reason: marks);
         final out = StringBuffer();
@@ -2670,6 +2957,7 @@ void main() {
             names: ['feature:signup'],
             readLine: answers(['y']),
             out: out,
+            generators: noGenerators,
           ),
         );
         expect(out.toString(), 'no draft waits for approval\n', reason: marks);
@@ -2694,7 +2982,7 @@ void main() {
       expect(
         () => writeIn(root, (s) {
           docFile(root, signupArch).deleteSync();
-          return approveNamed(s, drafts);
+          return approveNamed(s, drafts, generators: noGenerators);
         }),
         throwsA(
           isA<WriteFault>()
@@ -2722,7 +3010,9 @@ void main() {
         );
         final answer = writeIn(
           root,
-          (s) => approveNamed(s, [seenAt(root, 'feature:login')]),
+          (s) => approveNamed(s, [
+            seenAt(root, 'feature:login'),
+          ], generators: noGenerators),
         );
         expect(answer.text, 'approved feature:login\n');
         expect(readDoc(root, loginFeature), contains('approved: "'));
@@ -2742,11 +3032,13 @@ void main() {
         (s) => approveNamed(s, [
           SeenDraft(name: 'feature:signup', hash: hash),
           SeenDraft(name: 'feature:signup', hash: hash),
-        ]),
+        ], generators: noGenerators),
       );
       expect(answer.text, 'approved feature:signup\n');
       expect(answer.json, {
         'approved': ['feature:signup'],
+        'rewritten': <Object>[],
+        'deleted': <Object>[],
       });
 
       final other = await writeWriteProject();
@@ -2757,7 +3049,7 @@ void main() {
           (s) => approveNamed(s, [
             seenAt(other, 'feature:signup'),
             const SeenDraft(name: 'feature:signup', hash: '000000000000'),
-          ]),
+          ], generators: noGenerators),
         ),
         isWriteFault(WriteFaultCode.baseMismatch, 75),
       );
@@ -2777,7 +3069,7 @@ void main() {
       expect(
         () => writeIn(root, (s) {
           other.execute('BEGIN IMMEDIATE');
-          return approveNamed(s, drafts);
+          return approveNamed(s, drafts, generators: noGenerators);
         }, busyTimeout: const Duration(milliseconds: 200)),
         throwsA(
           isA<IndexFault>().having((f) => f.exitStatus, 'exitStatus', 75),
@@ -2801,7 +3093,7 @@ void main() {
           (s) => approveNamed(s, [
             SeenDraft(name: 'architecture:signup', hash: hash),
             SeenDraft(name: 'feature:signup', hash: hash),
-          ]),
+          ], generators: noGenerators),
         ),
         throwsA(
           isA<WriteFault>()
@@ -2825,6 +3117,7 @@ void main() {
         (s) => approveDryRun(
           s,
           names: ['feature:signup', 'user_story:login/reset_password', 'login'],
+          generators: noGenerators,
         ),
       ).text;
       final order = [
@@ -2855,7 +3148,11 @@ void main() {
       final before = readDoc(root, signupFeature);
       final text = writeIn(root, (s) {
         other.execute('BEGIN IMMEDIATE');
-        return approveDryRun(s, names: ['feature:signup']).text;
+        return approveDryRun(
+          s,
+          names: ['feature:signup'],
+          generators: noGenerators,
+        ).text;
       }, busyTimeout: const Duration(milliseconds: 200));
       expect(text, contains('### Draft 1/2 · Signup\n'));
       expect(readDoc(root, signupFeature), before);
@@ -2890,6 +3187,7 @@ void main() {
           names: ['feature:signup'],
           readLine: answers(['n', 'n']),
           out: out,
+          generators: noGenerators,
         ),
       );
       final views = out.toString().split('### Draft 2/2');

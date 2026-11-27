@@ -36,6 +36,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart' show checkOf, loginRecord, spots;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/matrix_record_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
@@ -149,7 +150,7 @@ void main() {
         ),
       );
       expect(
-        () => answerSet(s, whole, 'x\n'),
+        () => answerSet(s, whole, 'x\n', generators: noGenerators),
         throwsA(
           isA<IndexFault>().having(
             (f) => f.code,
@@ -174,7 +175,7 @@ void main() {
       expect(titled.address, 'prds/notes#draft.md');
       expect(titled.target, isA<TitleTarget>());
       expect(
-        () => answerSet(s, titled, 'Retitled\n'),
+        () => answerSet(s, titled, 'Retitled\n', generators: noGenerators),
         throwsIndexFault(IndexFaultCode.untypedTarget),
       );
     });
@@ -189,7 +190,15 @@ void main() {
     final typed = await writeWriteProject(extra: {'docs/$gnfr': doc});
     String write(Directory root, String address) {
       final base = sectionBase(root, address);
-      writeIn(root, (s) => answerSet(s, req(address, base), 'New intro.\n'));
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(address, base),
+          'New intro.\n',
+          generators: noGenerators,
+        ),
+      );
       return readDoc(root, gnfr);
     }
 
@@ -339,7 +348,12 @@ void main() {
         '\n### Scenario 1 — [happy] Sign in\n- **Given** a registered email and its password\n';
     final answer = writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), body),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        body,
+        generators: noGenerators,
+      ),
     );
     expect(
       readDoc(root, story1),
@@ -379,6 +393,7 @@ void main() {
         s,
         req(target, sectionBase(root, target)),
         '\n### Scenario 1 — [happy] Sign in again\n- **Given** a registered email\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -409,6 +424,7 @@ void main() {
           s,
           req(target, sectionBase(root, target)),
           bodyFromGet(root),
+          generators: noGenerators,
         ),
       );
 
@@ -427,6 +443,7 @@ void main() {
             s,
             req(target, sectionBase(root, target)),
             bodyFromGet(root).replaceFirst('registered', 'verified'),
+            generators: noGenerators,
           ),
         );
 
@@ -460,6 +477,7 @@ void main() {
           s,
           req('user_story:login/email_login#$key', base),
           body,
+          generators: noGenerators,
         ).text,
         templates: TemplateResolver(),
         workingDirectory: Directory(path),
@@ -488,13 +506,26 @@ void main() {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#use_case';
     final base = sectionBase(root, target);
-    writeIn(root, (s) => answerSet(s, req(target, base), 'First writer.\n'));
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, base),
+        'First writer.\n',
+        generators: noGenerators,
+      ),
+    );
     final before = readDoc(root, story1);
     final current = sectionBase(root, target);
     expect(
       () => writeIn(
         root,
-        (s) => answerSet(s, req(target, base), 'Second writer.\n'),
+        (s) => answerSet(
+          s,
+          req(target, base),
+          'Second writer.\n',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<WriteFault>()
@@ -532,6 +563,7 @@ void main() {
           s,
           req('user_story:login/email_login#rules', emptyBaseHash),
           '- BR-01 One account per email.\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -565,6 +597,7 @@ void main() {
               s,
               req(target, sectionBase(root, target)),
               '${lead}Sign in with an email and a password.\n\n',
+              generators: noGenerators,
             ),
           );
 
@@ -596,6 +629,7 @@ void main() {
           s,
           req(target, sectionBase(root, target)),
           '\n \n\t\n    sign_in(email)\n',
+          generators: noGenerators,
         ),
       );
 
@@ -621,7 +655,10 @@ void main() {
     );
     final before = readDoc(root, story1);
     expect(
-      () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+      () => writeIn(
+        root,
+        (s) => answerSet(s, req(target, base), 'x\n', generators: noGenerators),
+      ),
       throwsA(
         isA<IndexFault>()
             .having((f) => f.code, 'code', IndexFaultCode.sectionNotFound)
@@ -654,7 +691,11 @@ void main() {
     expect(handEdited, isNot(contains('draft:')));
 
     expect(
-      () => writeIn(root, (s) => answerSet(s, req(target, base), 'Out.\n')),
+      () => writeIn(
+        root,
+        (s) =>
+            answerSet(s, req(target, base), 'Out.\n', generators: noGenerators),
+      ),
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
@@ -686,6 +727,7 @@ void main() {
           s,
           req('user_story:login/email_login#use_case', emptyBaseHash),
           '',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -714,11 +756,21 @@ void main() {
         (getDoc(root, address)['bases']! as Map)['title']! as String;
     writeIn(
       root,
-      (s) => answerSet(s, req('$address#use_case', base('use_case')), 'A.\n'),
+      (s) => answerSet(
+        s,
+        req('$address#use_case', base('use_case')),
+        'A.\n',
+        generators: noGenerators,
+      ),
     );
     writeIn(
       root,
-      (s) => answerSet(s, req('$address#_lead', base('_lead')), 'Lead.\n'),
+      (s) => answerSet(
+        s,
+        req('$address#_lead', base('_lead')),
+        'Lead.\n',
+        generators: noGenerators,
+      ),
     );
     writeIn(
       root,
@@ -726,6 +778,7 @@ void main() {
         s,
         fieldReq(address, 'vision', fieldBase(root, address, 'vision')),
         '- PV-02\n',
+        generators: noGenerators,
       ),
     );
     writeIn(
@@ -734,6 +787,7 @@ void main() {
         s,
         SetRequest.parse(address, title: true, base: titleBase),
         'Sign in\n',
+        generators: noGenerators,
       ),
     );
     final laidOut = readDoc(root, story1);
@@ -747,6 +801,7 @@ void main() {
         s,
         req('$address#open_questions', emptyBaseHash),
         'Which provider?\n',
+        generators: noGenerators,
       ),
     );
     expect(readDoc(root, story1), endsWith('$missing\n\nWhich provider?\n'));
@@ -764,6 +819,7 @@ void main() {
             s,
             req('user_story:login/email_login#notes', emptyBaseHash),
             'x\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -791,7 +847,12 @@ void main() {
     const target = 'user_story:login/email_login#rules';
     final answer = writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '',
+        generators: noGenerators,
+      ),
     );
     expect(
       readDoc(root, story1),
@@ -814,7 +875,12 @@ void main() {
     expect(readDoc(root, story1), withRules);
     writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), ''),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        '',
+        generators: noGenerators,
+      ),
     );
     expect(
       readDoc(root, story1),
@@ -834,6 +900,7 @@ void main() {
         s,
         req(useCase, sectionBase(root, useCase)),
         'Sign out now.\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -853,6 +920,7 @@ void main() {
         s,
         req(systems, sectionBase(root, systems)),
         '- [Login](features/f01_login/FEATURE.md)\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -875,6 +943,7 @@ void main() {
           s,
           req('prds/d01_context.md#features', emptyBaseHash),
           'x\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -897,7 +966,12 @@ void main() {
       expect(
         () => writeIn(root, (s) {
           docFile(root, story1).deleteSync();
-          return answerSet(s, req(target, base), 'x\n');
+          return answerSet(
+            s,
+            req(target, base),
+            'x\n',
+            generators: noGenerators,
+          );
         }),
         throwsA(
           isA<IndexFault>()
@@ -924,7 +998,11 @@ void main() {
       Process.runSync('chmod', ['555', folder.path]);
       addTearDown(() => Process.runSync('chmod', ['755', folder.path]));
       expect(
-        () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+        () => writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(target, base), 'x\n', generators: noGenerators),
+        ),
         throwsA(
           isA<RenderFault>().having(
             (f) => f.code,
@@ -953,7 +1031,11 @@ void main() {
       Process.runSync('chmod', ['444', file.path]);
       addTearDown(() => Process.runSync('chmod', ['644', file.path]));
       expect(
-        () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+        () => writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(target, base), 'x\n', generators: noGenerators),
+        ),
         throwsA(
           isA<RenderFault>()
               .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
@@ -981,7 +1063,15 @@ void main() {
       ).replaceFirst('Sign in with an email.', 'Sign in by hand.'),
     );
     final base = sectionBase(root, target);
-    writeIn(root, (s) => answerSet(s, req(target, base), 'Sign in again.\n'));
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, base),
+        'Sign in again.\n',
+        generators: noGenerators,
+      ),
+    );
     expect(readDoc(root, story1), contains('## Use Case\n\nSign in again.\n'));
   });
 
@@ -991,7 +1081,12 @@ void main() {
     const fenced = 'Run:\n\n```bash\n## install\nmake\n```\n';
     writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), fenced),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        fenced,
+        generators: noGenerators,
+      ),
     );
     final text = getDoc(root, target)['text']! as String;
     expect(text, contains('## install'));
@@ -1002,6 +1097,7 @@ void main() {
         s,
         req(target, sectionBase(root, target)),
         body.replaceFirst('Run', 'Go'),
+        generators: noGenerators,
       ),
     );
     expect(readDoc(root, story1), contains('Go:\n\n```bash\n## install'));
@@ -1018,6 +1114,7 @@ void main() {
           s,
           req(target, sectionBase(root, target)),
           '\n\n## Use Case\n\nSign in again.\n',
+          generators: noGenerators,
         ),
       );
       final text = readDoc(root, story1);
@@ -1036,6 +1133,7 @@ void main() {
           s,
           req(target, emptyBaseHash),
           '$lead## Open questions\n\nNone yet.\n',
+          generators: noGenerators,
         ),
       );
       final text = readDoc(root, story1);
@@ -1051,7 +1149,12 @@ void main() {
     const fenced = '```md\n## Use Case\n```\n';
     writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), fenced),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        fenced,
+        generators: noGenerators,
+      ),
     );
     expect(
       readDoc(root, story1),
@@ -1083,6 +1186,7 @@ void main() {
             s,
             req(target, sectionBase(root, target)),
             '\n$header\n',
+            generators: noGenerators,
           ),
         );
         expect(readDoc(root, story1), before);
@@ -1103,6 +1207,7 @@ void main() {
             s,
             req(target, sectionBase(root, target)),
             '## Use Case  \n\nx\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1122,7 +1227,12 @@ void main() {
     final text = '${getDoc(root, target)['text']! as String}\n';
     writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), text),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        text,
+        generators: noGenerators,
+      ),
     );
     expect(readDoc(root, story1), before);
   });
@@ -1139,7 +1249,10 @@ void main() {
     );
     final before = readDoc(root, story1);
     expect(
-      () => writeIn(root, (s) => answerSet(s, req(target, base), 'x\n')),
+      () => writeIn(
+        root,
+        (s) => answerSet(s, req(target, base), 'x\n', generators: noGenerators),
+      ),
       throwsA(
         isA<WriteFault>()
             .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
@@ -1163,6 +1276,7 @@ void main() {
         s,
         req(target, sectionBase(root, target)),
         'Sign in fast.\n',
+        generators: noGenerators,
       ),
     );
     expect(readDoc(root, story1).replaceAll('\r\n', ''), isNot(contains('\n')));
@@ -1179,7 +1293,12 @@ void main() {
       const target = 'user_story:login/email_login#use_case';
       final answer = writeIn(
         root,
-        (s) => answerSet(s, req(target, sectionBase(root, target)), body),
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          body,
+          generators: noGenerators,
+        ),
       );
       expect(
         readDoc(root, story1),
@@ -1199,7 +1318,12 @@ void main() {
     const target = 'user_story:login/email_login#notes';
     writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), 'changed\n'),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        'changed\n',
+        generators: noGenerators,
+      ),
     );
     expect(
       readDoc(root, story1),
@@ -1216,6 +1340,7 @@ void main() {
         s,
         fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
         '- PV-02\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1243,6 +1368,7 @@ void main() {
             emptyBaseHash,
           ),
           '- app/lib/src/login/password_check.dart:checkPassword\n',
+          generators: noGenerators,
         ),
       ),
       throwsWriteFault(WriteFaultCode.fieldUnknown),
@@ -1262,6 +1388,7 @@ void main() {
             emptyBaseHash,
           ),
           'true\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1286,6 +1413,7 @@ void main() {
             emptyBaseHash,
           ),
           'true\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1310,6 +1438,7 @@ void main() {
           s,
           fieldReq(target, 'retrim', emptyBaseHash),
           '- statement\n- behavior\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, fr11), contains('draft: true\n'));
@@ -1323,6 +1452,7 @@ void main() {
           s,
           fieldReq(target, 'retrim', fieldBase(root, target, 'retrim')),
           '',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, fr11), isNot(contains('retrim:')));
@@ -1338,6 +1468,7 @@ void main() {
         s,
         SetRequest.parse('feature:login', title: true, base: base),
         'Sign in\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1363,6 +1494,7 @@ void main() {
         s,
         fieldReq(target, 'covers', fieldBase(root, target, 'covers')),
         '- app/lib/src/login/\n',
+        generators: noGenerators,
       ),
     );
     expect(readDoc(root, loginRecordPath), isNot(contains('draft')));
@@ -1395,6 +1527,7 @@ void main() {
         [
           for (final e in [...held, 'app/lib/src/new/']) '- $e\n',
         ].join(),
+        generators: noGenerators,
       ),
     );
 
@@ -1419,6 +1552,7 @@ void main() {
         s,
         fieldReq(target, 'covers', fieldBase(root, target, 'covers')),
         '- app/lib/a/\n- app/lib/c/\n',
+        generators: noGenerators,
       ),
     );
 
@@ -1438,6 +1572,7 @@ void main() {
             s,
             fieldReq('feature:login', 'status', emptyBaseHash),
             'implemented\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1461,6 +1596,7 @@ void main() {
           s,
           fieldReq(story, 'status', fieldBase(root, story, 'status')),
           'implemented\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, story1), startsWith('---\nstatus: implemented\n'));
@@ -1481,6 +1617,7 @@ void main() {
             fieldBase(root, target, 'verify_method'),
           ),
           'maybe\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1508,6 +1645,7 @@ void main() {
           s,
           fieldReq(story, 'vision', fieldBase(root, story, 'vision')),
           'PV-02\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1528,6 +1666,7 @@ void main() {
           s,
           fieldReq(fr, 'verify_method', fieldBase(root, fr, 'verify_method')),
           '- test\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1547,6 +1686,7 @@ void main() {
           s,
           fieldReq(story, 'vision', fieldBase(root, story, 'vision')),
           '[\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1567,6 +1707,7 @@ void main() {
           s,
           fieldReq(story, 'persona', fieldBase(root, story, 'persona')),
           '\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1590,6 +1731,7 @@ void main() {
               ),
             ),
             '\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1611,8 +1753,12 @@ void main() {
       const target = 'user_story:login/email_login';
       writeIn(
         root,
-        (s) =>
-            answerSet(s, fieldReq(target, 'goals', emptyBaseHash), '- PG-01\n'),
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'goals', emptyBaseHash),
+          '- PG-01\n',
+          generators: noGenerators,
+        ),
       );
       expect(
         readDoc(root, story1),
@@ -1635,6 +1781,7 @@ void main() {
         s,
         fieldReq('nf:login/email_login/fast_sign_in', 'kind', emptyBaseHash),
         'relax\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1648,7 +1795,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerSet(s, fieldReq(target, 'size', emptyBaseHash), '1\n'),
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'size', emptyBaseHash),
+          '1\n',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<WriteFault>()
@@ -1678,6 +1830,7 @@ void main() {
         s,
         fieldReq(target, 'size', fieldBase(root, target, 'size')),
         '\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1702,6 +1855,7 @@ void main() {
         s,
         fieldReq(target, 'status', fieldBase(root, target, 'status')),
         '\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1724,7 +1878,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerSet(s, fieldReq(target, 'size', emptyBaseHash), '2\n'),
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'size', emptyBaseHash),
+          '2\n',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<WriteFault>()
@@ -1758,6 +1917,7 @@ void main() {
           fieldBase(root, 'user_story:login/email_login', 'size'),
         ),
         '\n',
+        generators: noGenerators,
       ),
     );
     writeIn(
@@ -1770,6 +1930,7 @@ void main() {
           fieldBase(root, 'feature:login', 'status'),
         ),
         '\n',
+        generators: noGenerators,
       ),
     );
     final session = openSession(root);
@@ -1799,13 +1960,23 @@ void main() {
     final base = fieldBase(root, target, 'vision');
     writeIn(
       root,
-      (s) => answerSet(s, fieldReq(target, 'vision', base), '- PV-09\n'),
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'vision', base),
+        '- PV-09\n',
+        generators: noGenerators,
+      ),
     );
     final before = readDoc(root, story1);
     expect(
       () => writeIn(
         root,
-        (s) => answerSet(s, fieldReq(target, 'vision', base), '- PV-02\n'),
+        (s) => answerSet(
+          s,
+          fieldReq(target, 'vision', base),
+          '- PV-02\n',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<WriteFault>()
@@ -1843,6 +2014,7 @@ void main() {
         s,
         SetRequest.parse(target, title: true, base: emptyBaseHash),
         'Create an account\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1860,6 +2032,7 @@ void main() {
           s,
           SetRequest.parse('feature:login', title: true, base: 'x'),
           '\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1879,6 +2052,7 @@ void main() {
           s,
           SetRequest.parse('feature:login', title: true, base: 'x'),
           'One\nTwo\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1899,6 +2073,7 @@ void main() {
           s,
           SetRequest.parse('feature:login', title: true, base: 'x'),
           '   \n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1923,6 +2098,7 @@ void main() {
         s,
         SetRequest.parse(target, title: true, base: base),
         'Sign in fast\n',
+        generators: noGenerators,
       ),
     );
     final before = readDoc(root, loginFeature);
@@ -1933,6 +2109,7 @@ void main() {
           s,
           SetRequest.parse(target, title: true, base: base),
           'Sign in slow\n',
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -1967,7 +2144,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerSet(s, req(target, sectionBase(root, target)), ' \n\t\n'),
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          ' \n\t\n',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<WriteFault>().having(
@@ -1986,7 +2168,12 @@ void main() {
       const target = 'user_story:login/email_login#open_questions';
       writeIn(
         root,
-        (s) => answerSet(s, req(target, emptyBaseHash), 'None yet.\n'),
+        (s) => answerSet(
+          s,
+          req(target, emptyBaseHash),
+          'None yet.\n',
+          generators: noGenerators,
+        ),
       );
       expect(
         readDoc(root, story1),
@@ -1998,7 +2185,15 @@ void main() {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login#rules';
     final before = readDoc(root, story1);
-    writeIn(root, (s) => answerSet(s, req(target, emptyBaseHash), '\n'));
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        req(target, emptyBaseHash),
+        '\n',
+        generators: noGenerators,
+      ),
+    );
     expect(readDoc(root, story1), before);
   });
   test(
@@ -2019,6 +2214,7 @@ void main() {
           s,
           fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
           '- PV-02\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2049,6 +2245,7 @@ void main() {
         s,
         fieldReq(target, 'status', baseHashOf('"status": planned\n')),
         'implemented\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -2067,6 +2264,7 @@ void main() {
         s,
         fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
         '- PV-02\n\n- PV-03\n',
+        generators: noGenerators,
       ),
     );
     expect(readDoc(root, story1), contains('vision:\n  - PV-02\n  - PV-03\n'));
@@ -2086,7 +2284,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerSet(s, req('feature:signup#problem', base), 'New.\n'),
+          (s) => answerSet(
+            s,
+            req('feature:signup#problem', base),
+            'New.\n',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<RenderFault>()
@@ -2108,7 +2311,12 @@ void main() {
     file.writeAsBytesSync([0xEF, 0xBB, 0xBF, ...file.readAsBytesSync()]);
     writeIn(
       root,
-      (s) => answerSet(s, req('feature:signup#problem', base), 'New.\n'),
+      (s) => answerSet(
+        s,
+        req('feature:signup#problem', base),
+        'New.\n',
+        generators: noGenerators,
+      ),
     );
     final after = file.readAsBytesSync();
     expect(after.take(3), [0xEF, 0xBB, 0xBF]);
@@ -2122,7 +2330,12 @@ void main() {
     final stdin = 'a${'\n ' * 20000}x';
     final answer = writeIn(
       root,
-      (s) => answerSet(s, req(target, sectionBase(root, target)), stdin),
+      (s) => answerSet(
+        s,
+        req(target, sectionBase(root, target)),
+        stdin,
+        generators: noGenerators,
+      ),
     );
     expect(answer.text, isNotEmpty);
   }, timeout: const Timeout(Duration(seconds: 5)));
@@ -2137,6 +2350,7 @@ void main() {
         s,
         fieldReq(target, 'vision', fieldBase(root, target, 'vision')),
         stdin,
+        generators: noGenerators,
       ),
     );
     expect(answer.text, isNotEmpty);
@@ -2165,7 +2379,12 @@ void main() {
       final before = readDoc(root, story1);
       final answer = writeIn(
         root,
-        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
+        (s) => answerSet(
+          s,
+          req(target, leadBase(root)),
+          'New lead.\n',
+          generators: noGenerators,
+        ),
       );
       expect(
         readDoc(root, story1),
@@ -2184,7 +2403,15 @@ void main() {
     test('a fenced "# install" line in the lead round-trips', () async {
       final root = await project();
       const fenced = 'Run:\n\n```bash\n# install\nmake\n```\n';
-      writeIn(root, (s) => answerSet(s, req(target, leadBase(root)), fenced));
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          req(target, leadBase(root)),
+          fenced,
+          generators: noGenerators,
+        ),
+      );
       expect(getDoc(root, target)['text'], '\n$fenced');
       final text = getDoc(root, target)['text']! as String;
       writeIn(
@@ -2193,6 +2420,7 @@ void main() {
           s,
           req(target, leadBase(root)),
           text.replaceFirst('Run', 'Go'),
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2217,7 +2445,12 @@ void main() {
           expect(
             () => writeIn(
               root,
-              (s) => answerSet(s, req(target, leadBase(root)), body),
+              (s) => answerSet(
+                s,
+                req(target, leadBase(root)),
+                body,
+                generators: noGenerators,
+              ),
             ),
             throwsA(
               isA<IndexFault>().having(
@@ -2242,7 +2475,10 @@ void main() {
           (sectionTarget, sectionBase(root, sectionTarget)),
         ]) {
           expect(
-            () => writeIn(root, (s) => answerSet(s, req(t, base), body)),
+            () => writeIn(
+              root,
+              (s) => answerSet(s, req(t, base), body, generators: noGenerators),
+            ),
             throwsA(
               isA<IndexFault>().having(
                 (f) => f.code,
@@ -2262,7 +2498,12 @@ void main() {
       final before = readDoc(root, story1);
       final answer = writeIn(
         root,
-        (s) => answerSet(s, req(target, leadBase(root)), ''),
+        (s) => answerSet(
+          s,
+          req(target, leadBase(root)),
+          '',
+          generators: noGenerators,
+        ),
       );
       expect(readDoc(root, story1), before.replaceFirst('\nOld lead.\n', ''));
       expect(docOf(answer)['base'], emptyBaseHash);
@@ -2271,7 +2512,11 @@ void main() {
     test('a stale base refuses with the current lead and its naming line', () async {
       final root = await project();
       expect(
-        () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
+        () => writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(target, 'abc'), 'x\n', generators: noGenerators),
+        ),
         throwsA(
           isA<WriteFault>()
               .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
@@ -2303,6 +2548,7 @@ void main() {
           s,
           req(signOutLead, getDoc(root, signOutLead)['base']! as String),
           'Signing out ends the session.\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2334,6 +2580,7 @@ void main() {
             s,
             req(target, getDoc(root, target)['base']! as String),
             '\nNew head.\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2349,8 +2596,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) =>
-              answerSet(s, req(target, leadBase(root)), 'Intro.\n# Retitled\n'),
+          (s) => answerSet(
+            s,
+            req(target, leadBase(root)),
+            'Intro.\n# Retitled\n',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>()
@@ -2375,6 +2626,7 @@ void main() {
           s,
           req(signOutLead, getDoc(root, signOutLead)['base']! as String),
           '',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2400,6 +2652,7 @@ void main() {
               s,
               req(target, leadBase(root)),
               'Run:\n\n~~~sh\nmake\n',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -2425,7 +2678,12 @@ void main() {
       ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
       writeIn(
         root,
-        (s) => answerSet(s, req(target, leadBase(root)), 'New lead.\n'),
+        (s) => answerSet(
+          s,
+          req(target, leadBase(root)),
+          'New lead.\n',
+          generators: noGenerators,
+        ),
       );
       expect(
         readDoc(root, story1),
@@ -2470,7 +2728,12 @@ void main() {
         final base = sectionBase(root, target);
         final answer = writeIn(
           root,
-          (s) => answerSet(s, req(target, base), 'None at all.\n'),
+          (s) => answerSet(
+            s,
+            req(target, base),
+            'None at all.\n',
+            generators: noGenerators,
+          ),
         );
         expect(
           readDoc(root, signupArch),
@@ -2492,7 +2755,12 @@ void main() {
       final base = sectionBase(root, target);
       final answer = writeIn(
         root,
-        (s) => answerSet(s, req(target, base), 'New job.\n'),
+        (s) => answerSet(
+          s,
+          req(target, base),
+          'New job.\n',
+          generators: noGenerators,
+        ),
       );
       expect(
         readDoc(root, persona),
@@ -2513,6 +2781,7 @@ void main() {
             s,
             req(target, sectionBase(root, target)),
             'None yet.\n',
+            generators: noGenerators,
           ),
         );
         expect(readDoc(root, signupArch), laidOutArch);
@@ -2530,6 +2799,7 @@ void main() {
             s,
             req(target, sectionBase(root, target)),
             '| A | B |\n|---|---|\n| 3 | 4 |\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2553,6 +2823,7 @@ void main() {
             s,
             fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
             '- app/lib/\n',
+            generators: noGenerators,
           ),
         );
         final written = readDoc(root, signupArch);
@@ -2577,6 +2848,7 @@ void main() {
             s,
             fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
             '- app/lib/\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2608,6 +2880,7 @@ void main() {
           s,
           req(target, getDoc(root, target)['base']! as String),
           'New.\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, story1), contains('before\n# T\n'));
@@ -2624,6 +2897,7 @@ void main() {
             s,
             SetRequest.parse(arch, title: true, base: base),
             'Signup architecture\n',
+            generators: noGenerators,
           ),
         );
         expect(readDoc(root, signupArch), laidOutArch);
@@ -2641,6 +2915,7 @@ void main() {
             s,
             SetRequest.parse(arch, title: true, base: base),
             'Renamed\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2661,6 +2936,7 @@ void main() {
             s,
             req(target, getDoc(root, target)['base']! as String),
             'Lead.\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2684,6 +2960,7 @@ void main() {
             s,
             req(target, getDoc(root, target)['base']! as String),
             'Lead.\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -2731,6 +3008,7 @@ void main() {
           s,
           fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
           '- app/lib/\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2748,6 +3026,7 @@ void main() {
           s,
           SetRequest.parse(arch, title: true, base: titleBase(root)),
           'Signup architecture\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, signupArch), inOrder('draft: true'));
@@ -2758,8 +3037,12 @@ void main() {
       const target = '$arch#deployment';
       writeIn(
         root,
-        (s) =>
-            answerSet(s, req(target, sectionBase(root, target)), 'None yet.\n'),
+        (s) => answerSet(
+          s,
+          req(target, sectionBase(root, target)),
+          'None yet.\n',
+          generators: noGenerators,
+        ),
       );
       expect(readDoc(root, signupArch), inOrder('draft: true'));
     });
@@ -2773,6 +3056,7 @@ void main() {
           s,
           req(target, getDoc(root, target)['base']! as String),
           'Lead.\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -2791,6 +3075,7 @@ void main() {
           s,
           fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
           '- app/lib/\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, signupArch), isNot(contains('draft:')));
@@ -2811,6 +3096,7 @@ void main() {
           s,
           SetRequest.parse(arch, title: true, base: titleBase(root)),
           'Renamed\n',
+          generators: noGenerators,
         ),
       );
       expect(await undeclaredHeaders(root), [
@@ -2827,6 +3113,7 @@ void main() {
           s,
           req(target, sectionBase(root, target)),
           '| A | B |\n|---|---|\n| 3 | 4 |\n',
+          generators: noGenerators,
         ),
       );
       expect(await undeclaredHeaders(root), [
@@ -2843,6 +3130,7 @@ void main() {
           s,
           req(target, getDoc(root, target)['base']! as String),
           'Lead.\n',
+          generators: noGenerators,
         ),
       );
       expect(await undeclaredHeaders(root), [
@@ -2920,7 +3208,15 @@ void main() {
           );
 
           final part = spliceIn(spliced, requestOf(spliced), text);
-          writeIn(written, (s) => answerSet(s, requestOf(written), text));
+          writeIn(
+            written,
+            (s) => answerSet(
+              s,
+              requestOf(written),
+              text,
+              generators: noGenerators,
+            ),
+          );
 
           expect(part.marksDraft, marksDraft);
           expect(readDoc(spliced, story1), withLead);
@@ -3009,6 +3305,7 @@ void main() {
               s,
               fieldReq(address, 'tasks', fieldBase(root, address, 'tasks')),
               '- T-1\n',
+              generators: noGenerators,
             ),
           );
           final written = readDoc(root, docPath);
@@ -3108,7 +3405,7 @@ void main() {
           expect(
             () => writeIn(
               root,
-              (s) => answerSet(s, request, text),
+              (s) => answerSet(s, request, text, generators: noGenerators),
               busyTimeout: const Duration(milliseconds: 100),
             ),
             matcher,
@@ -3159,6 +3456,7 @@ void main() {
               s,
               SetRequest.parse('feature:signup', title: true, base: 'x'),
               'one\ntwo\n',
+              generators: noGenerators,
             ),
           ),
           throwsIndexFault(IndexFaultCode.argumentInvalid),
@@ -3177,6 +3475,7 @@ void main() {
               s,
               req('user_story:login/no_such#_lead', 'x'),
               '```\nopen\n',
+              generators: noGenerators,
             ),
           ),
           throwsIndexFault(IndexFaultCode.docNotFound),
@@ -3240,7 +3539,11 @@ void main() {
       ]) {
         final line = text.split('\n').firstWhere((l) => l.startsWith('==>'));
         expect(
-          () => writeIn(root, (s) => answerSet(s, req(target, base), text)),
+          () => writeIn(
+            root,
+            (s) =>
+                answerSet(s, req(target, base), text, generators: noGenerators),
+          ),
           refusesNamingLine(line.trimRight()),
           reason: text,
         );
@@ -3248,7 +3551,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerSet(s, req(target, base), 'Sign in.\n\n$naming  \n'),
+          (s) => answerSet(
+            s,
+            req(target, base),
+            'Sign in.\n\n$naming  \n',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>().having(
@@ -3297,6 +3605,7 @@ void main() {
           s,
           req(target, base),
           'Shown as:\n\n```text\n$naming\n```\n\n    $naming\n\n- $naming\n',
+          generators: noGenerators,
         ),
       );
       final text = readDoc(root, story1);
@@ -3312,7 +3621,12 @@ void main() {
       const target = 'user_story:login/email_login#open_questions';
       writeIn(
         root,
-        (s) => answerSet(s, req(target, emptyBaseHash), '## Open questions\n'),
+        (s) => answerSet(
+          s,
+          req(target, emptyBaseHash),
+          '## Open questions\n',
+          generators: noGenerators,
+        ),
       );
       expect(readDoc(root, story1), endsWith('## Open questions\n'));
       expect(
@@ -3390,6 +3704,7 @@ void main() {
             field: 'covers',
           ),
           '- app/lib/login/\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -3419,6 +3734,7 @@ void main() {
             s,
             fieldReq(twinRecord, 'covers', base),
             '- app/lib/login/\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -3443,6 +3759,7 @@ void main() {
               codeTarget: 'dart',
             ),
             '- app/lib/login/\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -3474,6 +3791,7 @@ void main() {
             field: 'implements',
           ),
           '- email_login/check_password:app/lib/login.dart:SignInPage\n',
+          generators: noGenerators,
         ),
       );
       final written = readDoc(root, jasprRecord);
@@ -3502,6 +3820,7 @@ void main() {
             field: 'statuses',
           ),
           '- email_login/check_password:skipped\n',
+          generators: noGenerators,
         ),
       );
       expect(docOf(status)['draft'], isFalse);
@@ -3539,6 +3858,7 @@ void main() {
                 base: fieldBase(root, path, 'implements'),
               ),
               '- $entry\n',
+              generators: noGenerators,
             ),
           ),
       };
@@ -3575,6 +3895,7 @@ void main() {
                 field: 'statuses',
               ),
               stdin,
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -3607,6 +3928,7 @@ void main() {
               sectionBase(root, '$jasprArchitecture#components'),
             ),
             '- Jaspr page\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -3633,7 +3955,12 @@ void main() {
 
     ReadAnswer replace(Directory root, String target, String text) => writeIn(
       root,
-      (s) => answerSet(s, replaceReq(target, sectionBase(root, target)), text),
+      (s) => answerSet(
+        s,
+        replaceReq(target, sectionBase(root, target)),
+        text,
+        generators: noGenerators,
+      ),
     );
 
     test('replaces the one match, marks the doc draft, and prints the new base', () async {
@@ -3806,14 +4133,24 @@ void main() {
       final stale = sectionBase(root, useCase);
       writeIn(
         root,
-        (s) => answerSet(s, req(useCase, stale), 'Someone else wrote this.\n'),
+        (s) => answerSet(
+          s,
+          req(useCase, stale),
+          'Someone else wrote this.\n',
+          generators: noGenerators,
+        ),
       );
       final before = readDoc(root, story1);
       for (final bad in ['Sign in\n', '==> old <==\n\n==> new <==\nx\n']) {
         expect(
           () => writeIn(
             root,
-            (s) => answerSet(s, replaceReq(useCase, stale), bad),
+            (s) => answerSet(
+              s,
+              replaceReq(useCase, stale),
+              bad,
+              generators: noGenerators,
+            ),
           ),
           throwsIndexFault(IndexFaultCode.argumentInvalid),
           reason: bad,
@@ -3827,7 +4164,12 @@ void main() {
       final stale = sectionBase(root, useCase);
       writeIn(
         root,
-        (s) => answerSet(s, req(useCase, stale), 'Someone else wrote this.\n'),
+        (s) => answerSet(
+          s,
+          req(useCase, stale),
+          'Someone else wrote this.\n',
+          generators: noGenerators,
+        ),
       );
       final before = readDoc(root, story1);
       expect(
@@ -3837,6 +4179,7 @@ void main() {
             s,
             replaceReq(useCase, stale),
             stdin('Blue fish.', 'x'),
+            generators: noGenerators,
           ),
         ),
         throwsWriteFault(WriteFaultCode.baseMismatch),
@@ -3854,6 +4197,7 @@ void main() {
             s,
             replaceReq('user_story:login/email_login#rules', emptyBaseHash),
             stdin('a', 'b'),
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -3963,6 +4307,7 @@ void main() {
             s,
             fieldReq(target, 'goals', emptyBaseHash),
             '- PG-01\n',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -3986,6 +4331,7 @@ void main() {
               s,
               fieldReq(target, 'tasks', fieldBase(root, target, 'tasks')),
               value,
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -4003,6 +4349,7 @@ void main() {
           s,
           fieldReq(target, 'tasks', fieldBase(root, target, 'tasks')),
           '- INV-4:ENG-42\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, loginArch), contains('tasks:\n  - INV-4:ENG-42\n'));
@@ -4020,6 +4367,7 @@ void main() {
           s,
           fieldReq(target, 'goals', emptyBaseHash),
           '- PG-01\n- "S1: x"\n- "true"\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4044,6 +4392,7 @@ void main() {
           s,
           fieldReq(target, 'goals', fieldBase(root, target, 'goals')),
           '- PG-01\n- "S1: x"\n- "true"\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4065,6 +4414,7 @@ void main() {
           s,
           req(deployment, sectionBase(root, deployment)),
           'Nothing yet.\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4077,6 +4427,7 @@ void main() {
           s,
           req(components, olderBase),
           '| A | B |\n|---|---|\n| 1 | 2 |\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4098,6 +4449,7 @@ void main() {
           s,
           req('user_story:login/sign_out#rules', emptyBaseHash),
           '',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4122,6 +4474,7 @@ void main() {
           s,
           req(target, sectionBase(root, target)),
           'Buys many things.\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4140,6 +4493,7 @@ void main() {
             s,
             req(useCase, sectionBase(root, useCase)),
             'See:\n\n~~~sh\nmake\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -4167,6 +4521,7 @@ void main() {
               s,
               req(useCase, sectionBase(root, useCase)),
               'Sign in.\n\n$header\n',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -4188,6 +4543,7 @@ void main() {
           s,
           req(useCase, sectionBase(root, useCase)),
           'Sign in.\n\n    ## Other\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, story1), contains('Sign in.\n\n    ## Other\n'));
@@ -4203,6 +4559,7 @@ void main() {
             s,
             req(lead, getDoc(root, lead)['base']! as String),
             'Intro.\n$naming\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -4224,6 +4581,7 @@ void main() {
             parent: 'login',
             slug: 'quoted',
             text: '# Mine\n\n$naming\n',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -4245,7 +4603,12 @@ void main() {
       expect(
         () => writeIn(root, (s) {
           copy = leaveProject(root, story1);
-          return answerSet(s, req(useCase, base), 'x\n');
+          return answerSet(
+            s,
+            req(useCase, base),
+            'x\n',
+            generators: noGenerators,
+          );
         }),
         refusesAsLeavingTheProject(story1),
       );
@@ -4274,6 +4637,7 @@ void main() {
             s,
             req(matrix, sectionBase(root, matrix)),
             '$matrixRow- email_login/check_password E02: `an empty password`\n',
+            generators: noGenerators,
           ),
         );
 
@@ -4298,6 +4662,7 @@ void main() {
           s,
           replaceOf(matrix, sectionBase(root, matrix)),
           '==> old <==\na wrong password\n==> new <==\na wrong email\n',
+          generators: noGenerators,
         ),
       );
 
@@ -4315,8 +4680,12 @@ void main() {
 
         final answer = writeIn(
           root,
-          (s) =>
-              answerSet(s, req(notes, sectionBase(root, notes)), 'Changed.\n'),
+          (s) => answerSet(
+            s,
+            req(notes, sectionBase(root, notes)),
+            'Changed.\n',
+            generators: noGenerators,
+          ),
         );
 
         expect(docOf(answer)['draft'], isTrue);
@@ -4335,7 +4704,12 @@ void main() {
 
         final answer = writeIn(
           root,
-          (s) => answerSet(s, req(matrix, emptyBaseHash), ''),
+          (s) => answerSet(
+            s,
+            req(matrix, emptyBaseHash),
+            '',
+            generators: noGenerators,
+          ),
         );
 
         expect(readDoc(root, loginRecord), before);
@@ -4349,7 +4723,12 @@ void main() {
 
       final answer = writeIn(
         root,
-        (s) => answerSet(s, req(matrix, sectionBase(root, matrix)), ''),
+        (s) => answerSet(
+          s,
+          req(matrix, sectionBase(root, matrix)),
+          '',
+          generators: noGenerators,
+        ),
       );
 
       expect(
@@ -4370,7 +4749,11 @@ void main() {
 
         final answer = writeIn(
           root,
-          (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+          (s) => answerSetBatch(
+            s,
+            parseBatchFile('batch.md', text),
+            generators: noGenerators,
+          ),
         );
 
         expect(readDoc(root, loginRecord), contains('draft: true\n'));
@@ -4400,6 +4783,7 @@ void main() {
           s,
           req(matrix, sectionBase(root, matrix)),
           '$matrixRow- email_login/check_password E02: `an empty password`\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, loginRecord), contains('an empty password'));
@@ -4444,6 +4828,7 @@ void main() {
             s,
             req(rules, sectionBase(root, rules)),
             '- BR-01 One account per email.\n',
+            generators: noGenerators,
           ),
         );
         expect(readDoc(root, story1), contains('retired_ids:\n  - BR-02\n'));
@@ -4472,6 +4857,7 @@ void main() {
               s,
               req(rules, sectionBase(root, rules)),
               '- BR-01 One account per email.\n',
+              generators: noGenerators,
             ),
           );
           expect(readDoc(root, story1), contains('retired_ids:\n$written'));
@@ -4495,6 +4881,7 @@ void main() {
               s,
               req(rules, sectionBase(root, rules)),
               '- BR-01 One account per email.\n',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -4520,6 +4907,7 @@ void main() {
           s,
           req(edgeCases, sectionBase(root, edgeCases)),
           '1. E01 — A wrong password → refused.\n',
+          generators: noGenerators,
         ),
       );
       expect(readDoc(root, fr12), isNot(contains('retired_ids')));
@@ -4535,6 +4923,7 @@ void main() {
             s,
             fieldReq(lock, 'retired_ids', emptyBaseHash),
             '- E01\n',
+            generators: noGenerators,
           ),
         ),
         throwsWriteFault(WriteFaultCode.fieldNotWritable),

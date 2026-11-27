@@ -1,7 +1,11 @@
+// A test name is one literal so the sync matrix reads it whole.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:specstone_core/src/document_writing/report_grammar.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 import 'package:test/test.dart';
@@ -154,6 +158,84 @@ void main() {
         ]);
       },
     );
+  });
+
+  group('report blocks', () {
+    // D4: the generator writes each template's report fence from the grammar.
+    test('writeReportBlocks sets each declared fence body and keeps every other line', () {
+      final root = Directory.systemTemp.createTempSync('specstone_blocks_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      String template(ReportBlock block, List<String> body) => [
+        'intro of ${block.id}',
+        '',
+        '```',
+        'not a report fence',
+        '```',
+        '',
+        '```',
+        ...body,
+        '```',
+        '',
+        'after',
+        '',
+      ].join('\n');
+      File asset(ReportBlock block) =>
+          File('${root.path}/assets/agent/${block.templatePath}');
+      for (final block in reportBlocks) {
+        asset(block)
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            template(block, [block.firstLine, '- a stale line']),
+          );
+      }
+
+      writeReportBlocks(root);
+      final once = {
+        for (final block in reportBlocks)
+          block: asset(block).readAsStringSync(),
+      };
+      writeReportBlocks(root);
+
+      for (final block in reportBlocks) {
+        final declared = [for (final line in block.lines) line.label];
+        expect(once[block], template(block, declared), reason: block.id);
+        expect(asset(block).readAsStringSync(), once[block], reason: block.id);
+      }
+    });
+
+    test('a declared first line opening no fence or two fences fails naming its template', () {
+      final block = reportBlocks.first;
+      final fence = '```\n${block.firstLine}\n```\n';
+      for (final text in ['no fence\n', '$fence\n$fence']) {
+        expect(
+          () => withReportBlock(text, block),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains(block.templatePath),
+            ),
+          ),
+          reason: text,
+        );
+      }
+    });
+
+    test('a report fence that never closes fails naming its template', () {
+      final block = reportBlocks.first;
+
+      expect(
+        () =>
+            withReportBlock('```\n${block.firstLine}\n- a stale line\n', block),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains(block.templatePath), contains('never closes')),
+          ),
+        ),
+      );
+    });
   });
 
   group('committed output', () {

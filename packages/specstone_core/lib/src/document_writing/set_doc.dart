@@ -10,9 +10,11 @@ import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isMatrixSection, isOutsideApproval;
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
 import 'package:specstone_core/src/document_writing/models/replace_stdin.dart';
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/replace_passage.dart';
 import 'package:specstone_core/src/document_writing/retired_ids.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -22,8 +24,9 @@ import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
-    show withTemplateSection;
+    show GeneratorRegistry, withTemplateSection;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/models/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -231,7 +234,15 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
 /// `required_target`, `replace_unmatched`, `replace_ambiguous`, or a refused
 /// field.
-ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
+///
+/// Each generated block of [generators] the write makes stale is rewritten in
+/// the same write ([blockRefreshOf]), listed in the json's `rewritten`.
+ReadAnswer answerSet(
+  WriteSession session,
+  SetRequest request,
+  String text, {
+  required GeneratorRegistry<DocIndex> generators,
+}) {
   final doc = session.target(request.address, codeTarget: request.codeTarget);
   final docType =
       session.index.typeOf(doc) ??
@@ -256,11 +267,23 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       after: part.lfText,
       type: docType,
     );
-    final written = session.writeDoc(
-      doc.docPath,
+    final laidOut = layOutDoc(
       part.marksDraft ? markDraft(retired, docType) : retired,
-      LineEnding.of(locked.parsed.content.text),
+      docType,
     );
+    final refresh = blockRefreshOf(
+      session,
+      generators,
+      WrittenDocs(texts: {doc.docPath: laidOut}),
+    );
+    final own = refresh.ownTexts[doc.docPath] ?? laidOut;
+    final written = refresh.steps.isEmpty
+        ? session.writeDoc(
+            doc.docPath,
+            own,
+            LineEnding.of(locked.parsed.content.text),
+          )
+        : _writeJournaled(session, doc.docPath, own, locked.bytes, refresh);
 
     final after = parseIndexedDoc(
       docPath: doc.docPath,
@@ -269,7 +292,9 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
     );
     final base = partBaseOf(after.content, request.target, docType);
     return ReadAnswer(
-      text: '${partNamingLineOf(doc, request.target, base)}\n',
+      text:
+          '${partNamingLineOf(doc, request.target, base)}\n'
+          '${refresh.linesOf()}',
       json: {
         'docs': [
           {
@@ -280,9 +305,26 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
             'draft': after.doc.isDraft,
           },
         ],
+        ...refresh.json,
       },
+      warnings: refresh.refused,
     );
   });
+}
+
+/// Writes [lfText], laid out, over [docPath] read as [bytes], with the steps of
+/// [refresh], through one journal; returns [lfText].
+String _writeJournaled(
+  WriteSession session,
+  String docPath,
+  String lfText,
+  List<int> bytes,
+  BlockRefresh refresh,
+) {
+  session.requireWritable(docPath);
+  MoveJournal([session.docWriteStep(docPath, lfText, bytes), ...refresh.steps])
+      .run(session.journalTarget);
+  return lfText;
 }
 
 /// Checks [text] against the part [target] names in [lfText] and splices it

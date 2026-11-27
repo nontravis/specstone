@@ -39,9 +39,12 @@ sent once per sync run before the group engineers.
 ## Report
 
 The decided engineer's lines only, each in the form
-`../../specstone-brainstorming-sdd/references/author-report.md` gives:
+`../../specstone-brainstorming-sdd/references/author-report.md` gives. Write a `Decision:` line, naming each section,
+per id a draft took or an approved section carries, and a `Not landed:` line per id neither holds:
 
-- One `Decision: D<n> -> <type>:<name>#<key>, …` line per id a draft took or an approved section carries, naming each
-  section.
-- One `Not landed: D<n>: <missing fact>` line per id no draft took and no section carries.
+```
+Decision: D<n> -> <type>:<name>#<key>, …
+Not landed: D<n>: <missing fact>
+```
+
 - The `Readers:` lines of the reader step.

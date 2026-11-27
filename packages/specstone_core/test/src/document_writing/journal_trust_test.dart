@@ -9,6 +9,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart';
 
 const _noRun =
@@ -69,6 +70,7 @@ void main() {
             session,
             'user_story:login/reset_password',
             slug: 'recover_password',
+            generators: noGenerators,
           ),
           templates: TemplateResolver(),
           workingDirectory: root,

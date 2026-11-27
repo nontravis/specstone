@@ -14,6 +14,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/no_generators.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -403,6 +404,7 @@ void main() {
             docTypeId: 'user_story',
             parent: 'login',
             slug: 'forgot_email',
+            generators: noGenerators,
           ),
         ),
         _refuses('docs/$folder/USER_STORY.md', _leaves),
@@ -492,6 +494,7 @@ void main() {
             docTypeId: 'user_story',
             parent: 'login',
             slug: 'forgot_email',
+            generators: noGenerators,
           ),
         ),
         _refuses('.specstone/index.sqlite', _leaves),
@@ -533,8 +536,15 @@ void main() {
       final before = _snapshot(outside);
 
       expect(
-        () =>
-            writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x')),
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'persona',
+            slug: 'x',
+            generators: noGenerators,
+          ),
+        ),
         throwsA(
           isA<RenderFault>()
               .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
@@ -551,7 +561,15 @@ void main() {
       final root = await projectWithoutDocs();
       Link('${root.path}/docs').createSync('inner/missing');
 
-      writeIn(root, (s) => answerNew(s, docTypeId: 'persona', slug: 'x'));
+      writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'persona',
+          slug: 'x',
+          generators: noGenerators,
+        ),
+      );
 
       expect(
         File('${root.path}/inner/missing/prds/personas/x/PERSONA.md')
@@ -629,6 +647,7 @@ void main() {
       docTypeId: 'user_story',
       parent: 'login',
       slug: 'forgot_email',
+      generators: noGenerators,
     );
 
     test(
@@ -661,7 +680,12 @@ void main() {
           expect(
             () => writeIn(
               root,
-              (s) => answerNew(s, docTypeId: 'persona', slug: 'x'),
+              (s) => answerNew(
+                s,
+                docTypeId: 'persona',
+                slug: 'x',
+                generators: noGenerators,
+              ),
             ),
             _refuses(
               'docs/prds/$folder/../personas/x/PERSONA.md',
@@ -711,8 +735,12 @@ void main() {
         Link('${root.path}/docs').createSync('${outside.path}/made/here');
         final before = _snapshot(outside);
         const personaPath = 'docs/prds/personas/x/PERSONA.md';
-        ReadAnswer newPersona(WriteSession s) =>
-            answerNew(s, docTypeId: 'persona', slug: 'x');
+        ReadAnswer newPersona(WriteSession s) => answerNew(
+          s,
+          docTypeId: 'persona',
+          slug: 'x',
+          generators: noGenerators,
+        );
 
         expect(
           () => writeIn(root, newPersona),

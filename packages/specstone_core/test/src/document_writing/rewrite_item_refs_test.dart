@@ -19,6 +19,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor, spots;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart';
 
 const _payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
@@ -71,6 +72,7 @@ ReadAnswer _move(
     addresses,
     under: 'rulebook:shop/cart',
     dryRun: dryRun,
+    generators: noGenerators,
   ),
 );
 
@@ -114,9 +116,12 @@ List<String> _mentionLinesOf(ReadAnswer answer) => [
 /// Moves the edge case [id] of `check_stock` into `drop_stock`.
 ReadAnswer _moveEdgeCase(Directory root, String id) => writeIn(
   root,
-  (session) => answerMove(session, [
-    '$_checkStock#$id',
-  ], under: 'fr:shop/cart/add_item/drop_stock'),
+  (session) => answerMove(
+    session,
+    ['$_checkStock#$id'],
+    under: 'fr:shop/cart/add_item/drop_stock',
+    generators: noGenerators,
+  ),
 );
 
 void main() {
@@ -433,9 +438,12 @@ void main() {
       );
       writeIn(
         root,
-        (session) => answerMove(session, [
-          'rulebook:shop/pay#INV-5',
-        ], under: 'rulebook:shop/cart'),
+        (session) => answerMove(
+          session,
+          ['rulebook:shop/pay#INV-5'],
+          under: 'rulebook:shop/cart',
+          generators: noGenerators,
+        ),
       );
       expect(
         _body(root, cartDomain),
@@ -497,9 +505,12 @@ void main() {
       );
       writeIn(
         root,
-        (session) => answerMove(session, [
-          'rulebook:shop/pay#INV-5',
-        ], under: 'rulebook:shop/cart'),
+        (session) => answerMove(
+          session,
+          ['rulebook:shop/pay#INV-5'],
+          under: 'rulebook:shop/cart',
+          generators: noGenerators,
+        ),
       );
       expect(
         _body(root, cartDomain),
@@ -520,9 +531,12 @@ void main() {
       );
       writeIn(
         root,
-        (session) => answerMove(session, [
-          'rulebook:shop/pay#INV-5',
-        ], under: 'rulebook:shop/cart'),
+        (session) => answerMove(
+          session,
+          ['rulebook:shop/pay#INV-5'],
+          under: 'rulebook:shop/cart',
+          generators: noGenerators,
+        ),
       );
       expect(
         _body(root, cartDomain),
@@ -552,8 +566,12 @@ void main() {
       );
       writeIn(
         root,
-        (session) =>
-            answerMove(session, ['rulebook:shop#INV-3'], under: 'api:shop'),
+        (session) => answerMove(
+          session,
+          ['rulebook:shop#INV-3'],
+          under: 'api:shop',
+          generators: noGenerators,
+        ),
       );
       expect(
         _body(root, shopApi),

@@ -26,6 +26,7 @@ import '../../helpers/fixed_numbers_fixture.dart'
 import '../../helpers/forwarding_entities.dart';
 import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
@@ -72,6 +73,7 @@ void main() {
         docTypeId: 'user_story',
         parent: 'login',
         slug: 'forgot_email',
+        generators: noGenerators,
       ),
     );
     expect(answer.text, '==> login/forgot_email (user_story) · $path <==\n');
@@ -89,6 +91,7 @@ void main() {
             docTypeId: 'user_story',
             parent: 'login',
             slug: 'email_login',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -117,7 +120,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'user_story', slug: 'x'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            slug: 'x',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           indexFault(
@@ -139,6 +147,7 @@ void main() {
         parent: 'login',
         slug: 'a',
         text: '---\ndraft: false\nvision:\n  - PV-01\n---\n\n# Mine\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -153,6 +162,7 @@ void main() {
         parent: 'login',
         slug: 'b',
         text: '# Mine\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -167,6 +177,7 @@ void main() {
         parent: 'login',
         slug: 'plain',
         text: '# Plain\n\nJust prose.\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -183,8 +194,13 @@ void main() {
     );
     writeIn(
       root,
-      (s) =>
-          answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'next'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'next',
+        generators: noGenerators,
+      ),
     );
     expect(
       hasDoc(root, 'prds/features/f01_login/us07_next/USER_STORY.md'),
@@ -201,6 +217,7 @@ void main() {
         docTypeId: 'user_story',
         parent: 'login',
         slug: slug,
+        generators: noGenerators,
       ).text,
       templates: TemplateResolver(),
       workingDirectory: Directory(path),
@@ -225,7 +242,12 @@ void main() {
       final root = await writeWriteProject();
       final answer = writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'api', parent: 'login'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'api',
+          parent: 'login',
+          generators: noGenerators,
+        ),
       );
       expect(docOf(answer)['path'], 'specs/f01_login/API.md');
       expect(
@@ -240,7 +262,10 @@ void main() {
     final root = await writeWriteProject(
       extra: {'.specstone/templates/project.yaml': 'title: Project brief\n'},
     );
-    writeIn(root, (s) => answerNew(s, docTypeId: 'project'));
+    writeIn(
+      root,
+      (s) => answerNew(s, docTypeId: 'project', generators: noGenerators),
+    );
     expect(
       readDoc(root, 'prds/PROJECT.md'),
       contains('\n---\n\n# Project brief\n'),
@@ -249,7 +274,15 @@ void main() {
 
   test('a feature takes the next feature number', () async {
     final root = await writeWriteProject();
-    writeIn(root, (s) => answerNew(s, docTypeId: 'feature', slug: 'billing'));
+    writeIn(
+      root,
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'billing',
+        generators: noGenerators,
+      ),
+    );
     expect(hasDoc(root, 'prds/features/f03_billing/FEATURE.md'), isTrue);
   });
 
@@ -257,13 +290,19 @@ void main() {
     'a doc type with no placeholder is created once, then doc_exists',
     () async {
       final root = await writeWriteProject();
-      writeIn(root, (s) => answerNew(s, docTypeId: 'project'));
+      writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'project', generators: noGenerators),
+      );
       expect(
         readDoc(root, 'prds/PROJECT.md'),
         contains('\n\n# Project context\n'),
       );
       expect(
-        () => writeIn(root, (s) => answerNew(s, docTypeId: 'project')),
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'project', generators: noGenerators),
+        ),
         throwsA(
           isA<WriteFault>()
               .having((f) => f.code, 'code', WriteFaultCode.docExists)
@@ -279,7 +318,12 @@ void main() {
     );
     writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'anti_persona', slug: 'seller'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'anti_persona',
+        slug: 'seller',
+        generators: noGenerators,
+      ),
     );
     expect(hasDoc(root, 'prds/personas/seller/ANTI_PERSONA.md'), isTrue);
   });
@@ -289,8 +333,13 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'nobody', slug: 'x'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'nobody',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<IndexFault>().having(
@@ -308,8 +357,13 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) =>
-              answerNew(s, docTypeId: 'user_story', parent: parent, slug: 'x'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: parent,
+            slug: 'x',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>()
@@ -336,8 +390,13 @@ void main() {
       ]) {
         final answer = writeIn(
           root,
-          (s) =>
-              answerNew(s, docTypeId: 'user_story', parent: parent, slug: slug),
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: parent,
+            slug: slug,
+            generators: noGenerators,
+          ),
         );
         expect(docOf(answer)['name'], 'login/$slug', reason: parent);
       }
@@ -351,8 +410,13 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<IndexFault>()
@@ -386,7 +450,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'feature', slug: 'herbs'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'feature',
+          slug: 'herbs',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         argumentMissingNaming([
@@ -406,7 +475,10 @@ void main() {
     () async {
       final root = await writeGroupedProject();
       expect(
-        () => writeIn(root, (s) => answerNew(s, docTypeId: 'feature')),
+        () => writeIn(
+          root,
+          (s) => answerNew(s, docTypeId: 'feature', generators: noGenerators),
+        ),
         throwsA(argumentMissingNaming(['<slug>/<slug>'])),
       );
       expect(
@@ -431,7 +503,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'security', parent: 'kitchen/recipes'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'security',
+          parent: 'kitchen/recipes',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<IndexFault>()
@@ -441,6 +518,118 @@ void main() {
               'message',
               'specs/skitchen_01/SECURITY.md matches no doc type',
             ),
+      ),
+    );
+    expect(
+      treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+      before,
+    );
+  });
+
+  group('path length', () {
+    const storyHead = 'prds/features/f02_shop/f01_cart/us';
+    const storyTail = '/USER_STORY.md';
+
+    /// Returns the slug that makes the story at [number] hold [units] code
+    /// units from the project root.
+    String slugFor(String number, int units) =>
+        'a' * (units - 'docs/$storyHead${number}_$storyTail'.length);
+
+    Matcher tooLong(String number, String slug, int units) => indexFault(
+      IndexFaultCode.argumentInvalid,
+      'docs/$storyHead${number}_$slug$storyTail would have $units characters; '
+      'the limit is 200',
+    );
+
+    Map<String, List<int>> docsOf(Directory root) =>
+        treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs'));
+
+    // D6
+    test('a new doc whose path from the project root holds 200 code units is written and one of 201 is argument_invalid naming its path, with no folder created', () async {
+      final root = await writeNestedProject();
+      final fits = slugFor('03', 200);
+      writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'shop/cart',
+          slug: fits,
+          generators: noGenerators,
+        ),
+      );
+      expect(hasDoc(root, '${storyHead}03_$fits$storyTail'), isTrue);
+
+      final over = slugFor('04', 201);
+      final before = docsOf(root);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'shop/cart',
+            slug: over,
+            generators: noGenerators,
+          ),
+        ),
+        throwsA(tooLong('04', over, 201)),
+      );
+      expect(docsOf(root), before);
+    });
+
+    // D6
+    test('a number step from 99 to 100 that crosses the limit is argument_invalid naming the claimed path, with no folder created', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/${storyHead}99_z$storyTail': '# Z\n'},
+      );
+      final slug = slugFor('100', 201);
+      expect(slugFor('01', 200), slug);
+      final before = docsOf(root);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'shop/cart',
+            slug: slug,
+            generators: noGenerators,
+          ),
+        ),
+        throwsA(tooLong('100', slug, 201)),
+      );
+      expect(docsOf(root), before);
+    });
+  });
+
+  // D7
+  test('a new doc at a path only another doc type matches is argument_invalid naming both types, and no file or folder is created', () async {
+    final root = await writeGroupedProject(
+      extra: {
+        '.specstone/templates/security.yaml':
+            'path: specs/s{nn}_{slug}/SECURITY.md\n',
+        '.specstone/templates/api.yaml':
+            'path: specs/skitchen_{nn}/SECURITY.md\n',
+      },
+    );
+    final before = treeBytes(root)
+      ..removeWhere((k, _) => !k.startsWith('docs'));
+    expect(
+      () => writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'security',
+          parent: 'kitchen/recipes',
+          generators: noGenerators,
+        ),
+      ),
+      throwsA(
+        indexFault(
+          IndexFaultCode.argumentInvalid,
+          'specs/skitchen_01/SECURITY.md matches api, not security',
+        ),
       ),
     );
     expect(
@@ -461,7 +650,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'security', parent: 'kitchen/recipes'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'security',
+          parent: 'kitchen/recipes',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<IndexFault>()
@@ -486,7 +680,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'user_story', parent: 'login'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           argumentMissingNaming([
@@ -521,7 +720,12 @@ void main() {
       );
       final answer = writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'decision', slug: 'storage'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'decision',
+          slug: 'storage',
+          generators: noGenerators,
+        ),
       );
       expect(docOf(answer)['path'], 'specs/storage/d01.md');
       expect(hasDoc(root, 'specs/storage/d01.md'), isTrue);
@@ -534,7 +738,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/drinks/extra'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'feature',
+          slug: 'kitchen/drinks/extra',
+          generators: noGenerators,
+        ),
       ),
       throwsA(argumentInvalidNaming('takes 2 slug parts, got 3')),
     );
@@ -554,7 +763,12 @@ void main() {
         expect(
           () => writeIn(
             root,
-            (s) => answerNew(s, docTypeId: 'feature', slug: slug),
+            (s) => answerNew(
+              s,
+              docTypeId: 'feature',
+              slug: slug,
+              generators: noGenerators,
+            ),
           ),
           throwsA(argumentInvalidNaming(named)),
         );
@@ -570,8 +784,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) =>
-              answerNew(s, docTypeId: 'feature', slug: 'Kitchen/drinks/extra'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'feature',
+            slug: 'Kitchen/drinks/extra',
+            generators: noGenerators,
+          ),
         ),
         throwsA(argumentInvalidNaming('takes 2 slug parts, got 3')),
       );
@@ -585,7 +803,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'feature', slug: slug),
+          (s) => answerNew(
+            s,
+            docTypeId: 'feature',
+            slug: slug,
+            generators: noGenerators,
+          ),
         ),
         throwsA(argumentInvalidNaming('is no slug')),
       );
@@ -604,6 +827,7 @@ void main() {
           docTypeId: 'feature',
           parent: 'kitchen/recipes',
           slug: 'a/b',
+          generators: noGenerators,
         ),
       ),
       throwsA(argumentInvalidNaming('takes 1 slug part, got 2')),
@@ -617,8 +841,13 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'a/b'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'a/b',
+          generators: noGenerators,
+        ),
       ),
       throwsA(argumentInvalidNaming('takes 1 slug part, got 2')),
     );
@@ -636,7 +865,13 @@ void main() {
     }) => expect(
       () => writeIn(
         root,
-        (s) => answerNew(s, docTypeId: type, parent: parent, slug: slug),
+        (s) => answerNew(
+          s,
+          docTypeId: type,
+          parent: parent,
+          slug: slug,
+          generators: noGenerators,
+        ),
       ),
       throwsA(indexFault(code, message)),
     );
@@ -659,7 +894,12 @@ void main() {
     final root = await writeGroupedProject();
     final answer = writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/herbs'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'garden/herbs',
+        generators: noGenerators,
+      ),
     );
     const path = 'prds/features/garden/f01_herbs/FEATURE.md';
     expect(docOf(answer)['path'], path);
@@ -671,7 +911,12 @@ void main() {
     final root = await writeGroupedProject();
     writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/herbs'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'garden/herbs',
+        generators: noGenerators,
+      ),
     );
     final lines = const LineSplitter().convert(
       readDoc(root, 'prds/features/garden/f01_herbs/FEATURE.md'),
@@ -683,7 +928,12 @@ void main() {
     final root = await writeGroupedProject();
     final answer = writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/drinks'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'kitchen/drinks',
+        generators: noGenerators,
+      ),
     );
     expect(
       docOf(answer)['path'],
@@ -704,7 +954,12 @@ void main() {
       );
       final answer = writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/drinks'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'feature',
+          slug: 'kitchen/drinks',
+          generators: noGenerators,
+        ),
       );
       expect(
         docOf(answer)['path'],
@@ -720,7 +975,12 @@ void main() {
       Directory('${root.path}/docs/prds/features/garden').createSync();
       final answer = writeIn(
         root,
-        (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/herbs'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'feature',
+          slug: 'garden/herbs',
+          generators: noGenerators,
+        ),
       );
       expect(
         docOf(answer)['path'],
@@ -734,11 +994,21 @@ void main() {
     final root = await writeGroupedProject();
     final recipes = writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/recipes'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'garden/recipes',
+        generators: noGenerators,
+      ),
     );
     final menus = writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'feature', slug: 'garden/menus'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'garden/menus',
+        generators: noGenerators,
+      ),
     );
     expect(
       docOf(recipes)['path'],
@@ -755,7 +1025,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'feature', slug: 'kitchen/recipes'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'feature',
+            slug: 'kitchen/recipes',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<WriteFault>()
@@ -771,7 +1046,12 @@ void main() {
     final root = await writeGroupedProject();
     final path = root.path;
     String create(String slug) => WriteSession.run(
-      (s) => answerNew(s, docTypeId: 'feature', slug: slug).text,
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: slug,
+        generators: noGenerators,
+      ).text,
       templates: TemplateResolver(),
       workingDirectory: Directory(path),
       homeDirectory: null,
@@ -798,6 +1078,7 @@ void main() {
         docTypeId: 'feature',
         parent: 'kitchen/recipes',
         slug: 'sub',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -826,7 +1107,12 @@ void main() {
       final root = await writeFeatureGroupedProject();
       writeIn(
         root,
-        (s) => answerNew(s, docTypeId: docTypeId, parent: 'kitchen/menus'),
+        (s) => answerNew(
+          s,
+          docTypeId: docTypeId,
+          parent: 'kitchen/menus',
+          generators: noGenerators,
+        ),
       );
       expect(File('${root.path}/$path').existsSync(), isTrue);
     });
@@ -837,8 +1123,13 @@ void main() {
         docOf(
               writeIn(
                 root,
-                (s) =>
-                    answerNew(s, docTypeId: type, parent: parent, slug: slug),
+                (s) => answerNew(
+                  s,
+                  docTypeId: type,
+                  parent: parent,
+                  slug: slug,
+                  generators: noGenerators,
+                ),
               ),
             )['path']!
             as String;
@@ -854,6 +1145,7 @@ void main() {
             docTypeId: 'user_story',
             parent: 'shop/cart',
             slug: 'wish',
+            generators: noGenerators,
           ),
         );
         expect(
@@ -889,7 +1181,12 @@ void main() {
         final root = await writeNestedProject(without: {'docs/$cartDomain'});
         final answer = writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'rulebook', parent: 'shop/cart'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'rulebook',
+            parent: 'shop/cart',
+            generators: noGenerators,
+          ),
         );
         expect(docOf(answer)['path'], cartDomain);
       },
@@ -913,6 +1210,7 @@ void main() {
               docTypeId: 'feature',
               parent: 'shop/cart/deep/deeper',
               slug: 'x',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -940,7 +1238,13 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'feature',
+            parent: 'login',
+            slug: 'x',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           allOf(
@@ -974,8 +1278,13 @@ void main() {
         expect(
           () => writeIn(
             root,
-            (s) =>
-                answerNew(s, docTypeId: 'feature', parent: 'login', slug: 'x'),
+            (s) => answerNew(
+              s,
+              docTypeId: 'feature',
+              parent: 'login',
+              slug: 'x',
+              generators: noGenerators,
+            ),
             templates: TemplateResolver(shippedFiles: files),
           ),
           throwsA(
@@ -1001,7 +1310,10 @@ void main() {
   test('an unknown doc type is doc_type_unknown', () async {
     final root = await writeWriteProject();
     expect(
-      () => writeIn(root, (s) => answerNew(s, docTypeId: 'runbook')),
+      () => writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'runbook', generators: noGenerators),
+      ),
       throwsA(
         isA<TemplateFault>()
             .having((f) => f.code, 'code', FaultCode.docTypeUnknown)
@@ -1022,8 +1334,13 @@ void main() {
     );
     writeIn(
       root,
-      (s) =>
-          answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'next'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'next',
+        generators: noGenerators,
+      ),
     );
     expect(
       hasDoc(root, 'prds/features/f01_login/us100_next/USER_STORY.md'),
@@ -1039,8 +1356,13 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<RenderFault>()
@@ -1078,8 +1400,13 @@ void main() {
       () => IOOverrides.runWithIOOverrides(
         () => writeIn(
           root,
-          (s) =>
-              answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'user_story',
+            parent: 'login',
+            slug: 'x',
+            generators: noGenerators,
+          ),
         ),
         _CreateFileHook((path) {
           final name = path.split(Platform.pathSeparator).last;
@@ -1104,8 +1431,13 @@ void main() {
     final answer = IOOverrides.runWithIOOverrides(
       () => writeIn(
         root,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'x'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       ),
       _CreateFileHook((path) {
         if (!raced && path.endsWith(taken)) {
@@ -1134,6 +1466,7 @@ void main() {
         docTypeId: 'fr',
         parent: 'login/reset_password',
         slug: 'notify',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1159,6 +1492,7 @@ void main() {
               parent: 'login',
               slug: 'sneaky',
               text: '---\napproved: $value\n---\n\n# Mine\n',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -1185,7 +1519,13 @@ void main() {
     final root = await writeWriteProject();
     writeIn(
       root,
-      (s) => answerNew(s, docTypeId: 'feature', slug: 'billing', text: ''),
+      (s) => answerNew(
+        s,
+        docTypeId: 'feature',
+        slug: 'billing',
+        text: '',
+        generators: noGenerators,
+      ),
     );
     expect(
       readDoc(root, 'prds/features/f03_billing/FEATURE.md'),
@@ -1204,9 +1544,10 @@ void main() {
           docTypeId: 'user_story',
           parent: 'login',
           slug: 'forgot_email',
+          generators: noGenerators,
         ),
       );
-      expect(answer.json.keys, {'docs'});
+      expect(answer.json.keys, {'docs', 'rewritten', 'deleted'});
       final docs = answer.json['docs']! as List;
       expect(docs, hasLength(1));
       final element = docs.single as Map<String, Object?>;
@@ -1299,6 +1640,7 @@ sections:
         parent: 'login',
         slug: 'a',
         text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1313,6 +1655,7 @@ sections:
         parent: 'login',
         slug: 'b',
         text: '---\npersona:\n  - owner\nvision:\n  - PV-01\n---\n\n# Mine\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1332,6 +1675,7 @@ sections:
         parent: 'login',
         slug: 'a',
         text: '---\nzzz: 1\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1351,6 +1695,7 @@ sections:
         parent: 'login',
         slug: 'a',
         text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
+        generators: noGenerators,
       ),
     );
     const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
@@ -1374,6 +1719,7 @@ sections:
           parent: 'login',
           slug: 'a',
           text: '\n# Mine\n\nJust prose.\n',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1396,6 +1742,7 @@ sections:
             '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
             '## Acceptance Criteria\n\n- **Given** x\n\n'
             '## Use Case\n\n| Role   | Goal    |\n|---|---|\n| Agent  | Sign in |\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1420,6 +1767,7 @@ sections:
           parent: 'login',
           slug: 'a',
           text: given,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1446,6 +1794,7 @@ sections:
             parent: 'login',
             slug: 'quoted',
             text: text,
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1475,6 +1824,7 @@ sections:
         parent: 'login',
         slug: 'quoted',
         text: '# Mine\n\n```text\n$naming\n```\n\n    $naming\n',
+        generators: noGenerators,
       ),
     );
     expect(
@@ -1520,6 +1870,7 @@ sections:
             docTypeId: 'architecture',
             parent: 'feedback/toast',
             codeTarget: target,
+            generators: noGenerators,
           ),
         );
         expect(
@@ -1547,6 +1898,7 @@ sections:
             s,
             docTypeId: 'implementation',
             parent: 'feedback/toast',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1570,6 +1922,7 @@ sections:
             docTypeId: 'implementation',
             parent: 'feedback/toast',
             codeTarget: 'dart',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1602,6 +1955,7 @@ sections:
               docTypeId: 'architecture',
               parent: 'login',
               codeTarget: codeTarget,
+              generators: noGenerators,
             ),
           );
           expect(docOf(answer)['path'], path);
@@ -1620,7 +1974,12 @@ sections:
       ]) {
         final answer = writeIn(
           root,
-          (s) => answerNew(s, docTypeId: 'decision', slug: slug),
+          (s) => answerNew(
+            s,
+            docTypeId: 'decision',
+            slug: slug,
+            generators: noGenerators,
+          ),
         );
         expect(docOf(answer)['path'], path);
         expect(hasDoc(root, path), isTrue);
@@ -1641,6 +2000,7 @@ sections:
             docTypeId: 'architecture',
             parent: 'login',
             codeTarget: 'jaspr',
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -1697,6 +2057,7 @@ sections:
             parent: 'login',
             slug: 'forgot_email',
             text: text,
+            generators: noGenerators,
           ),
         );
         expect(statusesIn(root, flutterRecord), [
@@ -1731,6 +2092,7 @@ sections:
             docTypeId: 'fr',
             parent: 'login/email_login',
             slug: 'audit_log',
+            generators: noGenerators,
           ),
         );
         expect(statusesIn(root, record), [
@@ -1756,6 +2118,7 @@ sections:
             docTypeId: 'user_story',
             parent: 'login',
             slug: 'forgot_email',
+            generators: noGenerators,
           ),
         );
         expect(statusesIn(root, record), [
@@ -1778,6 +2141,7 @@ sections:
             docTypeId: 'fr',
             parent: 'login/email_login',
             slug: 'audit_log',
+            generators: noGenerators,
           ),
         );
         expect(statusesIn(root, record), ['email_login:skipped:no web view']);
@@ -1799,6 +2163,7 @@ sections:
           docTypeId: 'user_story',
           parent: 'shop/cart',
           slug: 'wish',
+          generators: noGenerators,
         ),
       );
       expect(statusesIn(root, cartRecord), [
@@ -1817,6 +2182,7 @@ sections:
           docTypeId: 'user_story',
           parent: 'login',
           slug: 'forgot_email',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1847,6 +2213,7 @@ sections:
               docTypeId: 'user_story',
               parent: 'login',
               slug: 'forgot_email',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -1883,6 +2250,7 @@ sections:
           docTypeId: 'user_story',
           parent: 'login',
           slug: 'forgot_email',
+          generators: noGenerators,
         ),
       );
       expect(statusesIn(root, record), [
@@ -1912,6 +2280,7 @@ sections:
             docTypeId: 'user_story',
             parent: 'login',
             slug: 'forgot_email',
+            generators: noGenerators,
           ),
         ),
         throwsA(isA<RenderFault>()),
@@ -1940,6 +2309,7 @@ sections:
               docTypeId: 'user_story',
               parent: 'login',
               slug: 'forgot_email',
+              generators: noGenerators,
             ),
           ),
           _FailingDeleteHook('.specstone/trash/journal.cursor'),
@@ -1972,6 +2342,7 @@ sections:
             docTypeId: 'user_story',
             parent: 'login',
             slug: 'forgot_email',
+            generators: noGenerators,
           );
         }),
         throwsA(isA<RenderFault>()),

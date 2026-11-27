@@ -119,6 +119,16 @@ void main() {
       expect(feature.numberAt([]), isNull);
     });
 
+    // D10: a {slug}-only group folder named by digits gives no number.
+    test('reads a {slug}-only group folder as no number', () {
+      final grouped = PathPattern(
+        'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
+      );
+
+      expect(grouped.numberAt(['prds', 'features', '12']), isNull);
+      expect(grouped.numberAt(['prds', 'features', '12', 'f03_a']), 3);
+    });
+
     test('is null, without throwing, when the {nn} digits overflow an int', () {
       const overlong = 'f99999999999999999999_x';
 

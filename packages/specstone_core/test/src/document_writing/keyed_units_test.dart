@@ -16,6 +16,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart';
 
 const _cartApi = 'specs/f02_shop/f01_cart/API.md';
@@ -81,6 +82,7 @@ ReadAnswer _apply(Directory root, String plan, {bool dryRun = false}) =>
         session,
         parseMovePlan(plan, path: 'plan.txt'),
         dryRun: dryRun,
+        generators: noGenerators,
       ),
     );
 

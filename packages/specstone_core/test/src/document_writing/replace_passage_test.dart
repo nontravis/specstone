@@ -5,6 +5,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart';
 
 Matcher throwsInvalid() => throwsA(
@@ -206,6 +207,7 @@ void main() {
             SetRequest.parse(rules, base: base, replace: true),
             '==> old <==\n- BR-02 Emails are lowercase.\n==> new <==\n'
             '- BR-03 Emails are trimmed.\n',
+            generators: noGenerators,
           ),
         );
         expect(readDoc(root, story1), contains('retired_ids:\n  - BR-02\n'));

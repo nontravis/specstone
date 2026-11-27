@@ -66,8 +66,12 @@ class DeleteCommand extends WriteCommand {
     );
     if (dryRun) {
       return runWrite(
-        (session) =>
-            answerDeleteDryRun(session, rest, codeTarget: targetOf(args)),
+        (session) => answerDeleteDryRun(
+          session,
+          rest,
+          codeTarget: targetOf(args),
+          generators: specstoneRunner.generators,
+        ),
         asJson: asJson,
       );
     }
@@ -81,6 +85,7 @@ class DeleteCommand extends WriteCommand {
         prompts: asJson ? runner.err : runner.out,
         planHash: planHash,
         codeTarget: targetOf(args),
+        generators: runner.generators,
       ),
       asJson: asJson,
     );

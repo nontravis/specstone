@@ -12,8 +12,8 @@ follows.
    whole-doc `base` of `specstone get <doc> --json`.
 2. **Ground**: run one `specstone context <draft> <draft> --for review --out` naming every draft step 1 keeps. A feature
    or doc the Owner names takes `specstone context <it> --for design --out` instead. Ground again; main's files predate
-   the writes. In a check of drafts, besides step 1's calls, this call, and step 6's one `grep -n -E` over the refs
-   file, run no other doc read, `search`, `refs`, or `context` call.
+   the writes. In a check of drafts, besides step 1's calls, this call, and step 6's one `grep -n -E`, run no other
+   doc read, `search`, `refs`, or `context` call.
 3. **Read**: the change note, each writer report's `Decision:`, `Readers:`, and open question lines, and the review
    read-first file by its read plan, with its changed, removed, citer, summary, and pattern parts. A doc the Owner
    names, no draft, is read whole.
@@ -22,18 +22,18 @@ follows.
      builder is no guess.
    - `Contradiction`: two docs contradict once the drafts land. A draft restating a rule another doc owns is one, naming
      the owner doc and the item, its fix an item link. So is a citer that a size-fix move repointed, or kept, that means
-     the part it no longer links: name it and its item. So is a decision or draft against any project vision,
-     advanced or not, naming the draft or the doc the Reach list gives it, and the vision's ID.
+     the part it no longer links: name it and its item. So is a decision or draft against any project vision, naming
+     the draft or the doc the Reach list gives it, and the vision's ID.
    - `Stale reader`: a reader still states the old rule.
    - `Not carried`: a decision of the change note no draft carries, or a draft departing from it, one line in each doc
      it misses, naming the decision and the draft, or the doc its Reach list gives it. A `(plan)` decision stating
      behavior a PRD or spec doc must hold is one too, and its line names that doc.
    - `Misplaced`: a line a draft adds to or changes in a shared FR states a rule only one member holds. The item reads
-     `- Misplaced: <shared FR>#<key>: <rule> belongs in <member FR>`, or `belongs in a new FR for <member>` with no
-     member FR yet. So is an internal code-level fact a spec draft states, which the guide's `code_detail_home` or
-     `library_code_detail_home` line leaves to the code or the plan: it belongs in the plan. A shared FR line no draft
-     adds or changes, a rule two or more members take, or a contract outsiders rely on, such as a command's flags, gets
-     no `Misplaced` line.
+     `- Misplaced: <shared FR>#<key>, <member FR>: <rule> belongs in <member FR>`, so both FRs lead, or
+     `- Misplaced: <shared FR>#<key>: <rule> belongs in a new FR for <member>` with no member FR yet. So is an internal
+     code-level fact a spec draft states, which the guide's `code_detail_home` or `library_code_detail_home` line leaves
+     to the code or the plan: it belongs in the plan. A shared FR line no draft adds or changes, a rule two or more
+     members take, or a contract outsiders rely on, such as a command's flags, gets no `Misplaced` line.
 5. **Feature pattern**: an item is covered when a story, FR, edge case, or spec doc covers it by its text, or a skip
    line in the `out_of_scope` of the doc that lists the pattern names it. In a check of drafts, take each item from the
    read-first file's `pattern` parts, each naming that doc by `<type>:<name>`, and search in step 6's grep over that
@@ -67,13 +67,12 @@ Audited: <doc>@<hash>
   label or count line inside.
 - Under an item whose fix you can state, write one `Fix: <type>:<name>#<key>` line per section the fix changes, indented
   two spaces, then that section's whole new body in a bare fence of three or more backticks, longer than any run at a
-  line start in it, indented the same. State a fix only as `Fix:` lines, never in prose; an Owner-only question
-  gets none.
+  line start in it, indented the same. State a fix only as `Fix:` lines, never in prose; a point only the Owner
+  settles gets none.
 - **Dry run**: before each `Fix:` line, run `specstone set <doc>#<key> --dry-run`, no `--base`, the fenced body on
   stdin. Fix in the body each finding it prints, a doc-level one too, and each refusal it causes, such as an open fence;
   dry-run again, write the line. One you cannot fix leaves no `Fix:` line.
-- Put every labeled point under `Findings:`, a doc outside the drafts included (the fix loop adds it); write no
-  `Outside the drafts:` section.
+- A doc outside the drafts goes under `Findings:` too (the fix loop adds it); write no `Outside the drafts:` section.
 - Put each non-gap observation under `Notes:`, which the judge never reads and main relays to the Owner; with none,
   write no heading.
 - With no point, `Findings:` reads `nothing important left`.

@@ -1,10 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/doc_model/path_length.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-
-/// The most characters a doc's path from the project root may hold.
-const pathLengthLimit = 200;
 
 /// The fewest chain children a nested nesting-type doc holds.
 const _minimumChildren = 2;
@@ -66,7 +63,7 @@ Finding _tooSmall(
 /// Returns `path_over_limit` for [doc] when its path from the project root is
 /// too long.
 Iterable<Finding> checkPathLength(CheckContext context, IndexedDoc doc) sync* {
-  final length = projectPathOfDocPath(doc.docPath).length;
+  final length = projectPathLength(doc.docPath);
   if (length <= pathLengthLimit) return;
   yield context.finding(
     doc,

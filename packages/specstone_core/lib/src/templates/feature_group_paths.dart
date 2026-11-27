@@ -1,12 +1,14 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 
 /// The id of the doc type whose merged `path` holds the group levels.
 const featureTypeId = 'feature';
 
-const _slugSegment = '{slug}';
-const _numberPlaceholder = '{nn}';
-const _featureFolderSegment = 'f{nn}_{slug}';
+const String _slugSegment = PathSegment.slugToken;
+const String _numberPlaceholder = PathSegment.numberToken;
+const _featureFolderSegment =
+    'f${PathSegment.numberToken}_${PathSegment.slugToken}';
 
 /// Returns one pattern per group level of [featurePath], shallowest first.
 ///

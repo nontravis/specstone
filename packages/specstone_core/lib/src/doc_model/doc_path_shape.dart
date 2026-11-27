@@ -4,39 +4,6 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
-final _placeholder = RegExp(r'\{nn\}|\{slug\}');
-
-const _numberToken = '{nn}';
-
-/// One `/`-separated segment of a doc type path, with its placeholders.
-final class _Segment {
-  new(this.source)
-    : tokens = [for (final m in _placeholder.allMatches(source)) m.group(0)!],
-      regex = _compile(source);
-
-  static RegExp _compile(String source) {
-    final pattern = source.splitMapJoin(
-      _placeholder,
-      onMatch: (m) => m.group(0) == _numberToken ? '([0-9]+)' : '([a-z0-9_]+)',
-      onNonMatch: RegExp.escape,
-    );
-    return RegExp('^$pattern\$');
-  }
-
-  final String source;
-
-  /// The placeholders of the segment in order: `{nn}` or `{slug}`.
-  final List<String> tokens;
-
-  /// Matches a whole segment; one group per placeholder.
-  final RegExp regex;
-
-  /// Returns [source] with each placeholder replaced by the next of [values],
-  /// taken from [next] on.
-  String fill(List<String> values, int Function() next) =>
-      source.splitMapJoin(_placeholder, onMatch: (_) => values[next()]);
-}
-
 /// The shape of a doc type's `path:`: which segment is the doc's own, and
 /// what its placeholders hold (s03 OwnSegment).
 final class DocPathShape {
@@ -89,7 +56,7 @@ final class DocPathShape {
         ? paths[depth]
         : PathPattern(paths[depth]).forTarget(target).source;
     final segments = path.split('/');
-    final patterns = [for (final s in segments) _Segment(s)];
+    final patterns = [for (final s in segments) PathSegment(s)];
     var running = 0;
     var ownStart = segments.length - 1;
     for (var i = 0; i < patterns.length; i++) {
@@ -143,15 +110,15 @@ final class DocPathShape {
         : null;
   }
 
-  static int? _firstNumberedFrom(List<_Segment> patterns, int start) {
+  static int? _firstNumberedFrom(List<PathSegment> patterns, int start) {
     for (var i = start; i < patterns.length; i++) {
-      if (patterns[i].tokens.contains(_numberToken)) return i;
+      if (patterns[i].tokens.contains(PathSegment.numberToken)) return i;
     }
     return null;
   }
 
   static int _placeholdersIn(String path) =>
-      _placeholder.allMatches(path).length;
+      PathSegment.placeholder.allMatches(path).length;
 
   /// The pattern at [depth], split on `/`.
   final List<String> segments;
@@ -172,7 +139,7 @@ final class DocPathShape {
   /// How many more times the nesting segment repeats than in the base `path:`.
   final int depth;
 
-  final List<_Segment> _patterns;
+  final List<PathSegment> _patterns;
 
   /// The `{slug}` placeholders in the group folders, the segments from
   /// [ownStart] up to [ownIndex].
@@ -181,7 +148,10 @@ final class DocPathShape {
       .fold(
         0,
         (sum, pattern) =>
-            sum + pattern.tokens.where((token) => token != _numberToken).length,
+            sum +
+            pattern.tokens
+                .where((token) => token != PathSegment.numberToken)
+                .length,
       );
 
   /// How many values [containerOf] and the sibling lists take: the parent's
@@ -206,20 +176,22 @@ final class DocPathShape {
         pattern.tokens[i]: match.group(i + 1)!,
     };
     return OwnMatch(
-      number: int.tryParse(values[_numberToken] ?? ''),
-      slug: values['{slug}'],
+      number: int.tryParse(values[PathSegment.numberToken] ?? ''),
+      slug: values[PathSegment.slugToken],
     );
   }
 
   /// Whether a segment after the own one holds a placeholder.
   bool get belowOwnHasPlaceholder =>
-      segments.skip(ownIndex + 1).any(_placeholder.hasMatch);
+      segments.skip(ownIndex + 1).any(PathSegment.placeholder.hasMatch);
 
   /// Whether the own segment holds `{nn}`.
-  bool get numbered => _patterns[ownIndex].tokens.contains(_numberToken);
+  bool get numbered =>
+      _patterns[ownIndex].tokens.contains(PathSegment.numberToken);
 
   /// Whether the own segment holds `{slug}`.
-  bool get slugged => _patterns[ownIndex].tokens.contains('{slug}');
+  bool get slugged =>
+      _patterns[ownIndex].tokens.contains(PathSegment.slugToken);
 
   /// Returns the placeholder values of [docPath] in pattern order, `{nn}`
   /// digits as written; null when the pattern does not match.
@@ -246,7 +218,7 @@ final class DocPathShape {
   /// is null.
   List<String> ownValues({String? number, String? slug}) => [
     for (final token in _patterns[ownIndex].tokens)
-      (token == _numberToken ? number : slug) ??
+      (token == PathSegment.numberToken ? number : slug) ??
           (throw ArgumentError('the own segment takes $token')),
   ];
 

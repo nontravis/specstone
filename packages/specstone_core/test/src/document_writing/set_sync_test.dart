@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart' hide loginFeature;
 
 const _arch = 'charter:login';
@@ -78,8 +79,10 @@ Future<Directory> _project({
 ParsedSync _parsed(List<String> lines) =>
     parseSyncFile('sync.txt', '${lines.join('\n')}\n');
 
-ReadAnswer _sync(Directory root, List<String> lines) =>
-    writeIn(root, (session) => answerSetSync(session, _parsed(lines)));
+ReadAnswer _sync(Directory root, List<String> lines) => writeIn(
+  root,
+  (session) => answerSetSync(session, _parsed(lines), generators: noGenerators),
+);
 
 SyncFault _refused(Directory root, List<String> lines) {
   try {
@@ -608,7 +611,8 @@ void main() {
 
     final answer = writeInNoHome(
       root,
-      (session) => answerSetSync(session, _parsed(lines)),
+      (session) =>
+          answerSetSync(session, _parsed(lines), generators: noGenerators),
     );
 
     expect(answer.text, 'Mismatches:\n${lines.join('\n')}\n');
@@ -630,7 +634,8 @@ void main() {
 
     final again = writeInNoHome(
       root,
-      (session) => answerSetSync(session, _parsed(lines)),
+      (session) =>
+          answerSetSync(session, _parsed(lines), generators: noGenerators),
     );
 
     expect(again.text, isEmpty);

@@ -40,9 +40,20 @@ final class KeyedDoc {
   final String text;
 }
 
-/// Returns, by DocPath, the edit of each doc the blocks and rows of
+/// What a keyed move writes: the edit of each doc by DocPath, and the address
+/// each landing's units hold in their destination, in landing order.
+final class KeyedWrites {
+  const new(this.edits, this.landed);
+
+  final Map<String, TextEdit> edits;
+
+  /// `<section key>/<key>` as the write sets it, one per landing.
+  final List<String> landed;
+}
+
+/// Returns the edit of each doc, by DocPath, the blocks and rows of
 /// [landings] and the keyed [orders] change, and of each doc that links an
-/// anchor they move.
+/// anchor they move, with the address each landing wrote.
 ///
 /// [docs] holds every source, destination, and doc of [orders]. Each source
 /// loses its units, each doc of [orders] takes its kept units in the order
@@ -50,14 +61,14 @@ final class KeyedDoc {
 /// last in its section of their key. A doc that gains or loses a unit is
 /// marked draft. Each link to a heading whose anchor moves or changes reaches
 /// it after the move, in [docs], their linkers, and [alsoFollowIn].
-Map<String, TextEdit> keyedEdits(
+KeyedWrites keyedEdits(
   WriteSession session, {
   required List<KeyedLanding> landings,
   required Map<String, List<String>> orders,
   required List<KeyedDoc> docs,
   Iterable<IndexedDoc> alsoFollowIn = const [],
 }) {
-  if (docs.isEmpty) return const {};
+  if (docs.isEmpty) return const KeyedWrites({}, []);
   final reads = {
     for (final doc in docs) doc.doc.docPath: _Read.of(session, doc),
   };
@@ -75,7 +86,7 @@ Map<String, TextEdit> keyedEdits(
         moves,
       ).write(pieces, orders[read.docPath] ?? const []),
   };
-  return {
+  final edits = <String, TextEdit>{
     for (final doc in _linkersOf(session.index, moves, alsoFollowIn))
       doc.docPath: (lfText) => withFollowedAnchors(lfText, doc.docPath, moves),
     for (final MapEntry(key: docPath, value: text) in written.entries)
@@ -88,6 +99,9 @@ Map<String, TextEdit> keyedEdits(
             : null,
       ),
   };
+  return KeyedWrites(edits, [
+    for (final piece in pieces) piece.landing.landedAddress,
+  ]);
 }
 
 /// Returns the edit that writes [written], the text of [read] once its units
@@ -235,6 +249,7 @@ final class _Pieces {
   }
 
   final KeyedLanding landing;
+
   final List<List<_Line>> blocks;
   final List<_Line> rows;
 

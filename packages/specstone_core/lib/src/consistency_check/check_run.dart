@@ -20,6 +20,7 @@ import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
+import 'package:specstone_core/src/consistency_check/generated_block_rules.dart';
 import 'package:specstone_core/src/consistency_check/goal_measurement_rules.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/consistency_check/item_field_rules.dart';
@@ -48,8 +49,11 @@ import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/shipped_generators.dart';
 
 /// Runs every rule over the scope of [target], the one doc at [docPath], or
 /// the whole project.
@@ -66,13 +70,15 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 /// The Mermaid parse runs last, over the typed docs the run checks;
 /// [mermaidRunner] stands in for Node in tests, and null starts `node`. The
 /// index then stores the code-file facts the run learned, and an index that
-/// cannot be written leaves them unstored.
+/// cannot be written leaves them unstored. [generators] gives the blocks the
+/// stale-block rule compares; null takes the shipped ones.
 Future<CheckReport> runCheck(
   ReadSession session, {
   String? target,
   String? docPath,
   String? codeTarget,
   MermaidNodeRun? mermaidRunner,
+  GeneratorRegistry<DocIndex>? generators,
 }) async {
   if (target != null && docPath != null) {
     throw ArgumentError('give either a target or a docPath, not both');
@@ -83,11 +89,16 @@ Future<CheckReport> runCheck(
   final work = ImplementedWork(context, scope.targets);
   final findings = <Finding>[];
   final typedDocs = <IndexedDoc>[];
+  final registry = generators ?? shippedGenerators();
   for (final doc in index.docs) {
     if (!scope.contains(doc.docPath)) continue;
     if (!context.isChecked(doc)) continue;
     if (doc.isTyped) typedDocs.add(doc);
     findings.addAll(_docFindings(context, work, doc));
+    // Outside _docFindings, so an approved copy never runs it.
+    if (doc.isTyped) {
+      findings.addAll(checkGeneratedBlocks(context, doc, registry));
+    }
   }
   for (final feature in _featuresReached(context, scope, docPath)) {
     findings.addAll(checkBundleSize(context, feature));

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' as check;
+import '../../helpers/no_generators.dart';
 import '../../helpers/pattern_findings.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/write_fixture.dart' as write;
@@ -104,7 +105,10 @@ void main() {
         'no goal', () async {
       final root = await write.writeWriteProject();
 
-      write.writeIn(root, (s) => answerNew(s, docTypeId: 'goal'));
+      write.writeIn(
+        root,
+        (s) => answerNew(s, docTypeId: 'goal', generators: noGenerators),
+      );
 
       final text = write.readDoc(root, check.goalDoc);
       expect(

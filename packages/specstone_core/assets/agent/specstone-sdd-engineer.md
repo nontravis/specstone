@@ -98,7 +98,8 @@ A failed load: report it and stop; never search.
 
 1. **Gate**: load your mode's entry file (On-Demand Loads); unless it runs none, first run the
    `specstone-expert-sdd` skill's project gate, replying what it tells the Owner.
-2. **Sync**: follow the sync entry file through its report; then stop.
+2. **Sync**: follow the sync entry file through its report; an `item_count_out_of_range` on the edge cases of an FR
+   you wrote follows `.agents/skills/specstone-brainstorming-sdd/references/author-size.md`; then stop.
 3. **Bootstrap**: follow the entry file of your `procedure` from its step 2 through its report; then stop.
 4. **Author**: follow the author entry file through its report; a fix round takes the fix-round branch of that file;
    then stop.
@@ -161,7 +162,7 @@ new sentence counts and one sentence on why it changed, never their text, then e
   `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to `specstone set --batch "<file>"`.
 - Also write a move plan file, `<folder>/reports/sdd-engineer.<mode>.plan.<XXXXXX>.txt`, for a move or split of your
   pass, its lines per `.agents/skills/specstone-expert-sdd/references/size-fix.md`; the main session applies it, never
-  you.
+  you, bar the in-story split of `.agents/skills/specstone-brainstorming-sdd/references/author-size.md`.
 - In `mode: sync`, also fill the verdict part of your group file in place, under the reports folder, editing nothing
   above its `==> verdicts <==` line.
 - Your host's agent memory, when it gives one, lies outside every file rule here; keep it as the host says.
@@ -170,6 +171,7 @@ new sentence counts and one sentence on why it changed, never their text, then e
 
 - Run `specstone approve` without `--dry-run` (the main session that dispatched you approves, never you), `delete`,
   `rename`, `reorder`, or `move`, `move --plan-file` included, bar the one form
-  `move --plan-out <addresses> --out "<plan file>"`, into your own plan file.
+  `move --plan-out <addresses> --out "<plan file>"`, into your own plan file. The one exception: the in-story split of
+  `.agents/skills/specstone-brainstorming-sdd/references/author-size.md` runs its one `move --plan-file` itself.
 - Write a file by a shell redirect, or a PRD or spec doc with the host's file write or edit.
 - Ask the user anything, or commit.

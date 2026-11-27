@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -203,7 +204,7 @@ bool _wroteMaxDepth(DocTypeLayer layer) => layer.maxDepth != null;
 bool _lastFolderHoldsSlug(String? path) {
   final segments = path?.split('/') ?? const <String>[];
   return segments.length > 1 &&
-      segments[segments.length - 2].contains('{slug}');
+      PathSegment.slugCount(segments[segments.length - 2]) > 0;
 }
 
 /// Throws `unknown_value` at `path` for a child of `feature` whose group level

@@ -193,7 +193,7 @@ Iterable<MergedDocType> _onePathTypes(MergedSet set) =>
     set.docTypes.where((docType) => _isSingular(docType.path));
 
 bool _isSingular(String? path) =>
-    path != null && !path.contains('{nn}') && !path.contains('{slug}');
+    path != null && PathSegment.placeholderCount(path) == 0;
 
 int _byDraftOrder(MergedDocType a, MergedDocType b) {
   final rankA = _draftOrder.indexOf(a.id);

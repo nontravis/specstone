@@ -16,6 +16,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart' show commitRepo;
+import '../../helpers/no_generators.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -128,7 +129,11 @@ void main() {
     expectRefusedUntouched(
       () => writeIn(
         clone,
-        (s) => approveDryRun(s, history: ApprovalHistory(runGit: _olderGit)),
+        (s) => approveDryRun(
+          s,
+          history: ApprovalHistory(runGit: _olderGit),
+          generators: noGenerators,
+        ),
       ),
     );
   }, skip: _skip);
@@ -145,6 +150,7 @@ void main() {
           readLine: () => fail('the Owner was asked'),
           out: out,
           history: ApprovalHistory(runGit: _olderGit),
+          generators: noGenerators,
         ),
       ),
     );
@@ -166,8 +172,12 @@ void main() {
 
       await expectLater(
         WriteSession.runAsync(
-          (s) =>
-              approveAuto(s, call, history: ApprovalHistory(runGit: _olderGit)),
+          (s) => approveAuto(
+            s,
+            call,
+            history: ApprovalHistory(runGit: _olderGit),
+            generators: noGenerators,
+          ),
           templates: TemplateResolver(),
           workingDirectory: clone,
           homeDirectory: testHome(),
@@ -183,7 +193,10 @@ void main() {
 
   test('delete --dry-run lists the unit of a committed git dir and runs no '
       'command', () {
-    final answer = writeIn(clone, (s) => answerDeleteDryRun(s, const [_draft]));
+    final answer = writeIn(
+      clone,
+      (s) => answerDeleteDryRun(s, const [_draft], generators: noGenerators),
+    );
 
     expect(answer.json['files'], isNotEmpty);
     expect(marker.existsSync(), isFalse, reason: 'a git command ran');
@@ -195,7 +208,9 @@ void main() {
     final plan =
         writeIn(
               clone,
-              (s) => answerDeleteDryRun(s, const [_draft]),
+              (s) => answerDeleteDryRun(s, const [
+                _draft,
+              ], generators: noGenerators),
             ).json['plan']!
             as String;
 
@@ -208,6 +223,7 @@ void main() {
         readLine: () => null,
         prompts: StringBuffer(),
         planHash: plan,
+        generators: noGenerators,
       ),
     );
 

@@ -438,7 +438,7 @@ String _nameOf(List<String>? slugs, String id) =>
     slugs == null || slugs.isEmpty ? id : slugs.join('/');
 
 int _placeholdersIn(PathPattern pattern) =>
-    RegExp(r'\{nn\}|\{slug\}').allMatches(pattern.source).length;
+    PathSegment.placeholderCount(pattern.source);
 
 // MARK: - Links
 

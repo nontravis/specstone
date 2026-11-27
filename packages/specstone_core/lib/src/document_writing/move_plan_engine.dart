@@ -4,9 +4,12 @@ import 'package:specstone_core/src/document_writing/move_reply.dart';
 import 'package:specstone_core/src/document_writing/move_work.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 
 const _sourceHashLength = 12;
 
@@ -24,6 +27,8 @@ String sourceHashOf(List<int> bytes) =>
 /// gains or loses an item is marked draft; a doc only rewritten keeps its
 /// approval with its new hash. Every address resolves among [codeTarget]'s
 /// docs and the shared docs. [dryRun] writes nothing, not even a journal.
+/// [generators] refresh the generated blocks the plan makes stale, as
+/// [applyMoveWork] gives.
 ///
 /// Throws [WriteFault] `plan_mismatch` for a `source` hash that differs from
 /// its doc's bytes, then the faults of each line's move, `new` included, and
@@ -34,6 +39,7 @@ ReadAnswer answerPlanMove(
   MovePlan plan, {
   String? codeTarget,
   required bool dryRun,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   _requireSources(session, plan, codeTarget);
   final work = judgeMovePlan(session, plan, codeTarget: codeTarget);
@@ -42,6 +48,7 @@ ReadAnswer answerPlanMove(
     work,
     shape: MoveReplyShape.plan,
     dryRun: dryRun,
+    generators: generators,
   );
 }
 

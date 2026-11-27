@@ -15,6 +15,7 @@ import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/write_fixture.dart' hide loginFeature;
 
@@ -84,6 +85,7 @@ ReadAnswer _sync(Directory root, List<String> lines) => writeIn(
   (session) => answerSetSync(
     session,
     parseSyncFile('sync.txt', '${lines.join('\n')}\n'),
+    generators: noGenerators,
   ),
 );
 

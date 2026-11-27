@@ -16,7 +16,10 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart'
     show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart' show DocIndex;
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry, generatedEndMarker, generatedOpenMarker;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -108,6 +111,16 @@ const loginFrVerification =
 const checkPasswordStatement =
     'The system shall refuse a wrong password within 1 s.';
 
+/// The generated catalog block of the fixture's feature map, current for the
+/// one login feature.
+final String featureCatalogBlock =
+    '${generatedOpenMarker('feature_catalog')}\n'
+    '1 features · 1 stories · 1 implemented\n\n'
+    '| Feature | What it does | Status | Stories | Serves |\n'
+    '|---|---|---|---|---|\n'
+    '| [Login page](features/f01_login/FEATURE.md) | Lets an agent sign in. | implemented | 1/1 | PV-01, PG-01 |\n'
+    '$generatedEndMarker';
+
 /// Returns the fixture project: every rule of US-01 to US-04 passes on it.
 ///
 /// Keys are paths from the project root.
@@ -130,7 +143,8 @@ Map<String, String> checkProjectFiles() => {
       '| Date | Version | Run | Resets | Met |\n|---|---|---|---|---|\n\n'
       '## Open causes\n\nN/A\n',
   'docs/$goalDoc': '# Project goals\n\n## Long-term goals\n\n### PG-01 — Fewer resets\n\n**Serves:** PV-01\nHalve the password resets.\n',
-  'docs/prds/FEATURES.md': '# Feature map\n\n## Features\n\nOne feature.\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
+  'docs/prds/FEATURES.md':
+      '# Feature map\n\n## Features\n\n$featureCatalogBlock\n\nOne feature.\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
   'docs/$gnfrDoc':
       '# Project-wide non-functional requirements\n\n## Performance\n\n### NFR-P01 — Sign-in time\n\n'
       '$loginNfrStatement\n- **Rationale:** Users wait.\n\n'
@@ -429,15 +443,22 @@ String _withEndings(String original, String lf) =>
 
 /// Opens a session on [project], runs the check, closes the session.
 ///
-/// A [docPath] limits the run to that one doc.
+/// A [docPath] limits the run to that one doc. [generators] stands in for the
+/// shipped generators; null takes them.
 Future<CheckReport> checkOf(
   Directory project, {
   String? target,
   String? docPath,
+  GeneratorRegistry<DocIndex>? generators,
 }) async {
   final session = openSession(project);
   try {
-    return await runCheck(session, target: target, docPath: docPath);
+    return await runCheck(
+      session,
+      target: target,
+      docPath: docPath,
+      generators: generators,
+    );
   } finally {
     session.close();
   }

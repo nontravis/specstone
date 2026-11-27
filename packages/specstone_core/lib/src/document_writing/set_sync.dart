@@ -11,6 +11,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart'
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/matrix_form.dart';
 import 'package:specstone_core/src/document_writing/code_judge.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/locked_doc_texts.dart';
 import 'package:specstone_core/src/document_writing/remove_task_refs.dart'
     show removalsOf;
@@ -23,6 +24,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/code_bundle.dart'
     show coveringDocsOf;
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
@@ -37,6 +39,8 @@ import 'package:specstone_core/src/index_query/record_entries.dart'
         recordTestFieldOf,
         recordTestLineOf;
 import 'package:specstone_core/src/path_tail.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -56,10 +60,13 @@ const _unjudgedMessage =
 /// no doc writes neither. A line a pending draft covers waits; a task's refs
 /// go once each of its links is written. Throws [SyncFault] of every refused
 /// line, and [IndexFault] `argument_invalid` for an unknown [codeTarget].
+/// Each generated block of [generators] the write makes stale joins the
+/// journal ([blockRefreshOf]), listed in the json's `rewritten`.
 ReadAnswer answerSetSync(
   WriteSession session,
   ParsedSync parsed, {
   String? codeTarget,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   session.index.checkCodeTarget(codeTarget);
   return session.locked(() {
@@ -68,8 +75,23 @@ ReadAnswer answerSetSync(
     final refusals = run.apply();
     if (refusals.isNotEmpty) throw SyncFault(parsed.path, refusals);
     final removals = removalsOf(session, texts, run.removable, codeTarget);
-    final written = writeChangedDocs(session, texts);
-    return _answerOf(written, run, removals.noRefs);
+    final refresh = blockRefreshOf(
+      session,
+      generators,
+      WrittenDocs(texts: texts.laidOutChanged),
+    );
+    for (final text in texts.changed) {
+      if (refresh.ownTexts[text.doc.docPath] case final filled?) {
+        text.text = filled;
+      }
+    }
+    final written = writeChangedDocs(session, texts, steps: refresh.steps);
+    final answer = _answerOf(written, run, removals.noRefs);
+    return ReadAnswer(
+      text: '${answer.text}${refresh.linesOf()}',
+      json: {...answer.json, ...refresh.json},
+      warnings: [...answer.warnings, ...refresh.refused],
+    );
   });
 }
 

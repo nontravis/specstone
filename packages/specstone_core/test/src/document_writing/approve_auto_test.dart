@@ -11,6 +11,7 @@ import 'package:specstone_core/src/document_writing/approve_auto.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/audited_copy_store.dart';
+import 'package:specstone_core/src/document_writing/author_decisions.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -24,7 +25,9 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' as check;
 import '../../helpers/git_repo.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/relative_link.dart';
+import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -76,12 +79,13 @@ AutoApproveCall _call(
   Directory root, {
   List<String> names = const [_story, _fr],
   List<String> audits = const [],
+  List<String> authors = const [],
   bool noAudit = false,
   String? mode = 'auto',
 }) => AutoApproveCall(
   names: names,
   auditPaths: audits,
-  authorPaths: const [],
+  authorPaths: authors,
   noAudit: noAudit,
   workingDirectory: root,
   approveModeVariable: mode,
@@ -93,7 +97,7 @@ Future<ReadAnswer> _approveAuto(
   MermaidNodeRun? runner,
   Duration? busyTimeout,
 }) => WriteSession.runAsync(
-  (s) => approveAuto(s, call, mermaidRunner: runner),
+  (s) => approveAuto(s, call, mermaidRunner: runner, generators: noGenerators),
   templates: TemplateResolver(),
   workingDirectory: root,
   homeDirectory: testHome(),
@@ -141,6 +145,7 @@ Future<Directory> _approvedWithLongItem() async {
       names: [_fr],
       readLine: () => 'y',
       out: StringBuffer(),
+      generators: noGenerators,
     ),
   );
   ApprovedCopyStore(root).save(toLf(readDoc(root, check.loginFr)));
@@ -275,6 +280,112 @@ void main() {
     );
     expect(_isDraft(root, check.loginStory), isTrue);
     expect(_isDraft(root, check.loginFr), isTrue);
+  });
+
+  // D2: a Decision line lands only on a section or field its doc holds.
+  test('approves a draft whose Decision line names a field key its doc type declares', () async {
+    final root = await _draftsProject();
+    final folder = await writeTree({
+      'author.md': 'Decision: D1 -> $_story#goals\n',
+    });
+
+    final answer = await _approveAuto(
+      root,
+      _call(root, noAudit: true, authors: ['${folder.path}/author.md']),
+    );
+
+    expect(answer.text, 'mode: auto\napproved $_story\napproved $_fr\n');
+  });
+
+  test('approves a draft whose Decision line names a section by its typed address or its DocPath', () async {
+    for (final line in [
+      'Decision: D1 -> $_story#use_case',
+      'Decision: D1 -> ${check.loginStory}#use_case',
+    ]) {
+      final root = await _draftsProject();
+      final folder = await writeTree({'author.md': '$line\n'});
+
+      final answer = await _approveAuto(
+        root,
+        _call(root, noAudit: true, authors: ['${folder.path}/author.md']),
+      );
+
+      expect(
+        answer.text,
+        'mode: auto\napproved $_story\napproved $_fr\n',
+        reason: line,
+      );
+    }
+  });
+
+  test(
+    'asks every draft when a Decision line names a doc type the project lacks',
+    () async {
+      final root = await _draftsProject();
+      final folder = await writeTree({
+        'author.md': 'Decision: D1 -> nosuchtype:x#a\n',
+      });
+
+      final answer = await _approveAuto(
+        root,
+        _call(root, noAudit: true, authors: ['${folder.path}/author.md']),
+      );
+
+      expect(
+        answer.text,
+        'mode: auto\n'
+        'ask $_story: not landed: D1 in author.md\n'
+        'ask $_fr: not landed: D1 in author.md\n',
+      );
+    },
+  );
+
+  test('holds a twin doc only under the code target that names one, never on two docs', () async {
+    final root = await writeTwinProject();
+    final held = await WriteSession.runAsync(
+      (s) async => [
+        SectionLookup.ofIndex(s.index)
+            .holds('architecture:login', 'components'),
+        SectionLookup.ofIndex(
+          s.index,
+          codeTarget: 'jaspr',
+        ).holds('architecture:login', 'components'),
+        SectionLookup.ofIndex(
+          s.index,
+          codeTarget: 'jaspr',
+        ).holds('architecture:login', 'no_such_key'),
+      ],
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+      busyTimeout: indexBusyTimeout,
+    );
+
+    expect(held, [false, true, false]);
+  });
+
+  test('asks every draft when a Decision line names a key its doc lacks or a doc the project lacks', () async {
+    for (final line in [
+      'Decision: D1 -> $_story#missing_key',
+      'Decision: D1 -> user_story:login/missing_doc#goals',
+    ]) {
+      final root = await _draftsProject();
+      final folder = await writeTree({'author.md': '$line\n'});
+
+      final answer = await _approveAuto(
+        root,
+        _call(root, noAudit: true, authors: ['${folder.path}/author.md']),
+      );
+
+      expect(
+        answer.text,
+        'mode: auto\n'
+        'ask $_story: not landed: D1 in author.md\n'
+        'ask $_fr: not landed: D1 in author.md\n',
+        reason: line,
+      );
+      expect(_isDraft(root, check.loginStory), isTrue, reason: line);
+    }
   });
 
   test('approves under no-audit by the check alone', () async {
@@ -419,7 +530,7 @@ void main() {
     expect(_isApproved(root, check.loginStory), isTrue);
   });
 
-  test('prints the four JSON keys in doc order', () async {
+  test('prints the JSON keys in doc order', () async {
     final root = await _draftsProject(frHasFinding: true);
     final audit = await _auditNaming(root, [_story, _fr]);
 
@@ -441,8 +552,16 @@ void main() {
           'waitsFor': 'owner',
         },
       ],
+      'rewritten': <Object>[],
+      'deleted': <Object>[],
     });
-    expect(answer.json.keys, ['approveMode', 'approved', 'asked']);
+    expect(answer.json.keys, [
+      'approveMode',
+      'approved',
+      'asked',
+      'rewritten',
+      'deleted',
+    ]);
     expect(answer.warnings, isEmpty);
 
     final other = await _draftsProject();
@@ -800,6 +919,7 @@ void main() {
           names: [_story, _fr],
           readLine: () => 'y',
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       for (final path in [check.loginStory, check.loginFr]) {
@@ -912,6 +1032,7 @@ void main() {
           names: [_fr],
           readLine: () => 'y',
           out: StringBuffer(),
+          generators: noGenerators,
         ),
       );
       ApprovedCopyStore(root).save(toLf(readDoc(root, check.loginFr)));
@@ -1032,6 +1153,7 @@ Future<Directory> _approvedWithSize({
       names: [_fr],
       readLine: () => 'y',
       out: StringBuffer(),
+      generators: noGenerators,
     ),
   );
   ApprovedCopyStore(root).save(toLf(readDoc(root, check.loginFr)));

@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart' as check;
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/no_generators.dart';
 import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
@@ -1124,6 +1125,7 @@ void main() {
               session,
               SetRequest.parse('feature:signup#problem', base: base),
               'Users sign up.\n',
+              generators: noGenerators,
             ),
             busyTimeout: const Duration(milliseconds: 200),
           );
@@ -1146,9 +1148,7 @@ void main() {
     () async {
       final root = await _draftsProject();
       final author = File('${root.path}/author.md')
-        ..writeAsStringSync(
-          'Decision: D14 -> feature:setup_migration (summary, #scope)\n',
-        );
+        ..writeAsStringSync('Decision: D14 -> $_story (goals, #use_case)\n');
       final (:runner, :out, :err) = writeRunner(
         root,
         console: FakeConsole(approveModeVariable: 'auto'),
@@ -1173,6 +1173,66 @@ void main() {
       expect(_isApproved(root, check.loginStory), isTrue);
     },
   );
+
+  // D1: an author report may name a section by its DocPath.
+  test('--auto --author approves a draft whose author report names its section by DocPath', () async {
+    final root = await _draftsProject();
+    final author = File('${root.path}/author.md')
+      ..writeAsStringSync('Decision: D1 -> ${check.loginFr}#statement.\n');
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(approveModeVariable: 'auto'),
+    );
+
+    final code = await runner.run([
+      'approve',
+      _story,
+      '--auto',
+      '--no-audit',
+      '--author',
+      author.path,
+      '--json',
+    ]);
+
+    expect(code, 0, reason: '$err');
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    expect(json['asked'], isEmpty);
+    expect(_isApproved(root, check.loginStory), isTrue);
+  });
+
+  // D2: an author report names a section the project holds, else it lands nothing.
+  test('--auto --author asks every draft when a Decision line names a key its doc lacks', () async {
+    final root = await _draftsProject();
+    final author = File('${root.path}/author.md')
+      ..writeAsStringSync('Decision: D1 -> $_story#missing_key\n');
+    final (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(approveModeVariable: 'auto'),
+    );
+
+    final code = await runner.run([
+      'approve',
+      _story,
+      '--auto',
+      '--no-audit',
+      '--author',
+      author.path,
+      '--json',
+    ]);
+
+    expect(code, 0, reason: '$err');
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    expect(json['approved'], isEmpty);
+    expect(json['asked'], [
+      {
+        'doc': _story,
+        'path': check.loginStory,
+        'reason': 'not landed: D1 in author.md',
+        'waitsFor': 'owner',
+      },
+    ]);
+    expect(_isApproved(root, check.loginStory), isFalse);
+  });
 
   group('--auto', () {
     late String binary;
@@ -1229,7 +1289,14 @@ void main() {
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
-      expect(json.keys, ['approveMode', 'approved', 'asked', 'warnings']);
+      expect(json.keys, [
+        'approveMode',
+        'approved',
+        'asked',
+        'rewritten',
+        'deleted',
+        'warnings',
+      ]);
       expect(json['approveMode'], 'auto');
       expect(json['approved'], [
         {'doc': _story, 'path': check.loginStory, 'carried': <Object>[]},

@@ -47,6 +47,7 @@ import '../../helpers/grouped_fixture.dart';
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/legacy_fixture.dart' show commitRepo;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/rulebook_fixture.dart';
@@ -57,11 +58,15 @@ import '../../helpers/write_fixture.dart';
 void main() {
   useColdHostNode();
 
-  ReadAnswer reorder(Directory root, String address, String place) =>
-      writeIn(root, (s) => answerReorder(s, address, place: place));
+  ReadAnswer reorder(Directory root, String address, String place) => writeIn(
+    root,
+    (s) => answerReorder(s, address, place: place, generators: noGenerators),
+  );
 
-  ReadAnswer rename(Directory root, String address, String slug) =>
-      writeIn(root, (s) => answerRename(s, address, slug: slug));
+  ReadAnswer rename(Directory root, String address, String slug) => writeIn(
+    root,
+    (s) => answerRename(s, address, slug: slug, generators: noGenerators),
+  );
 
   const f = 'prds/features/f01_login';
 
@@ -139,6 +144,7 @@ void main() {
           {'from': 'specs/f01_login/', 'to': 'specs/f02_login/'},
         ],
         'rewritten': ['prds/FEATURES.md', 'prds/d01_context.md'],
+        'deleted': <Object>[],
         'mentions': <Object>[],
       });
       expect(
@@ -315,6 +321,7 @@ void main() {
         s,
         'user_story:login/reset_password',
         place: '1',
+        generators: noGenerators,
       );
       warnings = s.warnings;
       return answer;
@@ -374,6 +381,7 @@ void main() {
     expect(answer.json, {
       'moved': <Object>[],
       'rewritten': <Object>[],
+      'deleted': <Object>[],
       'mentions': <Object>[],
     });
     expect(hasDoc(root, story1), isTrue);
@@ -559,13 +567,138 @@ void main() {
       }
 
       await expectNotFound(
-        (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+        (s) => answerReorder(
+          s,
+          'user_story:login/reset_password',
+          place: '1',
+          generators: noGenerators,
+        ),
       );
       await expectNotFound(
-        (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       );
     },
   );
+
+  // D6
+  group('a rename and the path length limit', () {
+    // The longest doc under feature login; its landing path decides.
+    const longest =
+        'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+
+    /// Returns the slug that makes [longest] hold [units] code units from the
+    /// project root once login takes it.
+    String slugFor(int units) =>
+        'a' * (units - 'docs/$longest'.length + 'login'.length);
+
+    String landedWith(String slug) =>
+        'docs/${longest.replaceFirst('f01_login', 'f01_$slug')}';
+
+    for (final dryRun in [false, true]) {
+      test(
+        'a rename that lands a doc over 200 code units is argument_invalid naming its path and writes nothing${dryRun ? ' under dry run' : ''}',
+        () async {
+          final root = await writeWriteProject();
+          final before = treeBytes(root)
+            ..removeWhere((k, _) => !k.startsWith('docs'));
+          final slug = slugFor(201);
+          expect(
+            () => writeIn(
+              root,
+              (s) => answerRename(
+                s,
+                'feature:login',
+                slug: slug,
+                dryRun: dryRun,
+                generators: noGenerators,
+              ),
+            ),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    '${landedWith(slug)} would have 201 characters; the limit is 200',
+                  ),
+            ),
+          );
+          expect(
+            treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+            before,
+          );
+        },
+      );
+    }
+
+    test(
+      'a rename that lands its longest doc at 200 code units is written',
+      () async {
+        final root = await writeWriteProject();
+        final slug = slugFor(200);
+        writeIn(
+          root,
+          (s) => answerRename(
+            s,
+            'feature:login',
+            slug: slug,
+            generators: noGenerators,
+          ),
+        );
+        expect(
+          hasDoc(root, landedWith(slug).substring('docs/'.length)),
+          isTrue,
+        );
+      },
+    );
+  });
+
+  // D7
+  for (final dryRun in [false, true]) {
+    test(
+      'a rename that lands a doc at a path no doc type matches is argument_invalid and writes nothing${dryRun ? ' under dry run' : ''}',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            '.specstone/templates/spike.yaml': 'id: spike\ndescription: A spike.\npath: specs/f{nn}_login/SPIKE.md\n',
+            'docs/specs/f01_login/SPIKE.md': '# Spike\n',
+          },
+        );
+        final before = treeBytes(root)
+          ..removeWhere((k, _) => !k.startsWith('docs'));
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerRename(
+              s,
+              'feature:login',
+              slug: 'sign_in',
+              dryRun: dryRun,
+              generators: noGenerators,
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'specs/f01_sign_in/SPIKE.md matches no doc type',
+                ),
+          ),
+        );
+        expect(
+          treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+          before,
+        );
+      },
+    );
+  }
 
   test(
     'a spec doc whose feature is not indexed still names its feature',
@@ -745,6 +878,7 @@ void main() {
         {'from': 'specs/f01_login/', 'to': 'specs/f01_signin/'},
       ],
       'rewritten': ['prds/FEATURES.md', 'prds/personas/buyer/PERSONA.md'],
+      'deleted': <Object>[],
       'mentions': <Object>[],
     });
     expect(
@@ -855,7 +989,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerRename(s, 'user_story:login/reset_password', slug: null),
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: null,
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<IndexFault>()
@@ -881,6 +1020,7 @@ void main() {
     expect(answer.json, {
       'moved': <Object>[],
       'rewritten': <Object>[],
+      'deleted': <Object>[],
       'mentions': <Object>[],
     });
     expect(hasDoc(root, story3), isTrue);
@@ -1078,7 +1218,11 @@ void main() {
     const cartAddAddress = 'user_story:shop/cart/add_item';
 
     ReadAnswer moveAll(Directory root, List<String> addresses, String? under) =>
-        writeIn(root, (s) => answerMove(s, addresses, under: under));
+        writeIn(
+          root,
+          (s) =>
+              answerMove(s, addresses, under: under, generators: noGenerators),
+        );
 
     ReadAnswer move(Directory root, String address, String? under) =>
         moveAll(root, [address], under);
@@ -1099,7 +1243,7 @@ void main() {
       final root = await writeNestedProject();
       final answer = writeIn(
         root,
-        (s) => answerPlanMove(s, plan, dryRun: false),
+        (s) => answerPlanMove(s, plan, dryRun: false, generators: noGenerators),
       );
       expect(
         answer.text,
@@ -1427,7 +1571,13 @@ void main() {
         expect(
           () => writeIn(
             root,
-            (s) => answerMove(s, const [], under: 'shop/pay', top: true),
+            (s) => answerMove(
+              s,
+              const [],
+              under: 'shop/pay',
+              top: true,
+              generators: noGenerators,
+            ),
           ),
           throwsA(
             isA<IndexFault>()
@@ -1449,7 +1599,13 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerMove(s, const [nowhere], under: 'shop/pay', top: true),
+          (s) => answerMove(
+            s,
+            const [nowhere],
+            under: 'shop/pay',
+            top: true,
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>().having(
@@ -1501,7 +1657,13 @@ void main() {
           expect(
             () => writeIn(
               root,
-              (s) => answerMove(s, [address], under: null, top: true),
+              (s) => answerMove(
+                s,
+                [address],
+                under: null,
+                top: true,
+                generators: noGenerators,
+              ),
             ),
             throwsA(
               isA<IndexFault>()
@@ -1523,6 +1685,7 @@ void main() {
               const ['user_story:shop/cart/nothing_here'],
               under: null,
               top: true,
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -2218,8 +2381,13 @@ void main() {
         final root = await writeNestedProject(extra: {spanDocPath: note});
         final answer = writeIn(
           root,
-          (s) =>
-              answerMove(s, [cartAddAddress], under: 'shop/pay', dryRun: true),
+          (s) => answerMove(
+            s,
+            [cartAddAddress],
+            under: 'shop/pay',
+            dryRun: true,
+            generators: noGenerators,
+          ),
         );
         expect(mentionsOf(answer), [
           {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
@@ -2606,7 +2774,15 @@ void main() {
     test('a rewritten approved doc is stamped with the hash of its new content and stays approved', () async {
       final root = await writeWriteProject();
       final before = approvedValue(root, featuresIndex);
-      writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
+      writeIn(
+        root,
+        (s) => answerReorder(
+          s,
+          'feature:signup',
+          place: '1',
+          generators: noGenerators,
+        ),
+      );
       expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
       expect(approvedValue(root, featuresIndex), isNotNull);
       expect(approvedValue(root, featuresIndex), isNot(before));
@@ -2617,7 +2793,15 @@ void main() {
       final root = await writeWriteProject();
       leaveStale(root, featuresIndex);
       final before = approvedValue(root, featuresIndex);
-      writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
+      writeIn(
+        root,
+        (s) => answerReorder(
+          s,
+          'feature:signup',
+          place: '1',
+          generators: noGenerators,
+        ),
+      );
       expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
       expect(approvedValue(root, featuresIndex), before);
       expect(await staleDocs(root), [featuresIndex]);
@@ -2627,7 +2811,12 @@ void main() {
       final root = await writeWriteProject();
       writeIn(
         root,
-        (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+        (s) => answerReorder(
+          s,
+          'user_story:login/reset_password',
+          place: '1',
+          generators: noGenerators,
+        ),
       );
       final draftStory = readDoc(
         root,
@@ -2644,7 +2833,12 @@ void main() {
         final before = approvedValue(root, featuresIndex);
         writeIn(root, (s) {
           leaveStale(root, featuresIndex);
-          return answerRename(s, 'feature:signup', slug: 'register');
+          return answerRename(
+            s,
+            'feature:signup',
+            slug: 'register',
+            generators: noGenerators,
+          );
         });
         expect(
           readDoc(root, featuresIndex),
@@ -2697,8 +2891,12 @@ void main() {
       final before = approvedValue(root, shopApi);
       writeIn(
         root,
-        (s) =>
-            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/add_item'],
+          under: 'shop/pay',
+          generators: noGenerators,
+        ),
       );
       expect(readDoc(root, shopApi), contains('pay/add_item/check_stock'));
       expect(approvedValue(root, shopApi), isNot(before));
@@ -2709,8 +2907,12 @@ void main() {
       final kept = approvedValue(stale, shopApi);
       writeIn(
         stale,
-        (s) =>
-            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/add_item'],
+          under: 'shop/pay',
+          generators: noGenerators,
+        ),
       );
       expect(approvedValue(stale, shopApi), kept);
       expect(await staleDocs(stale), contains(shopApi));
@@ -2722,9 +2924,12 @@ void main() {
         final root = await writeNestedProject();
         writeIn(
           root,
-          (s) => answerMove(s, [
-            'user_story:shop/cart/add_item',
-          ], under: 'shop/pay'),
+          (s) => answerMove(
+            s,
+            ['user_story:shop/cart/add_item'],
+            under: 'shop/pay',
+            generators: noGenerators,
+          ),
         );
 
         final mark = approvedValue(root, shopApi)!;
@@ -2784,7 +2989,11 @@ void main() {
         '```text\n${text ?? block}\n```\n';
 
     ReadAnswer moveUnder(Directory root, String address, String under) =>
-        writeIn(root, (s) => answerMove(s, [address], under: under));
+        writeIn(
+          root,
+          (s) =>
+              answerMove(s, [address], under: under, generators: noGenerators),
+        );
 
     test(
       'a node naming a moved fr in a mermaid block follows the move',
@@ -3051,8 +3260,12 @@ void main() {
       );
       final answer = writeIn(
         root,
-        (s) =>
-            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/add_item'],
+          under: 'shop/pay',
+          generators: noGenerators,
+        ),
       );
       expect(readDoc(root, 'notes.md'), 'See `shop/pay/add_item`.\n');
       expect(codeText(root, 'app/lib/cart.dart'), code);
@@ -3079,8 +3292,12 @@ void main() {
       commitRepo(root);
       final answer = writeIn(
         root,
-        (s) =>
-            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/add_item'],
+          under: 'shop/pay',
+          generators: noGenerators,
+        ),
       );
       expect(codeText(root, '.codex/agents/reader.md'), agent);
       expect(answer.json['mentions'], [
@@ -3437,6 +3654,7 @@ void main() {
               'architecture:login',
               slug: 'signin',
               codeTarget: 'flutter',
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -3680,8 +3898,11 @@ void main() {
       },
     );
 
-    ReadAnswer moveAddItem(Directory root) =>
-        writeIn(root, (s) => answerMove(s, [addItem], under: 'shop/pay'));
+    ReadAnswer moveAddItem(Directory root) => writeIn(
+      root,
+      (s) =>
+          answerMove(s, [addItem], under: 'shop/pay', generators: noGenerators),
+    );
 
     String statusIn(Directory root, String type, String target, String name) {
       final session = openSession(root);
@@ -3895,7 +4116,13 @@ void main() {
       final root = await shopTwins();
       final answer = writeIn(
         root,
-        (s) => answerMove(s, [addItem], under: 'shop/pay', dryRun: true),
+        (s) => answerMove(
+          s,
+          [addItem],
+          under: 'shop/pay',
+          dryRun: true,
+          generators: noGenerators,
+        ),
       );
       expect(answer.text, contains('rewrites $cartFlutter\n'));
       expect(answer.text, contains('rewrites $payFlutter\n'));
@@ -4017,10 +4244,12 @@ void main() {
       );
       writeIn(
         root,
-        (s) => answerMove(s, [
-          'user_story:shop/cart/drop_item',
-          addItem,
-        ], under: 'shop/pay'),
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/drop_item', addItem],
+          under: 'shop/pay',
+          generators: noGenerators,
+        ),
       );
       final created = readDoc(root, payFlutter);
       expect(
@@ -4052,9 +4281,12 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => answerMove(s, [
-            'user_story:login/reset_password',
-          ], under: 'signup'),
+          (s) => answerMove(
+            s,
+            ['user_story:login/reset_password'],
+            under: 'signup',
+            generators: noGenerators,
+          ),
         ),
         throwsA(
           isA<IndexFault>()
@@ -4076,7 +4308,12 @@ void main() {
         docFile(root, payFlutter)
           ..parent.createSync(recursive: true)
           ..writeAsStringSync(recordText(statuses: ['card:planned']));
-        return answerMove(s, [addItem], under: 'shop/pay');
+        return answerMove(
+          s,
+          [addItem],
+          under: 'shop/pay',
+          generators: noGenerators,
+        );
       });
 
       final pay = readDoc(root, payFlutter);
@@ -4094,7 +4331,12 @@ void main() {
           docFile(root, payFlutter)
             ..parent.createSync(recursive: true)
             ..writeAsBytesSync([0xff, 0xfe, 0x00]);
-          return answerMove(s, [addItem], under: 'shop/pay');
+          return answerMove(
+            s,
+            [addItem],
+            under: 'shop/pay',
+            generators: noGenerators,
+          );
         }),
         throwsA(
           isA<RenderFault>()
@@ -4197,7 +4439,15 @@ void main() {
 
       test("a story moved into a sub-feature with no record creates that record as a draft holding the story and FR entries relative to it, and the parent's record loses them", () async {
         final root = await shopWithCheckout(without: {payJaspr});
-        writeIn(root, (s) => answerMove(s, [checkout], under: 'shop/pay'));
+        writeIn(
+          root,
+          (s) => answerMove(
+            s,
+            [checkout],
+            under: 'shop/pay',
+            generators: noGenerators,
+          ),
+        );
 
         final created = readDoc(root, payFlutter);
         expect(created, contains('draft: true'));
@@ -4224,7 +4474,15 @@ void main() {
             ),
           },
         );
-        writeIn(root, (s) => answerMove(s, [checkout], under: 'shop/pay'));
+        writeIn(
+          root,
+          (s) => answerMove(
+            s,
+            [checkout],
+            under: 'shop/pay',
+            generators: noGenerators,
+          ),
+        );
 
         final pay = readDoc(root, payJaspr);
         expect(pay, contains("'card:implemented'"));
@@ -4239,8 +4497,12 @@ void main() {
         final root = await shopWithCheckout();
         writeIn(
           root,
-          (s) =>
-              answerMove(s, ['fr:shop/checkout/total'], under: 'shop/pay/card'),
+          (s) => answerMove(
+            s,
+            ['fr:shop/checkout/total'],
+            under: 'shop/pay/card',
+            generators: noGenerators,
+          ),
         );
 
         final created = readDoc(root, payFlutter);
@@ -4322,8 +4584,11 @@ void main() {
         tests: ['add_item/check_stock:app/test/shop_test.dart:checks'],
       );
 
-      ReadAnswer moveStock(Directory root, String under) =>
-          writeIn(root, (s) => answerMove(s, [checkStock], under: under));
+      ReadAnswer moveStock(Directory root, String under) => writeIn(
+        root,
+        (s) =>
+            answerMove(s, [checkStock], under: under, generators: noGenerators),
+      );
 
       test("an fr moved to a sibling story renames its entry and matrix rows in place, and its old story's entry stays", () async {
         final root = await shopTwins(
@@ -4420,10 +4685,12 @@ void main() {
         );
         writeIn(
           root,
-          (s) => answerMove(s, [
-            'fr:shop/pay/card/x',
-            checkStock,
-          ], under: 'shop/pay/refund'),
+          (s) => answerMove(
+            s,
+            ['fr:shop/pay/card/x', checkStock],
+            under: 'shop/pay/refund',
+            generators: noGenerators,
+          ),
         );
 
         final pay = readDoc(root, payJaspr);
@@ -4457,6 +4724,7 @@ void main() {
           s,
           parseMovePlan(plan, path: 'plan.txt'),
           dryRun: dryRun,
+          generators: noGenerators,
         ),
       );
 
@@ -4574,6 +4842,7 @@ void main() {
           'user_story:login/reset_password',
           place: '1',
           dryRun: true,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4595,6 +4864,7 @@ void main() {
           '$f/us01_reset_password/USER_STORY.md',
           '$f/us02_email_login/fr02_lock_after_failures.md',
         ],
+        'deleted': <Object>[],
         'mentions': <Object>[],
         'dryRun': true,
       });
@@ -4611,12 +4881,14 @@ void main() {
             'user_story:login/email_login',
             place: '1',
             dryRun: true,
+            generators: noGenerators,
           ),
         );
         expect(answer.text, 'dry run: nothing moved\n');
         expect(answer.json, {
           'moved': <Object>[],
           'rewritten': <Object>[],
+          'deleted': <Object>[],
           'mentions': <Object>[],
           'dryRun': true,
         });
@@ -4636,6 +4908,7 @@ void main() {
                 'user_story:login/reset_password',
                 place: '9',
                 dryRun: dryRun,
+                generators: noGenerators,
               ),
             );
           } on WriteFault catch (fault) {
@@ -4659,6 +4932,7 @@ void main() {
           'user_story:login/reset_password',
           slug: 'recover',
           dryRun: true,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4692,6 +4966,7 @@ void main() {
             'user_story:login/reset_password',
             slug: 'reset_password',
             dryRun: true,
+            generators: noGenerators,
           ),
         );
         expect(answer.text, 'dry run: nothing moved\n');
@@ -4711,6 +4986,7 @@ void main() {
                 'user_story:login/reset_password',
                 slug: 'sign_out',
                 dryRun: dryRun,
+                generators: noGenerators,
               ),
             );
           } on WriteFault catch (fault) {
@@ -4736,6 +5012,7 @@ void main() {
           ['user_story:shop/cart/add_item'],
           under: 'shop/pay',
           dryRun: true,
+          generators: noGenerators,
         ),
       );
       expect(answer.text, startsWith('moves $shopStory/ to $payStory/\n'));
@@ -4772,6 +5049,7 @@ void main() {
           ['user_story:shop/cart/drop_item'],
           under: 'shop/cart',
           dryRun: true,
+          generators: noGenerators,
         ),
       );
       expect(answer.text, 'dry run: nothing moved\n');
@@ -4786,6 +5064,7 @@ void main() {
           ['fr:shop/cart/add_item/check_stock'],
           under: 'shop/pay/refund',
           dryRun: true,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -4821,6 +5100,7 @@ void main() {
               ['fr:shop/cart/add_item/check_stock'],
               under: 'shop/cart/drop_item',
               dryRun: dryRun,
+              generators: noGenerators,
             ),
           );
         } on WriteFault catch (fault) {
@@ -5053,7 +5333,13 @@ void main() {
       final root = await recordProject();
       final answer = writeIn(
         root,
-        (s) => answerRename(s, 'feature:login', slug: 'signin', dryRun: true),
+        (s) => answerRename(
+          s,
+          'feature:login',
+          slug: 'signin',
+          dryRun: true,
+          generators: noGenerators,
+        ),
       );
       expect(
         answer.text,

@@ -6,15 +6,22 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approved_copy_store.dart';
 import 'package:specstone_core/src/document_writing/audited_copy_store.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart'
     show IndexFault;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart' show Target;
+import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/rendering/models/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart'
+    show RenderFault;
 
 const _approveModeVariableName = 'SPECSTONE_APPROVE_MODE';
 
@@ -87,14 +94,58 @@ WriteFault changedSinceHashed(List<IndexedDoc> changed) => WriteFault(
   relatedFiles: [for (final doc in changed.skip(1)) doc.docPath],
 );
 
-/// Writes [bytes] of [doc] back without `draft`, with the ApprovalHash of its
-/// content as `approved:`; runs under the lock.
-void writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
-  final text = utf8.decode(bytes);
-  final undrafted = withKeyBlock(toLf(text), 'draft', null);
-  final approved = withApprovalHash(undrafted, session.index.typeOf(doc));
-  final written = session.writeDoc(doc.docPath, approved, LineEnding.of(text));
-  ApprovedCopyStore(session.project.projectRoot).save(written);
+/// One draft an approval writes: the doc and its bytes as read under the lock.
+final class ApprovalWrite {
+  const new(this.doc, this.bytes);
+
+  final IndexedDoc doc;
+  final List<int> bytes;
+}
+
+/// Returns the LF text an approval writes from [bytes] of [doc]: no `draft`,
+/// the ApprovalHash of its content as `approved:`, laid out.
+String approvedTextOf(WriteSession session, IndexedDoc doc, List<int> bytes) {
+  final type = session.index.typeOf(doc);
+  final undrafted = withKeyBlock(toLf(utf8.decode(bytes)), 'draft', null);
+  return layOutDoc(withApprovalHash(undrafted, type), type);
+}
+
+/// Writes each of [approvals] back approved, each saved as its approved copy,
+/// with the generated blocks they make stale ([blockRefreshOf]); runs under the
+/// lock and returns the refresh.
+///
+/// The approvals and the refresh go through one journal, so a refusal leaves
+/// every draft as it was; no approval writes nothing and runs no journal.
+/// Throws [RenderFault] `output_not_writable` before any write for a draft
+/// that cannot be written.
+BlockRefresh writeApprovals(
+  WriteSession session,
+  List<ApprovalWrite> approvals, {
+  required GeneratorRegistry<DocIndex> generators,
+}) {
+  if (approvals.isEmpty) return BlockRefresh.none;
+  final texts = {
+    for (final ApprovalWrite(:doc, :bytes) in approvals)
+      doc.docPath: approvedTextOf(session, doc, bytes),
+  };
+  final refresh = blockRefreshOf(
+    session,
+    generators,
+    WrittenDocs(texts: texts),
+  );
+  String textOf(IndexedDoc doc) =>
+      refresh.ownTexts[doc.docPath] ?? texts[doc.docPath]!;
+  for (final ApprovalWrite(:doc) in approvals) {
+    session.requireWritable(doc.docPath);
+  }
+  MoveJournal([
+    for (final ApprovalWrite(:doc, :bytes) in approvals)
+      session
+          .docWriteStep(doc.docPath, textOf(doc), bytes)
+          .keepingApprovedCopy(),
+    ...refresh.steps,
+  ]).run(session.journalTarget);
+  return refresh;
 }
 
 /// Deletes each saved approved copy whose hash no doc on disk carries as its

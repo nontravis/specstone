@@ -8,6 +8,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/author_decisions.dart';
 import 'package:specstone_core/src/document_writing/draft_sections.dart';
 import 'package:specstone_core/src/document_writing/report_file.dart';
+import 'package:specstone_core/src/document_writing/report_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docStructureOf;
 import 'package:specstone_core/src/index_query/item_facts.dart'
@@ -17,79 +18,13 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/document_writing/report_file.dart'
     show ReportFile;
+export 'package:specstone_core/src/document_writing/report_grammar.dart'
+    show leadNameOf, leadNamesOf;
 
 const _styleToken = '[style]';
 const _noAuditReason = 'no audit report names it';
-const _addressedLead = 'ADDRESSED:';
-const _notAddressedLead = 'NOT ADDRESSED:';
-
-/// Round heading, a part break of an audit file.
-final _roundHeading = RegExp(r'^## Round [0-9]+[ \t]*$');
-
-/// `Audited:` and `Styled:` lines, each naming one draft at one hash; the
-/// grammar reads the name, which is typed or a DocPath.
-final _draftLine = RegExp(r'^(Audited|Styled): ([^\s@]+)@([0-9a-f]{12})$');
-
-/// A `Findings:`, `Outside the drafts:`, or `Outside the round:` line, with an
-/// optional first item.
-final _sectionLine = RegExp(
-  r'^(Findings|Outside the drafts|Outside the round):(?:[ \t]+(.*))?$',
-);
-
-/// A bare `Verdicts:` line; one with text after the colon is a label line.
-final _verdictsLine = RegExp(r'^Verdicts:$');
-
-/// Any label line: a capital, then letters, spaces, or `'`, then a colon.
-final _labelLine = RegExp(r"^[A-Z][A-Za-z ']*:(?: |$)");
-
-/// A Markdown ATX heading: 1 to 6 `#`, then a blank or the line end.
-final _atxHeading = RegExp(r'^#{1,6}(?:[ \t]|$)');
-
-/// A `Queued:` line; the text after it is read by [leadNameOf].
-final _queuedLine = RegExp(r'^Queued: (.+)$');
-
-/// The labels of `report_draft_gaps`, one of which can lead an item.
-const _gapLabels = [
-  'Guess',
-  'Contradiction',
-  'Stale reader',
-  'Not carried',
-  'Misplaced',
-];
-
-/// The leading labels of an item, dropped before its lead names are read.
-final _itemLabels = RegExp('^(?:NOT ADDRESSED: )?(?:check: )?`?');
-
-/// Returns [itemText] without its leading `NOT ADDRESSED: `, `check: `, one
-/// `report_draft_gaps` label, and a backtick.
-String _withoutLabels(String itemText) {
-  final bare = itemText.replaceFirst(_itemLabels, '');
-  for (final label in _gapLabels) {
-    final lead = '$label: ';
-    if (!bare.startsWith(lead)) continue;
-    final rest = bare.substring(lead.length);
-    return rest.startsWith('`') ? rest.substring(1) : rest;
-  }
-  return bare;
-}
-
-/// The punctuation that can close a lead name at the end of an item.
-final _trailingMarks = RegExp(r'[.;)]+$');
-
-/// The characters that end an item's lead name, `:` and `.` aside.
-const _leadStops = ' \t\n`@#,;)]';
-
-/// The characters that end the body of a typed lead name.
-const _bodyStops = ':.';
-
-const _docPathSuffix = '.md';
-
-/// A fence line: three or more backticks and nothing else.
-final _fenceLine = RegExp(r'^`{3,}$');
 
 final _leadingBlanks = RegExp(r'^[ \t]*');
-
-final _dashItem = RegExp(r'^-[ \t]+(.+)$');
 
 /// One fix line of an audit item: the whole new body of one section of a doc.
 final class FixLine {
@@ -312,7 +247,7 @@ final class _Item {
       _Section.verdicts =>
         name.hasMatch(text) &&
             (isLed ||
-                !text.startsWith(_notAddressedLead) ||
+                !text.startsWith(notAddressedLead) ||
                 !lead.any(handedOn.contains)),
       _Section.outsideTheDrafts => isLed,
       _Section.findings ||
@@ -336,7 +271,7 @@ final class _Part {
 void _clearAddressedItems(List<_Part> parts) {
   for (final (at, part) in parts.indexed) {
     for (final verdict in part.items.where((item) => item.isAddressed)) {
-      final cleared = verdict.firstLine.substring(_addressedLead.length);
+      final cleared = verdict.firstLine.substring(addressedLead.length);
       for (final earlier in parts.take(at)) {
         for (final item in earlier.items) {
           if (!item.isAddressed && sameByEqualText(item.firstLine, cleared)) {
@@ -348,80 +283,10 @@ void _clearAddressedItems(List<_Part> parts) {
   }
 }
 
-/// Returns the lead names of an item's [itemText], each a `<type>:<name>` or a
-/// DocPath without its `#<key>`, or null when its lead reads no name (D4).
-///
-/// Drops a leading `NOT ADDRESSED: `, `check: `, and a `report_draft_gaps`
-/// label, then reads the lead up to the first ` — ` or `: `. A lead holding a
-/// `,` is a list: each of its `, `-joined pieces must be a name, else the item
-/// has none. Any other lead yields its own name, else [leadNameOf].
-List<String>? leadNamesOf(String itemText) {
-  final lead = leadTextOf(_withoutLabels(itemText));
-  if (lead.contains(',')) {
-    final names = [for (final piece in lead.split(', ')) _leadNameIn(piece)];
-    return names.contains(null) ? null : [...names.nonNulls];
-  }
-  final name = _leadNameIn(lead) ?? _realNameOf(leadNameOf(itemText));
-  return name == null ? null : [name];
-}
-
-/// Returns [name] when it is a `<type>:<name>` with a clean body or a DocPath,
-/// else null: [leadNameOf] also takes a name with a mark before it, such as
-/// `(prds/a.md`.
-String? _realNameOf(String? name) {
-  if (name == null) return null;
-  final address = readDocAddress(name);
-  final isReal = address.typeId == null
-      ? isDocPathText(address.body)
-      : isCleanNameBody(address.body);
-  return isReal ? name : null;
-}
-
-/// Returns [piece] as a `<type>:<name>` or a DocPath, backticks, `#<key>`, and
-/// a trailing `.`, `;`, or `)` dropped, else null.
-String? _leadNameIn(String piece) {
-  final written = piece.replaceAll('`', '').replaceFirst(_trailingMarks, '');
-  final address = readDocAddress(written);
-  if (address.typeId case final typeId?) {
-    return isCleanNameBody(address.body) ? '$typeId:${address.body}' : null;
-  }
-  return isDocPathText(address.body) ? address.body : null;
-}
-
-/// Returns the name that opens an item's [itemText], a `<type>:<name>` or a
-/// DocPath, else null.
-///
-/// Drops a leading `NOT ADDRESSED: `, then `check: `, then a backtick.
-String? leadNameOf(String itemText) {
-  final bare = _withoutLabels(itemText);
-  final token = _upTo(bare, _leadStops);
-  final address = readDocAddress(token);
-  if (address.typeId case final typeId?) {
-    final name = _upTo(address.body, _bodyStops);
-    return name.isEmpty ? null : '$typeId:$name';
-  }
-  return _docPathIn(token);
-}
-
-/// Returns [token] up to its first `.md` that ends it or is followed by `:` or
-/// `.`, else null.
-String? _docPathIn(String token) {
-  final end = token.indexOf(_docPathSuffix) + _docPathSuffix.length;
-  if (end < _docPathSuffix.length) return null;
-  final rest = token.substring(end);
-  return rest.isEmpty || _bodyStops.contains(rest[0])
-      ? token.substring(0, end)
-      : null;
-}
-
-/// Returns the characters of [text] before the first one in [stops].
-String _upTo(String text, String stops) =>
-    text.split('').takeWhile((char) => !stops.contains(char)).join();
-
 List<_Part> _partsOf(ReportFile file) {
   final segments = <List<String>>[[]];
   for (final line in reportLinesOf(file.text)) {
-    if (_roundHeading.hasMatch(line)) {
+    if (isRoundHeading(line)) {
       segments.add([]);
     } else {
       segments.last.add(line);
@@ -433,17 +298,6 @@ List<_Part> _partsOf(ReportFile file) {
       if (index > 0 || !hasRounds || lines.any(_isNonBlank))
         _readPart(file.name, lines),
   ];
-}
-
-/// Returns the match of [line] when it is an `Audited:` or `Styled:` line
-/// that names a typed draft or a DocPath, else null.
-Match? _draftLineOf(String line) {
-  final match = _draftLine.firstMatch(line);
-  if (match == null) return null;
-  final name = match[2]!;
-  if (name.endsWith('.md')) return match;
-  final typeId = readDocAddress(name).typeId;
-  return typeId != null && name.length > typeId.length + 1 ? match : null;
 }
 
 /// Returns the hash of the last line in [hashes] that names any of [names],
@@ -476,11 +330,11 @@ final class _FixBlock {
 /// line holding only that fence; one that leaves the item's indented lines
 /// before it closes is no fix.
 _FixBlock? _fixBlockAt(List<String> lines, int at) {
-  final fix = readFixReference(trimmedReportLine(lines[at]));
+  final fix = readFixLine(trimmedReportLine(lines[at]));
   if (fix == null || at + 1 >= lines.length) return null;
   final opening = lines[at + 1];
   final fence = trimmedReportLine(opening);
-  if (!_isContinuation(opening) || !_fenceLine.hasMatch(fence)) return null;
+  if (!_isContinuation(opening) || !isFenceLine(fence)) return null;
   final indent = _leadingBlanks.stringMatch(opening)!;
   for (var close = at + 2; close < lines.length; close++) {
     if (_isNonBlank(lines[close]) && !_isContinuation(lines[close])) {
@@ -518,7 +372,7 @@ _Part _readPart(String fileName, List<String> lines) {
     last = _Item(
       open!,
       text,
-      isAddressed: open == _Section.verdicts && text.startsWith(_addressedLead),
+      isAddressed: open == _Section.verdicts && text.startsWith(addressedLead),
     );
     part.items.add(last!);
   }
@@ -538,38 +392,55 @@ _Part _readPart(String fileName, List<String> lines) {
           }
         }
       } else {
-        addItem(_dashItem.firstMatch(line)?[1] ?? line);
+        addItem(itemTextOf(line));
       }
       continue;
     }
     final line = trimmedReportLine(raw);
     if (line.isEmpty) continue;
 
-    if (_queuedLine.firstMatch(line) case final match?) {
-      if (leadNameOf(match[1]!) case final name?) part.queued.add(name);
-      open = null;
-      last = null;
-    } else if (_draftLineOf(line) case final match?) {
-      final into = match[1] == 'Audited' ? part.audited : part.styled;
-      final name = match[2]!;
-      into
-        ..remove(name)
-        ..[name] = match[3]!;
-      open = null;
-      last = null;
-    } else if (_sectionLine.firstMatch(line) case final match?) {
-      open = _Section.values.firstWhere((s) => s.label == match[1]);
-      last = null;
-      final first = match[2];
-      if (first != null && first.isNotEmpty && first != 'none') addItem(first);
-    } else if (_verdictsLine.hasMatch(line)) {
-      open = _Section.verdicts;
-      last = null;
-    } else if (_labelLine.hasMatch(line) || _atxHeading.hasMatch(line)) {
-      open = null;
-      last = null;
-    } else if (open != null) {
-      addItem(_dashItem.firstMatch(line)?[1] ?? line);
+    switch (kindOf(line)) {
+      case ReportLineKind.queued:
+        if (leadNameOf(queuedTextOf(line)!) case final name?) {
+          part.queued.add(name);
+        }
+        open = null;
+        last = null;
+      case ReportLineKind.audited || ReportLineKind.styled:
+        final draft = readDraftLine(line)!;
+        final into = draft.kind == ReportLineKind.audited
+            ? part.audited
+            : part.styled;
+        final name = draft.name;
+        into
+          ..remove(name)
+          ..[name] = draft.hash;
+        open = null;
+        last = null;
+      case ReportLineKind.sectionOpen:
+        final section = readSectionLine(line)!;
+        open = _Section.values.firstWhere((s) => s.label == section.label);
+        last = null;
+        final first = section.firstItem;
+        if (first != null && first.isNotEmpty && first != 'none') {
+          addItem(first);
+        }
+      case ReportLineKind.verdicts:
+        open = _Section.verdicts;
+        last = null;
+      case ReportLineKind.decision ||
+          ReportLineKind.notLanded ||
+          ReportLineKind.label ||
+          ReportLineKind.heading ||
+          ReportLineKind.fix:
+        open = null;
+        last = null;
+      case ReportLineKind.addressed ||
+          ReportLineKind.item ||
+          ReportLineKind.observation ||
+          ReportLineKind.header ||
+          null:
+        if (open != null) addItem(itemTextOf(line));
     }
   }
   return part;
@@ -807,6 +678,7 @@ final class CleanDraftJudge {
     required String? unreadableReason,
     required Set<String> callNames,
     required Set<String> passedFindings,
+    required SectionLookup sections,
     Set<Finding> carriedFindings = const {},
   }) : _findings = findings,
        _passedFindings = passedFindings,
@@ -815,7 +687,7 @@ final class CleanDraftJudge {
        _noAudit = noAudit,
        _handedOn = audit?.queued.difference(callNames) ?? const {},
        _unreadableReason = unreadableReason,
-       _authorDecisions = AuthorDecisions.read(authors);
+       _authorDecisions = AuthorDecisions.read(authors, sections);
 
   /// Fails every draft when set: [ReportFiles.unreadableReason] of the call.
   final String? _unreadableReason;

@@ -1,22 +1,42 @@
 import 'dart:math';
 
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show holdsSectionAddress, targetListsIn;
 import 'package:specstone_core/src/document_writing/report_file.dart';
+import 'package:specstone_core/src/document_writing/report_grammar.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/template_fault.dart';
 
-const _decisionLead = 'Decision:';
-const _notLandedLead = 'Not landed:';
-const _notLandedMark = 'NOT LANDED';
+/// Answers whether the project holds a section.
+final class SectionLookup {
+  const new(this._holds);
 
-/// The word `none` at the start of a line, bounded by no letter, digit, or `_`.
-final _noneWord = RegExp('^none(?![A-Za-z0-9_])');
+  /// Holds a key when [index] resolves the doc address to exactly one doc that
+  /// holds a section of that key or a field of its doc type with that id.
+  ///
+  /// A doc address that faults or names 2 or more docs holds nothing. A
+  /// [codeTarget] keeps a name to that target's docs and the shared docs.
+  factory ofIndex(DocIndex index, {String? codeTarget}) =>
+      SectionLookup((docAddress, key) {
+        final List<IndexedDoc> docs;
+        try {
+          docs = index.resolve(docAddress, codeTarget: codeTarget);
+        } on IndexFault {
+          return false;
+        } on TemplateFault {
+          return false;
+        }
+        if (docs.length != 1) return false;
+        final doc = docs.single;
+        return index.contentOf(doc).sections.any((s) => s.key == key) ||
+            (index.typeOf(doc)?.fields.any((f) => f.id == key) ?? false);
+      });
 
-/// A whole list item that is one section key.
-final _sectionKey = RegExp(r'^[A-Za-z0-9_]+$');
+  final bool Function(String docAddress, String key) _holds;
 
-/// A decision key right after a label, ended by a space, `:`, `(`, or the
-/// line end, so `D1` and `D10` stay apart.
-final _decisionKey = RegExp(r'^D([0-9]+)(?=[ :(]|$)');
+  /// Whether the project holds the section [key] of the doc [docAddress].
+  bool holds(String docAddress, String key) => _holds(docAddress, key);
+}
 
 /// The decisions the `--author` files leave open.
 final class AuthorDecisions {
@@ -25,23 +45,22 @@ final class AuthorDecisions {
   /// Opens a decision key only when a file leaves it open and no file lands it.
   ///
   /// Within one file, the last `Decision:` or `Not landed:` line of a key
-  /// decides that file's state.
-  factory read(List<ReportFile> authors) {
+  /// decides that file's state. A `Decision:` line lands only when [sections]
+  /// holds every section it names, else the decision stays open.
+  factory read(List<ReportFile> authors, SectionLookup sections) {
     final leftOpen = <_OpenDecision>[];
     final landed = <int>{};
     _UnkeyedLine? unkeyed;
     for (final (index, file) in authors.indexed) {
       final states = <int, bool>{};
       for (final line in reportLinesOf(file.text).map(trimmedReportLine)) {
-        final isDecision = line.startsWith(_decisionLead);
-        final isNotLanded = line.startsWith(_notLandedLead);
-        if (!isDecision && !isNotLanded) continue;
-        final lead = isDecision ? _decisionLead : _notLandedLead;
-        final rest = line.substring(lead.length).trimLeft();
-        final key = _decisionKey.firstMatch(rest);
-        if (key != null) {
-          states[int.parse(key[1]!)] = isNotLanded || !_landsSection(rest);
-        } else if (isNotLanded && !_opensWithNone(rest)) {
+        final read = readDecisionLine(line);
+        if (read == null) continue;
+        if (read.key case final key?) {
+          states[key] =
+              read.isOpen ||
+              !read.sections.every((s) => sections.holds(s.docAddress, s.key));
+        } else if (read.isUnkeyedAsk) {
           unkeyed ??= _UnkeyedLine(index, file.name);
         }
       }
@@ -78,20 +97,6 @@ final class AuthorDecisions {
         : '$keyed; $unkeyedReason';
   }
 }
-
-bool _landsSection(String rest) =>
-    !rest.contains(_notLandedMark) &&
-    (holdsSectionAddress(rest) || _holdsSectionList(rest));
-
-bool _holdsSectionList(String rest) => targetListsIn(rest).any(
-  (list) => list.split(',').any((key) => _sectionKey.hasMatch(_bareKey(key))),
-);
-
-String _bareKey(String key) => key.replaceAll('#', '').trim();
-
-/// Whether [rest] opens with the word `none`, ended by the line end or by a
-/// character that is no letter, digit, or `_`.
-bool _opensWithNone(String rest) => _noneWord.hasMatch(rest);
 
 final class _OpenDecision implements Comparable<_OpenDecision> {
   const new(this.number, this.fileIndex, this.file);

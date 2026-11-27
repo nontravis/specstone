@@ -2,6 +2,8 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
+import 'package:specstone_core/src/document_writing/doc_placement.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -16,9 +18,12 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _wholeNumber = RegExp(r'^[0-9]+$');
@@ -62,12 +67,15 @@ int parsePlace(String? value) {
 /// `doc_not_found` when the doc is gone from disk; `index_busy` when another
 /// call holds the lock; `RenderFault` `output_not_writable` for roots the
 /// Owner has not recorded, naming the journal, before any rewrite is planned.
+/// Each generated block of [generators] the reorder makes stale joins its
+/// journal and its reply ([blockRefreshOf]); a dry run lists them.
 ReadAnswer answerReorder(
   WriteSession session,
   String address, {
   required String? place,
   String? codeTarget,
   bool dryRun = false,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final wanted = parsePlace(place);
   final target = session.target(address, codeTarget: codeTarget);
@@ -107,16 +115,13 @@ ReadAnswer answerReorder(
     session.journalTarget.requireTrusted();
     final planned = planRewrites(session, moves);
     final mentions = staleMentions(session, moves, namesChange: false);
-    if (!dryRun) {
-      MoveJournal([...stagedMoveSteps(session, moves), ...planned.rewrites])
-          .run(session.journalTarget);
-    }
-    return moveReplyOf(
+    return _applyMoves(
       session,
-      shape: MoveReplyShape.docs,
-      moves: moves,
-      rewrites: planned.rewrites,
-      mentions: mentions,
+      moves,
+      stagedMoveSteps(session, moves),
+      planned,
+      mentions,
+      generators: generators,
       dryRun: dryRun,
     );
   });
@@ -142,12 +147,15 @@ ReadAnswer answerReorder(
 /// `doc_not_found` when the doc is gone from disk; `index_busy` when another
 /// call holds the lock; `RenderFault` `output_not_writable` for roots the
 /// Owner has not recorded, naming the journal, before any rewrite is planned.
+/// Each generated block of [generators] the rename makes stale joins its
+/// journal and its reply ([blockRefreshOf]); a dry run lists them.
 ReadAnswer answerRename(
   WriteSession session,
   String address, {
   required String? slug,
   String? codeTarget,
   bool dryRun = false,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   if (slug == null) {
     throw missingArgument(
@@ -185,33 +193,81 @@ ReadAnswer answerRename(
       docEdits: records.edits,
       creates: records.creates,
     );
+    requireMovePlaced(session, moves, creates: planned.creates);
     final mentions = staleMentions(
       session,
       moves,
       namesChange: true,
       docWrites: planned.rewrites,
     );
-    if (!dryRun) {
-      MoveJournal([
+    return _applyMoves(
+      session,
+      moves,
+      [
         for (final move in moves)
           MoveStep(
             moveStepPath(session, move.from),
             moveStepPath(session, move.to),
           ),
-        ...planned.rewrites,
-        ...planned.creates,
-      ]).run(session.journalTarget);
-    }
-    return moveReplyOf(
-      session,
-      shape: MoveReplyShape.docs,
-      moves: moves,
-      rewrites: planned.rewrites,
-      recordCreates: planned.creates,
-      mentions: mentions,
+      ],
+      planned,
+      mentions,
+      generators: generators,
       dryRun: dryRun,
     );
   });
+}
+
+/// Runs [moveSteps], then [planned] with the generated blocks of [generators]
+/// the [moves] make stale ([blockRefreshOf]), through one journal, and returns
+/// the reply; a dry run writes nothing and lists the same docs.
+ReadAnswer _applyMoves(
+  WriteSession session,
+  List<PathMove> moves,
+  List<MoveStep> moveSteps,
+  PlannedRewrites planned,
+  List<StaleMention> mentions, {
+  required GeneratorRegistry<DocIndex> generators,
+  required bool dryRun,
+}) {
+  final refresh = blockRefreshOf(
+    session,
+    generators,
+    movedDocsOf(
+      session,
+      moves,
+      rewrites: planned.rewrites,
+      creates: planned.creates,
+    ),
+    dryRun: dryRun,
+  );
+  final filled = withOwnTexts(
+    session,
+    refresh,
+    moves,
+    rewrites: planned.rewrites,
+    creates: planned.creates,
+  );
+  if (!dryRun) {
+    MoveJournal([
+      ...moveSteps,
+      ...filled.rewrites,
+      ...filled.creates,
+      ...refresh.steps,
+    ]).run(session.journalTarget);
+  }
+  return moveReplyOf(
+    session,
+    shape: MoveReplyShape.docs,
+    moves: moves,
+    rewrites: filled.rewrites,
+    recordCreates: filled.creates,
+    mentions: mentions,
+    dryRun: dryRun,
+    refreshed: refresh.docPaths,
+    deleted: refresh.deletedPaths,
+    warnings: refresh.refused,
+  );
 }
 
 /// Moves the docs or items [addresses] name under [under], rewriting every
@@ -220,6 +276,9 @@ ReadAnswer answerRename(
 /// The flags are judged before any address resolves; only an item target
 /// takes [codeTarget], and only a feature takes [top]. The targets then run
 /// as the plan [planOfArgv] builds, through the engine a plan file runs.
+///
+/// [generators] refresh the generated blocks the move makes stale, as
+/// [applyMoveWork] gives.
 ///
 /// Throws [WriteFault], [IndexFault], and the faults of [judgeMovePlan] and
 /// [applyMoveWork].
@@ -230,6 +289,7 @@ ReadAnswer answerMove(
   bool top = false,
   String? codeTarget,
   bool dryRun = false,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final areItems = _checkArgv(
     session,
@@ -248,6 +308,7 @@ ReadAnswer answerMove(
     work,
     shape: areItems ? MoveReplyShape.items : MoveReplyShape.docs,
     dryRun: dryRun,
+    generators: generators,
   );
 }
 

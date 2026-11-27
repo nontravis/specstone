@@ -881,34 +881,131 @@ void main() {
     }
   });
 
-  group('targetListsIn', () {
-    test('reads the list of each target followed by parentheses', () {
-      expect(
-        targetListsIn('D14 -> feature:a (summary, #scope) and fr:b/c(x)'),
-        ['summary, #scope', 'x'],
-      );
-      expect(targetListsIn('feature:a () then fr:b'), ['']);
-    });
+  group('sectionsNamedIn', () {
+    List<String> named(String text) => [
+      for (final section in sectionsNamedIn(text))
+        '${section.docAddress}#${section.key}',
+    ];
 
-    test('reads no list from a target without parentheses', () {
-      expect(targetListsIn('feature:a#scope, no list'), isEmpty);
-      expect(targetListsIn('(summary) alone'), isEmpty);
-    });
-
-    test('reads the list of a doc type id holding digits', () {
-      expect(targetListsIn('D3 -> api2:x (a, b) and v1_doc:y(z)'), [
-        'a, b',
-        'z',
+    test('reads each key of a target followed by a list', () {
+      expect(named('D14 -> feature:a (summary, #scope) and fr:b/c(x)'), [
+        'feature:a#summary',
+        'feature:a#scope',
+        'fr:b/c#x',
       ]);
+      expect(named('feature:a () then fr:b'), isEmpty);
+      expect(named('(summary) alone'), isEmpty);
+    });
+
+    test('reads a doc type id holding digits, in an address and in a list', () {
+      expect(named('see api2:x#scope'), ['api2:x#scope']);
+      expect(named('see api:x#scope'), ['api:x#scope']);
+      expect(named('see api2:x'), isEmpty);
+      expect(named('D3 -> api2:x (a, b) and v1_doc:y(z)'), [
+        'api2:x#a',
+        'api2:x#b',
+        'v1_doc:y#z',
+      ]);
+    });
+
+    test(
+      'reads a typed address that ends where the Names table bounds a name',
+      () {
+        expect(named('fr:a#statement, fr:b#scope'), [
+          'fr:a#statement',
+          'fr:b#scope',
+        ]);
+        expect(named('(fr:a#statement.)'), ['fr:a#statement']);
+        expect(named('`fr:a#statement`'), ['fr:a#statement']);
+        expect(named('fr:a#statement-missing'), isEmpty);
+        expect(named('FR:b#missing'), isEmpty);
+      },
+    );
+
+    // D1: a DocPath section address ends where the Names table bounds a name.
+    test(
+      'reads a DocPath and key, bounded as the Names table bounds a name',
+      () {
+        for (final text in [
+          'a/b.md#statement',
+          'to a/b.md#statement.',
+          '(a/b.md#statement)',
+          'a/b.md#statement, c',
+          '`a/b.md#statement`',
+          '[a/b.md#statement]',
+          'a/b.md#statement:',
+          'a/b.md#statement;',
+          'a/b.md#statement@x',
+        ]) {
+          expect(named(text), ['a/b.md#statement'], reason: text);
+        }
+        for (final text in [
+          'a/b.md',
+          'a/b.md#',
+          'a/b.mdx#statement',
+          'a/b#statement',
+          'a/b.md#state-ment',
+          'a/b.md#statement/x',
+          'a#b/c.md#statement',
+        ]) {
+          expect(named(text), isEmpty, reason: text);
+        }
+      },
+    );
+
+    // D2: a `#` after the key leaves the address unread, never landed on the
+    // key alone.
+    test('reads no address whose key a second # follows', () {
+      expect(named('fr:a/b#edge_cases#E07'), isEmpty);
+      expect(named('a/b.md#edge_cases#E07'), isEmpty);
     });
   });
 
-  group('holdsSectionAddress', () {
-    test('reads a section address whose doc type id holds digits', () {
-      expect(holdsSectionAddress('see api2:x#scope'), isTrue);
-      expect(holdsSectionAddress('see api:x#scope'), isTrue);
-      expect(holdsSectionAddress('see api2:x'), isFalse);
+  // D2: a token or list item no form reads whole is never landed on.
+  group('holdsUnreadSectionToken', () {
+    test('holds a #-joined token or a list item that no form reads whole', () {
+      for (final text in [
+        '**x.md#missing**',
+        '"x.md#missing"',
+        'x.md#missing-key',
+        'FR:b#missing',
+        'fr:a#statement-missing',
+        'fr:a#statement, x.md#missing-key',
+        'feature:a (summary, mis-sing)',
+        'feature:a (summary, Missing Key)',
+        'fr:a/b#edge_cases#E07',
+        'a/b.md#edge_cases#E07',
+      ]) {
+        expect(holdsUnreadSectionToken(text), isTrue, reason: text);
+      }
     });
+
+    test('holds none when every # token and list item is read whole', () {
+      for (final text in [
+        'fr:a#statement, fr:b#scope',
+        'a/b.md#statement.',
+        'feature:a (summary, #scope)',
+        'feature:a ()',
+        'feature:a (#)',
+        'see issue #3',
+        'no section at all',
+      ]) {
+        expect(holdsUnreadSectionToken(text), isFalse, reason: text);
+      }
+    });
+  });
+
+  group('docPathPrefixOf', () {
+    test(
+      'ends a DocPath at .md that closes the token or is followed by : or .',
+      () {
+        expect(docPathPrefixOf('a/b.md'), 'a/b.md');
+        expect(docPathPrefixOf('a/b.md:'), 'a/b.md');
+        expect(docPathPrefixOf('a/b.md.'), 'a/b.md');
+        expect(docPathPrefixOf('a/b.mdx'), isNull);
+        expect(docPathPrefixOf('a/b'), isNull);
+      },
+    );
   });
 
   group('isCleanNameBody', () {

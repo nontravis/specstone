@@ -6,6 +6,8 @@ import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/doc_placement.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/models/new_item.dart';
 import 'package:specstone_core/src/document_writing/models/record_edit.dart';
@@ -61,8 +63,10 @@ typedef NewDocFill = String Function(
 /// docs and the shared docs, and places a per-target doc type's doc in that
 /// target's spec folder when the project names two or more targets. Under the
 /// session lock, [generators] and [firstConfirmations] fill it, then an
-/// exclusive create writes it. The json holds one `docs` element: name,
-/// docType, path, base, and bases, as `get` gives them.
+/// exclusive create writes it with each generated block it makes stale in
+/// another doc ([blockRefreshOf]). The json holds one `docs` element: name,
+/// docType, path, base, and bases, as `get` gives them, and `rewritten`, the
+/// DocPath of each other doc whose blocks the write rewrote.
 /// Throws [TemplateFault] `doc_type_unknown` for [docTypeId] or a [parent]
 /// that names another doc type id, [IndexFault] `argument_missing` or
 /// `argument_invalid` for a [parent] or [slug] the doc type needs or does not
@@ -83,7 +87,7 @@ ReadAnswer answerNew(
   String? slug,
   String? codeTarget,
   String text = '',
-  GeneratorRegistry<DocIndex>? generators,
+  required GeneratorRegistry<DocIndex> generators,
   NewDocFill? firstConfirmations,
 }) {
   final place = planNewDoc(
@@ -111,6 +115,7 @@ ReadAnswer answerNew(
     var isJournalSaved = false;
     final String docPath;
     var lfText = given;
+    var refresh = BlockRefresh.none;
     try {
       final claim = _claim(
         session,
@@ -124,19 +129,33 @@ ReadAnswer answerNew(
       );
       docPath = claim.docPath;
       claimed = claim.file;
-      if (generators != null) {
-        lfText = fillGeneratedBlocks(
-          lfText,
-          docType,
-          generators,
-          session.index,
-          docPath: docPath,
-        );
-      }
+      lfText = fillGeneratedBlocks(
+        lfText,
+        docType,
+        generators,
+        session.index,
+        docPath: docPath,
+      );
       if (firstConfirmations != null) {
         lfText = firstConfirmations(lfText, docType, session.index);
       }
-      lfText = records.isEmpty
+      final laidOut = layOutDoc(lfText, docType);
+      refresh = blockRefreshOf(
+        session,
+        generators,
+        WrittenDocs(
+          texts: {
+            docPath: laidOut,
+            for (final record in records)
+              record.docPath: layOutDoc(
+                record.lfText,
+                session.docTypeAt(record.docPath),
+              ),
+          },
+        ),
+      );
+      lfText = refresh.ownTexts[docPath] ?? laidOut;
+      lfText = records.isEmpty && refresh.steps.isEmpty
           ? session.writeDoc(docPath, lfText, lineEnding)
           : _writeWithRecords(
               session,
@@ -144,6 +163,7 @@ ReadAnswer answerNew(
               lfText,
               lineEnding,
               records,
+              steps: refresh.steps,
               onSaved: () => isJournalSaved = true,
             );
     } on Object {
@@ -159,7 +179,7 @@ ReadAnswer answerNew(
       match: MatchedDocType(docType, target: placedIn),
     );
     return ReadAnswer(
-      text: '${namingLine(written.doc)}\n',
+      text: '${namingLine(written.doc)}\n${refresh.linesOf()}',
       json: {
         'docs': [
           {
@@ -170,7 +190,9 @@ ReadAnswer answerNew(
             'bases': basesOf(written.content, docType),
           },
         ],
+        ...refresh.json,
       },
+      warnings: refresh.refused,
     );
   });
 }
@@ -306,33 +328,20 @@ NewDocPlace planNewDoc(
     placedIn: placedIn,
     slug: parts.own,
   );
-  _checkPlaceable(session, set, place);
+  // A `{nn}` segment takes any number, so sibling number 1 judges every one.
+  // The length waits for `_claim`, which knows the number the doc takes.
+  requirePlaced(session, [
+    LandedDoc(
+      docPath: place.docPathAt(1),
+      docTypeId: docType.id,
+      target: placedIn,
+    ),
+  ], judgeLength: false);
   return place;
 }
 
-/// Throws [IndexFault] `argument_invalid` when the DocPath [place] builds at
-/// sibling number 1 matches no doc type or two or more.
-///
-/// A `{nn}` segment takes any number, so the verdict holds for every number
-/// the claim may take.
-void _checkPlaceable(WriteSession session, MergedSet set, NewDocPlace place) {
-  final docPath = place.docPathAt(1);
-  final match = DocTypeMatcher(
-    set,
-    targetNames: session.index.twinNames,
-  ).match(docPath);
-  final message = switch (match) {
-    MatchedDocType() => null,
-    NoDocType() => '$docPath matches no doc type',
-    AmbiguousDocType(:final docTypeIds) =>
-      '$docPath matches ${docTypeIds.join(', ')}',
-  };
-  if (message == null) return;
-  throw IndexFault(IndexFaultCode.argumentInvalid, message);
-}
-
-/// Writes the new doc at [docPath] and the planned line of each of [records]
-/// in one journal, and returns the LF text of the doc as written.
+/// Writes the new doc at [docPath], the planned line of each of [records], and
+/// [steps] in one journal, and returns the LF text of the doc as written.
 ///
 /// A crash leaves the journal for the next write to finish, so no record names
 /// an item whose doc is not there.
@@ -342,6 +351,7 @@ String _writeWithRecords(
   String lfText,
   LineEnding lineEnding,
   List<RecordEdit> records, {
+  required List<JournalStep> steps,
   required void Function() onSaved,
 }) {
   final laidOut = layOutDoc(lfText, session.docTypeAt(docPath));
@@ -352,6 +362,7 @@ String _writeWithRecords(
       before: textHashOf(''),
     ),
     for (final record in records) plannedLineStepOf(session, record),
+    ...steps,
   ]).run(session.journalTarget, onSaved: onSaved);
   return laidOut;
 }
@@ -525,8 +536,9 @@ final class _Claimed {
 ///
 /// Returns the DocPath and the file; every folder made joins [created].
 /// Throws [RenderFault] `output_not_writable` when the disk refuses or the
-/// DocPath holds a `.` or `..` name, and [WriteFault] `doc_exists` when a doc
-/// with no number to bump is there.
+/// DocPath holds a `.` or `..` name, [IndexFault] `argument_invalid` when a
+/// candidate path is over the length limit, before any folder is made, and
+/// [WriteFault] `doc_exists` when a doc with no number to bump is there.
 _Claimed _claim(
   WriteSession session,
   DocPathShape shape,
@@ -546,6 +558,7 @@ _Claimed _claim(
     final file = session.fileOf(docPath);
     _refuseDotSegment(session, docPath, file);
     session.project.requireWritablePath(file.path);
+    requirePlaced(session, [LandedDoc(docPath: docPath, docTypeId: null)]);
     try {
       _createFolders(file.parent, created);
       file.createSync(exclusive: true);

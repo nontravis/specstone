@@ -26,6 +26,7 @@ import 'package:specstone_core/src/index_query/item_facts.dart'
     show generatedLineTest, leadBodyLinesOf, withGeneratedFenced;
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -77,6 +78,9 @@ final class CheckContext {
 
   /// Resolves code paths by exact letter case, each folder listed once per run.
   final ExactCasePaths exactPaths = ExactCasePaths();
+
+  /// The project the run reads.
+  DocsProject get project => _session.project;
 
   /// The project root folder.
   Directory get projectRoot => _session.project.projectRoot;

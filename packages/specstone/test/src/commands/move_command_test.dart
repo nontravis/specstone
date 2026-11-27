@@ -27,6 +27,47 @@ void main() {
     expect(out.toString(), contains('rewrote $shopApi\n'));
   });
 
+  // D13
+  test('a plan moving an fr_trace row names the rebased FR path in its moved '
+      'line and its json entry', () async {
+    const cartApi = 'specs/f02_shop/f01_cart/API.md';
+    const from = '$shopApi#fr_trace/cart/add_item/check_stock';
+    const to = '$cartApi#fr_trace/add_item/check_stock';
+    for (final json in [false, true]) {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/$cartApi':
+              '# Cart API\n\n## FR trace\n| FR | Operation |\n'
+              '|----|-----------|\n'
+              '| drop_item/check | `other` |\n\n'
+              '## Operations\n### `other`\nDoes it.\n',
+        },
+      );
+      File('${root.path}/plan.txt').writeAsStringSync(
+        'api:shop#fr_trace/cart/add_item/check_stock -> api:shop/cart\n',
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'move',
+          '--plan-file',
+          'plan.txt',
+          if (json) '--json',
+        ]),
+        0,
+        reason: 'json $json',
+      );
+      expect(err.toString(), isEmpty);
+      if (json) {
+        expect((jsonDecode(out.toString()) as Map)['moved'], [
+          {'from': from, 'to': to},
+        ]);
+      } else {
+        expect(out.toString(), contains('moved $from to $to\n'));
+      }
+    }
+  });
+
   test('move --json prints moved and rewritten', () async {
     const refundFolder = 'prds/features/f02_shop/f02_pay/us02_refund';
     for (final (extra, target, under, from, to, mentions) in [

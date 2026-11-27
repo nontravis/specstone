@@ -1,10 +1,9 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/resolved_parents.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
-
-final _slugPlaceholder = RegExp(r'\{slug\}');
 
 /// Resolves the parent doc of each doc in [docs] from the `parent` of its doc
 /// type in [set], or from the nesting type for a nested doc of that type.
@@ -89,8 +88,7 @@ int _ownSlugCount(MergedDocType type, MergedDocType parentType) =>
 int _nestingSlugCount(MergedDocType nesting) {
   final path = nesting.path;
   final segment = path == null ? null : nestingSegmentOf(path, nesting);
-  return _slugPlaceholder.allMatches(segment?.text ?? '').length;
+  return PathSegment.slugCount(segment?.text ?? '');
 }
 
-int _slugCountOf(MergedDocType type) =>
-    _slugPlaceholder.allMatches(type.path ?? '').length;
+int _slugCountOf(MergedDocType type) => PathSegment.slugCount(type.path ?? '');

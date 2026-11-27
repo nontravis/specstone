@@ -16,6 +16,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' as check;
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -50,6 +51,7 @@ Future<ReadAnswer> _dryRun(
       DryRunRequest.parse(target, base: base, index: session.index),
       text,
       homeDirectory: home ?? testHome(),
+      generators: noGenerators,
     );
   } finally {
     session.close();
@@ -213,6 +215,7 @@ void main() {
           const DryRunRequest(address: _fr, target: TitleTarget()),
           'A title\n',
           homeDirectory: testHome(),
+          generators: noGenerators,
         ),
         throwsA(
           isA<IndexFault>().having(

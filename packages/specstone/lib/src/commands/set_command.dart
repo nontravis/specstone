@@ -156,6 +156,7 @@ class SetCommand extends WriteCommand {
           replace: replace,
         ),
         text,
+        generators: specstoneRunner.generators,
       ),
       asJson: asJson,
     );
@@ -197,6 +198,7 @@ class SetCommand extends WriteCommand {
             ),
             text,
             homeDirectory: runner.homeDirectory,
+            generators: runner.generators,
           );
         },
         templates: runner.templates,
@@ -228,7 +230,11 @@ class SetCommand extends WriteCommand {
       return fail(fault, asJson: asJson);
     }
     return runWrite(
-      (session) => answerSetBatch(session, parsed),
+      (session) => answerSetBatch(
+        session,
+        parsed,
+        generators: specstoneRunner.generators,
+      ),
       asJson: asJson,
     );
   }
@@ -250,8 +256,12 @@ class SetCommand extends WriteCommand {
       return fail(fault, asJson: asJson);
     }
     return runWrite(
-      (session) =>
-          answerSetSync(session, parsed, codeTarget: targetOf(argResults!)),
+      (session) => answerSetSync(
+        session,
+        parsed,
+        codeTarget: targetOf(argResults!),
+        generators: specstoneRunner.generators,
+      ),
       asJson: asJson,
     );
   }

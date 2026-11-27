@@ -17,6 +17,7 @@ import '../../helpers/check_fixture.dart'
     show checkOf, checkProjectFiles, docTypeMatcherOf, fingerprintFor;
 import '../../helpers/cold_node.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/per_fr_row_fixture.dart';
 import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
 import '../../helpers/write_fixture.dart'
@@ -94,6 +95,7 @@ ReadAnswer _reorderDrop(Directory root, {bool dryRun = false}) => writeIn(
     'user_story:shop/cart/drop_item',
     place: '1',
     dryRun: dryRun,
+    generators: noGenerators,
   ),
 );
 
@@ -103,13 +105,18 @@ ReadAnswer _renameDrop(Directory root) => writeIn(
     session,
     'user_story:shop/cart/drop_item',
     slug: 'remove_item',
+    generators: noGenerators,
   ),
 );
 
 ReadAnswer _moveAddUnderPay(Directory root) => writeIn(
   root,
-  (session) =>
-      answerMove(session, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+  (session) => answerMove(
+    session,
+    ['user_story:shop/cart/add_item'],
+    under: 'shop/pay',
+    generators: noGenerators,
+  ),
 );
 
 void main() {
@@ -376,9 +383,12 @@ void main() {
       );
       writeIn(
         root,
-        (session) => answerMove(session, [
-          'fr:shop/cart/add_item/check_stock',
-        ], under: 'shop/cart/drop_item'),
+        (session) => answerMove(
+          session,
+          ['fr:shop/cart/add_item/check_stock'],
+          under: 'shop/cart/drop_item',
+          generators: noGenerators,
+        ),
       );
       const movedFr =
           'prds/features/f02_shop/f01_cart/us02_drop_item/fr01_check_stock.md';
@@ -425,6 +435,7 @@ void main() {
             ['feature:shop/cart'],
             under: null,
             top: true,
+            generators: noGenerators,
           ),
         );
         const movedFr =
@@ -515,6 +526,7 @@ void main() {
           session,
           'user_story:shop/cart/add_item',
           slug: 'put_item',
+          generators: noGenerators,
         ),
       );
       expect(
@@ -695,6 +707,10 @@ void main() {
 
 ReadAnswer _renameAdd(Directory root) => writeIn(
   root,
-  (session) =>
-      answerRename(session, 'user_story:shop/cart/add_item', slug: 'put_item'),
+  (session) => answerRename(
+    session,
+    'user_story:shop/cart/add_item',
+    slug: 'put_item',
+    generators: noGenerators,
+  ),
 );

@@ -17,6 +17,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -53,6 +54,7 @@ ReadAnswer _apply(Directory root, String plan, {bool dryRun = false}) =>
         session,
         parseMovePlan(plan, path: 'plan.txt'),
         dryRun: dryRun,
+        generators: noGenerators,
       ),
     );
 
@@ -183,6 +185,32 @@ void main() {
       isA<WriteFault>()
           .having((f) => f.code, 'code', WriteFaultCode.itemNotFound)
           .having((f) => f.message, 'message', '$shopDomain holds no INV-9'),
+    );
+  });
+
+  // D7
+  test('a plan moving a story under a parent where a doc of its folder matches no doc type refuses the whole plan', () async {
+    final root = await writeNestedProject(
+      extra: {
+        '.specstone/templates/spike.yaml':
+            'id: spike\ndescription: A spike.\npath: $_cartFolder/us02_drop_item/NOTE.md\n',
+        'docs/$_cartFolder/us02_drop_item/NOTE.md': '# Note\n',
+      },
+    );
+    final fault = _refusal(
+      root,
+      'new feature --parent shop --slug gift\n'
+      'user_story:shop/cart/drop_item -> feature:shop/pay\n',
+    );
+    expect(
+      fault,
+      isA<IndexFault>()
+          .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+          .having(
+            (f) => f.message,
+            'message',
+            '$_payFolder/us03_drop_item/NOTE.md matches no doc type',
+          ),
     );
   });
 
@@ -983,5 +1011,127 @@ void main() {
       ],
     );
     expect(readDoc(root, payRecord), isNot(contains("'card:")));
+  });
+
+  group('a plan and the path length limit', () {
+    const giftHead = 'prds/features/f02_shop/f03_';
+    const dropTail = '/us01_drop_item/USER_STORY.md';
+
+    Matcher tooLong(String projectPath, int units) => isA<IndexFault>()
+        .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+        .having(
+          (f) => f.message,
+          'message',
+          '$projectPath would have $units characters; the limit is 200',
+        );
+
+    // D6
+    for (final dryRun in [false, true]) {
+      test(
+        'a plan whose new line and whose story move both land over 200 code units names the first in tree order and writes nothing${dryRun ? ' under dry run' : ''}',
+        () async {
+          final root = await _project();
+          final slug = 'a' * (201 - 'docs/$giftHead/FEATURE.md'.length);
+          final fault = _refusal(
+            root,
+            'new feature --parent shop --slug $slug\n'
+            'user_story:shop/cart/drop_item -> feature:shop/$slug\n',
+            dryRun: dryRun,
+          );
+          expect(fault, tooLong('docs/$giftHead$slug/FEATURE.md', 201));
+        },
+      );
+    }
+
+    // D6
+    test('a plan whose story move alone lands over 200 code units names the story path', () async {
+      final root = await _project();
+      final slug = 'a' * (201 - 'docs/$giftHead$dropTail'.length);
+      final fault = _refusal(
+        root,
+        'new feature --parent shop --slug $slug\n'
+        'user_story:shop/cart/drop_item -> feature:shop/$slug\n',
+      );
+      expect(fault, tooLong('docs/$giftHead$slug$dropTail', 201));
+    });
+
+    // D6
+    test('a plan whose new line lands at 200 code units is written', () async {
+      final root = await _project();
+      final slug = 'a' * (200 - 'docs/$giftHead/FEATURE.md'.length);
+      _apply(root, 'new feature --parent shop --slug $slug\n');
+      expect(hasDoc(root, '$giftHead$slug/FEATURE.md'), isTrue);
+    });
+
+    // D6
+    for (final dryRun in [false, true]) {
+      test(
+        'a plan that moves a story into a feature with no record, the story and the new record over 200 code units, names the story, first in tree order, and writes none${dryRun ? ' under dry run' : ''}',
+        () async {
+          const recordTail = '/IMPLEMENTATION.md';
+          const storyTail = '/us01_add_item/USER_STORY.md';
+          final slug =
+              'a' *
+              (201 - '.specstone/records/f02_shop/f03_$recordTail'.length);
+          final root = await writeNestedProject(
+            extra: {
+              ...nestedRecords(),
+              'docs/$giftHead$slug/FEATURE.md': '# Gift\n',
+            },
+          );
+          final fault = _refusal(
+            root,
+            'user_story:shop/cart/add_item -> feature:shop/$slug\n',
+            dryRun: dryRun,
+          );
+          final story = 'docs/$giftHead$slug$storyTail';
+          expect(fault, tooLong(story, story.length));
+        },
+      );
+    }
+  });
+
+  // D13
+  group('a plan moving an fr_trace row into a child api doc', () {
+    const cartApi = 'specs/f02_shop/f01_cart/API.md';
+    const plan =
+        'api:shop#fr_trace/cart/add_item/check_stock -> api:shop/cart\n';
+
+    Future<Directory> cartProject() => writeNestedProject(
+      extra: {
+        'docs/$cartApi':
+            '# Cart API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+            '| drop_item/check | `other` |\n\n'
+            '## Operations\n### `other`\nDoes it.\n',
+      },
+    );
+
+    test('prints moved with the FR path rebased below the destination feature, and its json entry holds the same to', () async {
+      final root = await cartProject();
+      final answer = _apply(root, plan);
+      const key = 'add_item/check_stock';
+      expect(readDoc(root, cartApi), contains('| $key | '));
+      const line =
+          '$shopApi#fr_trace/cart/add_item/check_stock to '
+          '$cartApi#fr_trace/$key';
+      expect(answer.text, contains('moved $line\n'));
+      expect(answer.json['moved'], [
+        {
+          'from': '$shopApi#fr_trace/cart/add_item/check_stock',
+          'to': '$cartApi#fr_trace/$key',
+        },
+      ]);
+    });
+
+    test('a dry run prints the same address after moves', () async {
+      final answer = _apply(await cartProject(), plan, dryRun: true);
+      expect(
+        answer.text,
+        contains(
+          'moves $shopApi#fr_trace/cart/add_item/check_stock to '
+          '$cartApi#fr_trace/add_item/check_stock\n',
+        ),
+      );
+    });
   });
 }

@@ -378,16 +378,70 @@ final class FormatWritePlan {
 /// Writes no file, so a caller can count the changes or apply them as it
 /// pleases. A doc whose generator keeps companions plans them with it, as
 /// [runFormat] describes.
+///
+/// A caller planning the tree a write leaves passes the DocPaths the write
+/// moves away or deletes as [gone] and each doc it writes among [reads]; the
+/// companions are then found in that tree, not on disk as it is.
 FormatWritePlan planFormatWrites<R>(
   DocsProject project,
   List<DocRead> reads,
   GeneratorRegistry<R> registry,
-  R resolver,
-) => _planWrites(
+  R resolver, {
+  Set<String> gone = const {},
+}) => _Planner(
   project,
   reads,
   _Blocks(registry: registry, resolver: resolver),
-);
+  gone: gone,
+).plan();
+
+/// What a format run would do with the companions of one features doc.
+enum CompanionsState {
+  /// No companion would be created, rewritten, or deleted.
+  current,
+
+  /// A companion would be created, rewritten, or deleted.
+  lagging,
+
+  /// A refusal of the features doc or of a companion stops the whole group,
+  /// so the run writes none of its docs.
+  blocked,
+}
+
+/// Returns what a format run would do with the companions of the features
+/// doc at [docPath].
+///
+/// It reads the companions through the plan `runFormat` makes, so `format
+/// --check` and a caller agree. [outcome] is what [formatDoc] gives the
+/// features doc, for a caller that already laid it out; null lays it out
+/// here. A doc with no companions and a [docPath] that is no readable doc
+/// give [CompanionsState.current].
+CompanionsState companionsStateOf<R>(
+  DocsProject project,
+  String docPath,
+  GeneratorRegistry<R> registry,
+  R resolver, {
+  FormatOutcome? outcome,
+}) {
+  final file = File(
+    [project.docsRoot.path, ...docPath.split('/')].join(Platform.pathSeparator),
+  );
+  final read = readDoc(project, DocFile(file, docPath));
+  if (read is! ReadableDoc) return CompanionsState.current;
+  final planner = _Planner(project, [
+    read,
+  ], _Blocks(registry: registry, resolver: resolver));
+  final group = planner._groupOf(read);
+  if (group == null) return CompanionsState.current;
+  final own = outcome ?? formatDoc(read.doc, read.docType);
+  if (group.isBlocked(refusesFeatures: own is Refused)) {
+    return CompanionsState.blocked;
+  }
+  final lags =
+      group.deletes.isNotEmpty ||
+      group.companions.any((companion) => companion.text != null);
+  return lags ? CompanionsState.lagging : CompanionsState.current;
+}
 
 FormatWritePlan _planWrites<R>(
   DocsProject project,
@@ -398,11 +452,15 @@ FormatWritePlan _planWrites<R>(
 /// Plans one run: each doc laid out and filled, each companion group beside
 /// its features doc.
 final class _Planner<R> {
-  new(this._project, this._reads, this._blocks);
+  new(this._project, this._reads, this._blocks, {Set<String> gone = const {}})
+    : _gone = gone;
 
   final DocsProject _project;
   final List<DocRead> _reads;
   final _Blocks<R>? _blocks;
+
+  /// The DocPaths a write the run plans after takes away from the tree.
+  final Set<String> _gone;
 
   final _warnings = <String>[];
 
@@ -555,8 +613,10 @@ final class _Planner<R> {
     );
   }
 
-  /// Returns the readable docs of [type] under the docs root and the files of
-  /// the type that cannot be read, each by DocPath, in tree order.
+  /// Returns the readable docs of [type] in the tree the run plans and the
+  /// files of the type that cannot be read, each by DocPath: the docs root in
+  /// tree order without [_gone], then each doc of the type only [_reads]
+  /// holds.
   _TypeDocs _docsOfType(MergedDocType type) {
     final readByDocPath = {
       for (final read in _reads.whereType<ReadableDoc>()) read.docPath: read,
@@ -564,6 +624,7 @@ final class _Planner<R> {
     final readable = <String, ReadableDoc>{};
     final unreadable = <String, DocRead>{};
     for (final entry in _docsRootEntries.whereType<DocFile>()) {
+      if (_gone.contains(entry.docPath)) continue;
       final match = _project.matcher.match(entry.docPath);
       if (match is! MatchedDocType || match.docType.id != type.id) continue;
       final read = readByDocPath[entry.docPath] ?? readDoc(_project, entry);
@@ -572,6 +633,9 @@ final class _Planner<R> {
       } else {
         unreadable[entry.docPath] = read;
       }
+    }
+    for (final MapEntry(key: docPath, value: read) in readByDocPath.entries) {
+      if (read.docType.id == type.id) readable.putIfAbsent(docPath, () => read);
     }
     return _TypeDocs(readable: readable, unreadable: unreadable);
   }
@@ -764,7 +828,9 @@ final class _PlanBuilder {
         _blocked.add(own.result);
       }
       _addRewrite(doc, own.text);
-    } else if (group.isBlocked(own)) {
+    } else if (group.isBlocked(
+      refusesFeatures: own.result.status == FileStatus.refused,
+    )) {
       final blockedResults = group.blockedResults(doc, own);
       results.addAll(blockedResults);
       _blocked.addAll(
@@ -845,9 +911,10 @@ final class _Group {
   /// and the per-doc pass skips them.
   final Set<String> handledPaths;
 
-  /// Whether a refusal of [features] or of a companion stops the whole group.
-  bool isBlocked(_DocPlan features) =>
-      features.result.status == FileStatus.refused ||
+  /// Whether a refusal of the features doc, which [refusesFeatures] gives, or
+  /// of a companion stops the whole group.
+  bool isBlocked({required bool refusesFeatures}) =>
+      refusesFeatures ||
       companions.any((doc) => doc.result.status == FileStatus.refused);
 
   /// Returns the results of a blocked group: each refusal as it is, every other

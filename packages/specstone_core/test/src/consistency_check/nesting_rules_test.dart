@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/cold_node.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/write_fixture.dart';
 
@@ -99,6 +100,7 @@ void main() {
           docTypeId: 'feature',
           parent: 'shop/cart',
           slug: 'gift',
+          generators: noGenerators,
         ),
       );
       expect(spots(await checkOf(root), FindingKind.featureMixedChildren), [
@@ -319,6 +321,23 @@ void main() {
       expect(spots(report, FindingKind.pathOverLimit), [
         '$path:1: path_over_limit',
       ]);
+    });
+
+    // D6
+    test('a character outside the BMP counts two code units, so an untyped doc of 199 characters gives none and one of 200 gives one', () async {
+      const astral = '\u{1F600}';
+      for (final (units, expected) in [(200, 0), (201, 1)]) {
+        final path = _paddedPath('${folder}NOTES_$astral', '.md', units);
+        expect(path.runes.length + 'docs/'.length, units - 1);
+        final report = await checkOf(
+          await writeNestedProject(extra: {'docs/$path': '# Notes\n'}),
+        );
+        expect(
+          spots(report, FindingKind.pathOverLimit),
+          hasLength(expected),
+          reason: '$units code units',
+        );
+      }
     });
 
     test(

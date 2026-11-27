@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/models/id_read.dart';
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -6,8 +7,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 // MARK: - Constants
 
 const _apiType = 'api';
-final _slugPlaceholder = RegExp(r'\{slug\}');
-
 // MARK: - Types
 
 /// The block a `confirmed` label tracks: its doc and block key.
@@ -119,7 +118,7 @@ final class RenumberIndex {
   }
 
   static int _slugCountOf(MergedDocType type) =>
-      _slugPlaceholder.allMatches(type.path ?? '').length;
+      PathSegment.slugCount(type.path ?? '');
 
   /// The key of the ID [id] among a doc's lettered items: a scenario ID by
   /// the value of its number, any other ID as written.

@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/override_link_fixture.dart';
 import '../../helpers/write_fixture.dart' show docFile, readDoc, writeIn;
 
@@ -44,8 +45,10 @@ String _journey() =>
 Future<Directory> _project() =>
     writeCheckProject(extra: {'docs/$_journeyPath': _journey()});
 
-ReadAnswer _rename(Directory root, String address, String slug) =>
-    writeIn(root, (s) => answerRename(s, address, slug: slug));
+ReadAnswer _rename(Directory root, String address, String slug) => writeIn(
+  root,
+  (s) => answerRename(s, address, slug: slug, generators: noGenerators),
+);
 
 // The step naming other/story is unresolved by design; a renamed step that
 // kept its old name would make a second one.
@@ -376,7 +379,12 @@ void main() {
     final api = readDoc(root, loginApi);
     writeIn(
       root,
-      (s) => answerReorder(s, 'user_story:login/email_login', place: '1'),
+      (s) => answerReorder(
+        s,
+        'user_story:login/email_login',
+        place: '1',
+        generators: noGenerators,
+      ),
     );
     expect(readDoc(root, _journeyPath), journey);
     expect(readDoc(root, loginApi), api);
@@ -597,8 +605,12 @@ void main() {
     final root = await _frTraceProject();
     writeIn(
       root,
-      (s) =>
-          answerMove(s, ['user_story:login/reset_password'], under: 'account'),
+      (s) => answerMove(
+        s,
+        ['user_story:login/reset_password'],
+        under: 'account',
+        generators: noGenerators,
+      ),
     );
     final fr = readDoc(root, loginFr);
     expect(fr, contains('traced_from: [S1, account/reset_password#S3]\n'));
@@ -740,9 +752,12 @@ void main() {
       final before = readDoc(root, _resetFr);
       writeIn(
         root,
-        (s) => answerMove(s, [
-          'user_story:login/reset_password',
-        ], under: 'account'),
+        (s) => answerMove(
+          s,
+          ['user_story:login/reset_password'],
+          under: 'account',
+          generators: noGenerators,
+        ),
       );
       final moved = _resetFr
           .replaceFirst('f01_login', 'f02_account')

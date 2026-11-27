@@ -535,6 +535,45 @@ void main() {
     expect(clean.out.toString(), '0 findings\n');
   });
 
+  test('check names a stale generated block at its marker, for the Agent, and format clears it', () async {
+    // D5: the finding sits at the opening marker, waits for the Agent, and names the fix.
+    final project = await writeCheckProject(
+      extra: edit('prds/FEATURES.md', [
+        ('| implemented | 1/1 |', '| implemented | 0/1 |'),
+      ]),
+    );
+    const staleLine =
+        'prds/FEATURES.md:9: generated_block_stale: generated block feature_catalog is stale; '
+        'run specstone format prds/FEATURES.md';
+
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    expect(text.out.toString(), '$staleLine\n1 finding\n');
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final finding =
+        ((jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+                as List)
+            .single;
+    expect(finding, {
+      'kind': 'generated_block_stale',
+      'path': 'prds/FEATURES.md',
+      'name': 'features',
+      'line': 9,
+      'message': 'generated block feature_catalog is stale; run specstone format prds/FEATURES.md',
+      'waitsFor': 'agent',
+    });
+
+    expect(
+      await readRunner(project).runner.run(['format', 'prds/FEATURES.md']),
+      0,
+    );
+    final clean = readRunner(project);
+    expect(await clean.runner.run(['check']), 0);
+    expect(clean.out.toString(), '0 findings\n');
+  });
+
   test('set --field and format keep a repeated doc_ref value and one naming its own doc', () async {
     final project = await writeCheckProject();
     final bases = getDoc(project, 'feature:login')['bases']! as Map;

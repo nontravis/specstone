@@ -49,6 +49,23 @@ String shippedPinsBelowFloor({String pack = 'prd-core', String? extra}) {
   return extra == null ? below : '$below  $extra\n';
 }
 
+/// The `config.yaml` text of [shippedPinsConfig] with each pack pinned at its
+/// floor.
+// D8: the floor-pins project shape.
+String shippedPinsAtFloor() {
+  final floors = PackFloors.shipped.byPack;
+  var config = shippedPinsConfig();
+  final versions = shippedPackVersions();
+  for (final pack in shippedPinsDefaultPacks) {
+    final floor = floors[pack]!;
+    config = config.replaceFirst(
+      '  $pack: ${versions[pack]}\n',
+      '  $pack: ${floor.major}.${floor.minor}.${floor.patch}\n',
+    );
+  }
+  return config;
+}
+
 /// The shipped pack files less each key of [without], such as
 /// `prd-core/glossary.yaml`.
 ///

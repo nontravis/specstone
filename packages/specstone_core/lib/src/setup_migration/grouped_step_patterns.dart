@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/setup_migration/models/pack_step.dart';
 import 'package:specstone_core/src/templates/feature_group_paths.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -67,10 +68,7 @@ Map<String, MergedDocType> _groupedBeforeRun(
 String groupedStepPattern(String pattern, MergedDocType? type) =>
     insertGroupLevels(pattern, type?.insertedGroupLevels ?? 0);
 
-final _stepPlaceholder = RegExp(r'\{nn\}|\{slug\}');
-
-int _placeholderCount(String pattern) =>
-    _stepPlaceholder.allMatches(pattern).length;
+int _placeholderCount(String pattern) => PathSegment.placeholderCount(pattern);
 
 /// Throws `unknown_value` at the first `move_file` of [steps] whose grouped
 /// `from` and `to` hold different placeholder counts, since the move fills `to`

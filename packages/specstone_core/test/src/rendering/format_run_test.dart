@@ -1449,6 +1449,32 @@ void main() {
   });
 
   group('a features doc and its group docs', () {
+    test('a features doc whose group doc is missing or lags reports its '
+        'companions lagging, as the plan lists them', () async {
+      // D5: the companion lag `check` reads is the plan `format --check` lists.
+      final registry = _groupRun(['form', 'list']).registry;
+      final lagging = await _openGroups({
+        ..._freshGroups(['list']),
+        _mapPath: _mapDoc('form,list'),
+      });
+      final current = await _openGroups(_freshGroups(['form', 'list']));
+
+      expect(
+        companionsStateOf(lagging.project, 'prds/FEATURES.md', registry, [
+          'form',
+          'list',
+        ]),
+        CompanionsState.lagging,
+      );
+      expect(
+        companionsStateOf(current.project, 'prds/FEATURES.md', registry, [
+          'form',
+          'list',
+        ]),
+        CompanionsState.current,
+      );
+    });
+
     test('a missing group doc is created approved and reports '
         'created', () async {
       final run = await _openGroups({

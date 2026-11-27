@@ -9,14 +9,17 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/matrix_record_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/override_link_fixture.dart';
 import '../../helpers/record_fixture.dart' show recordText;
 import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
@@ -494,6 +497,7 @@ void main() {
           s,
           SetRequest.parse(target, field: 'confirmed', base: base),
           '- S2 ${fp(edited)}\n',
+          generators: noGenerators,
         ),
       );
       return project;
@@ -952,6 +956,8 @@ void main() {
     }) async => await checkOf(
       await writeCheckProject(extra: {'docs/$journeyPath': text, ...extra}),
       docPath: journeyPath,
+      // The step links are judged alone; the copy block has its own rule.
+      generators: GeneratorRegistry<DocIndex>({}),
     );
 
     test(
@@ -1912,6 +1918,7 @@ void main() {
           s,
           SetRequest.parse(target, base: sectionBase),
           '${matrixRow.trimRight()} $current\n',
+          generators: noGenerators,
         ),
       );
 

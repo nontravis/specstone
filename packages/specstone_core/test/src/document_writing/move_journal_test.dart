@@ -18,6 +18,7 @@ import '../../helpers/forwarding_entities.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/hold_open.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -756,6 +757,7 @@ void main() {
             confirmation: OwnerConfirmation.missing,
             readLine: () => null,
             prompts: StringBuffer(),
+            generators: noGenerators,
           ),
         ),
         throwsA(
@@ -801,6 +803,7 @@ void main() {
         confirmation: OwnerConfirmation.missing,
         readLine: () => null,
         prompts: StringBuffer(),
+        generators: noGenerators,
       ),
     );
 
@@ -2314,13 +2317,23 @@ void main() {
 
     refuses(
       'a reorder that re-stamps an approved doc',
-      (s) => answerReorder(s, 'feature:signup', place: '1'),
+      (s) => answerReorder(
+        s,
+        'feature:signup',
+        place: '1',
+        generators: noGenerators,
+      ),
     );
 
     test('a reorder to the same place writes no journal and is unaffected', () {
       final answer = writeInNoHome(
         root,
-        (s) => answerReorder(s, 'user_story:login/email_login', place: '1'),
+        (s) => answerReorder(
+          s,
+          'user_story:login/email_login',
+          place: '1',
+          generators: noGenerators,
+        ),
       );
 
       expect(answer.text, isEmpty);
@@ -2334,6 +2347,7 @@ void main() {
           s,
           'user_story:login/email_login',
           slug: 'email_login',
+          generators: noGenerators,
         ),
       );
 
@@ -2349,9 +2363,12 @@ void main() {
       expect(
         () => writeInNoHome(
           nested,
-          (s) => answerMove(s, [
-            'user_story:shop/cart/add_item',
-          ], under: 'shop/pay'),
+          (s) => answerMove(
+            s,
+            ['user_story:shop/cart/add_item'],
+            under: 'shop/pay',
+            generators: noGenerators,
+          ),
         ),
         refusal,
       );
@@ -2367,15 +2384,26 @@ void main() {
         confirmation: OwnerConfirmation.prompt,
         readLine: () => 'y',
         prompts: StringBuffer(),
+        generators: noGenerators,
       ),
     );
     refuses(
       'reorder',
-      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+      (s) => answerReorder(
+        s,
+        'user_story:login/reset_password',
+        place: '1',
+        generators: noGenerators,
+      ),
     );
     refuses(
       'rename',
-      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'other'),
+      (s) => answerRename(
+        s,
+        'user_story:login/reset_password',
+        slug: 'other',
+        generators: noGenerators,
+      ),
     );
   });
 

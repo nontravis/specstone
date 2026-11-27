@@ -82,6 +82,7 @@ const _requiredReferences = <String>[
   'specstone-brainstorming-sdd/references/author-report.md',
   'specstone-brainstorming-sdd/references/author-recovery.md',
   'specstone-brainstorming-sdd/references/author-size.md',
+  _authorReaders,
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/trim-audit.md',
@@ -2730,6 +2731,28 @@ void _trimReferenceTests() {
     },
   );
 
+  // D3
+  test('a Misplaced item with a member FR leads with both FRs', () {
+    final misplaced = _bulletOf(
+      _pluginText(_auditReference),
+      '   - `Misplaced`',
+    );
+    expect(
+      misplaced,
+      allOf(
+        contains(
+          '<shared FR>#<key>, <member FR>: <rule> belongs in <member FR>',
+        ),
+        contains('belongs in a new FR for <member>'),
+        isNot(
+          contains(
+            '`- Misplaced: <shared FR>#<key>: <rule> belongs in <member FR>`',
+          ),
+        ),
+      ),
+    );
+  });
+
   test('a feature pattern item neither covered nor skipped is one Not carried '
       'line', () {
     final check = _sectionOf(
@@ -3442,6 +3465,42 @@ void _authorModeTests() {
     expect(text.indexOf(readers), lessThan(text.indexOf('## 3. Write')));
   });
 
+  // D12
+  test(
+    'the reader step reads a narrowed rule and searches its old wording',
+    () {
+      final steps = _pluginText(_authorReaders);
+      expect(
+        _hasSentenceWith(steps, [
+          'current text',
+          'saved bundle files',
+          'no `get`',
+        ]),
+        isTrue,
+      );
+      expect(
+        _hasSentenceWith(steps, [
+          'no saved file',
+          '`specstone context <doc> --for design --out`',
+          'never `get`',
+        ]),
+        isTrue,
+      );
+      expect(
+        _hasSentenceWith(steps, ['`specstone search', 'noun phrase']),
+        isTrue,
+      );
+      expect(_hasSentenceWith(steps, ['hit', 'reader']), isTrue);
+      expect(steps, contains('`specstone refs`'));
+      final pointer = _sectionOf(
+        _pluginText(_authorReference),
+        '## 2. Find the readers',
+      );
+      expect(pointer, contains('Follow `author-readers.md`'));
+      expect(pointer, isNot(contains('`specstone refs`')));
+    },
+  );
+
   test('the author reads by name list and writes one batch', () {
     final step = _sectionOf(_pluginText(_authorReference), '## 3. Write');
     for (final phrase in [
@@ -3472,9 +3531,67 @@ void _authorModeTests() {
     expect(template, contains('Move: <plan file path>'));
     expect(template, isNot(contains('specstone move')));
   });
+
+  // D11
+  test('an engineer splits an FR past its edge-case cap inside its story', () {
+    final steps = _pluginText(_authorSize);
+    const order = [
+      'specstone new fr --parent <story>',
+      'specstone move --plan-out <fr>',
+      'specstone move --plan-file',
+    ];
+    for (final words in [
+      [order[0]],
+      ['Save one plan file', order[1]],
+      [order[2]],
+      ['new FR', '`author.md` section 3', '`<mode>`'],
+      ['later-write bare check', '`Check:`'],
+      ['sync mode', 'specstone check <doc> --out', 'per FR'],
+      ['old and the new FR', '`specstone approve --dry-run --json`'],
+      ['`Move:`', '`Findings:`', 'draft line'],
+      ['Owner', 'story or feature'],
+    ]) {
+      expect(_hasSentenceWith(steps, words), isTrue, reason: words.join(', '));
+    }
+    final at = [for (final command in order) steps.indexOf(command)];
+    expect(at, orderedEquals([...at]..sort()));
+    expect(steps, isNot(contains('run no `new` or `move`')));
+    final engineer = _pluginText(_engineer);
+    expect(_sectionOf(engineer, '## Workflow'), contains('author-size.md'));
+    final scope = _sectionOf(engineer, '## Scope Boundaries');
+    for (final words in [
+      [
+        'the main session applies it',
+        'bar the in-story split',
+        'author-size.md',
+      ],
+      ['exception', 'move --plan-file', 'author-size.md'],
+    ]) {
+      expect(_hasSentenceWith(scope, words), isTrue, reason: words.join(', '));
+    }
+    expect(
+      scope,
+      isNot(contains(' `author-size.md`')),
+      reason: 'the engineer names a skill file by its full path',
+    );
+    expect(
+      _sectionOf(
+        _pluginText(_sizeFix),
+        '## A finding that names items to move',
+      ),
+      contains('author-size.md'),
+    );
+  });
 }
 
 const _authorReport = 'specstone-brainstorming-sdd/references/author-report.md';
+
+/// The author mode's reader step reference, under the plugin folder.
+const _authorReaders =
+    'specstone-brainstorming-sdd/references/author-readers.md';
+
+/// The author mode's edge-case cap step, under the plugin folder.
+const _authorSize = 'specstone-brainstorming-sdd/references/author-size.md';
 
 // MARK: - small edit
 

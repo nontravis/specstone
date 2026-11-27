@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/size_excess.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/author_decisions.dart';
 import 'package:specstone_core/src/document_writing/clean_draft_judge.dart';
 import 'package:specstone_core/src/document_writing/draft_sections.dart'
     show sectionBodyOf;
@@ -66,6 +67,22 @@ AuditSequence _sequence(List<String> texts) => AuditSequence.parse([
     _file(texts[i], path: 'reports/audit${i + 1}.md'),
 ]);
 
+/// The sections the fixture project holds, each as `<doc address>#<key>`.
+const _heldSections = {
+  'fr:a#statement',
+  'fr:a#x',
+  'fr:b#statement',
+  'fr:b#scope',
+  '$_docPath#statement',
+  'feature:setup_migration#summary',
+  'feature:setup_migration#scope',
+};
+
+const _fixtureSections = SectionLookup(_holdsFixtureSection);
+
+bool _holdsFixtureSection(String docAddress, String key) =>
+    _heldSections.contains('$docAddress#$key');
+
 CleanDraftJudge _judge({
   List<Finding> findings = const [],
   AuditSequence? audit,
@@ -75,6 +92,7 @@ CleanDraftJudge _judge({
   Set<String> callNames = const {},
   Set<String> passedFindings = const {},
   Set<Finding> carried = const {},
+  SectionLookup sections = _fixtureSections,
 }) => CleanDraftJudge(
   findings: findings,
   audit: audit,
@@ -84,6 +102,7 @@ CleanDraftJudge _judge({
   callNames: callNames,
   passedFindings: passedFindings,
   carriedFindings: carried,
+  sections: sections,
 );
 
 String? _reasonForAudit(
@@ -727,6 +746,24 @@ void main() {
           reason: '$label, second lead name',
         );
       }
+    });
+
+    _reportTest('a Misplaced item led by a keyed shared FR and a bare member FR asks both drafts', () {
+      // D3: the item leads with both FRs, so each stays open.
+      const member = JudgedDraft(
+        name: 'fr:b',
+        docPath: 'prds/features/f01_x/fr02_b.md',
+        currentHash: _hash,
+      );
+      final text = [
+        _audited(_name, _hash),
+        _audited('fr:b', _hash),
+        'Findings:',
+        '- Misplaced: fr:a#statement, fr:b: only fr:b holds it belongs in fr:b',
+      ].join('\n');
+      final judge = _judge(audit: _sequence([text]));
+      expect(judge.reasonFor(_draft), _namedIn('Findings', 'audit1.md'));
+      expect(judge.reasonFor(member), _namedIn('Findings', 'audit1.md'));
     });
 
     _reportTest(
@@ -1407,6 +1444,95 @@ void main() {
           );
         },
       );
+
+      // D1: a DocPath section address lands a decision, as a typed one does.
+      _reportTest('lands a decision whose section is named by its DocPath, whatever mark follows the address', () {
+        for (final line in [
+          'Decision: D1 -> $_docPath#statement',
+          'Decision: D1 -> $_docPath#statement.',
+          'Decision: D1 -> ($_docPath#statement)',
+          'Decision: D1 -> $_docPath#statement, and more',
+          'Decision: D1 -> `$_docPath#statement`',
+        ]) {
+          expect(reasonOf({'author1.md': line}), isNull, reason: line);
+        }
+        for (final line in [
+          'Decision: D1 -> $_docPath',
+          'Decision: D1 -> $_docPath#',
+          'Decision: D1 -> prds/a.mdx#statement',
+        ]) {
+          expect(
+            reasonOf({'author1.md': line}),
+            _openDecisions([('D1', 'author1.md')]),
+            reason: line,
+          );
+        }
+      });
+
+      // D2: a Decision line lands only on sections the project holds.
+      _reportTest('keeps a decision open when its line names a doc or a key the project lacks, or a list with one such key', () {
+        for (final line in [
+          'Decision: D1 -> fr:missing#statement',
+          'Decision: D1 -> fr:a#missing',
+          'Decision: D1 -> missing/doc.md#statement',
+          'Decision: D1 -> $_docPath#missing',
+          'Decision: D1 -> fr:a#statement, fr:b#missing',
+          'Decision: D1 -> feature:setup_migration (summary, missing)',
+          'Decision: D1 -> feature:missing (summary)',
+        ]) {
+          expect(
+            reasonOf({'author1.md': line}),
+            _openDecisions([('D1', 'author1.md')]),
+            reason: line,
+          );
+        }
+        expect(
+          reasonOf({
+            'author1.md': 'Decision: D1 -> fr:a#statement, fr:b#scope',
+          }),
+          isNull,
+        );
+      });
+
+      // D2: a token or list item no form reads whole is never landed on.
+      _reportTest('keeps a decision open when its line holds a section token that no address form reads whole', () {
+        for (final line in [
+          'Decision: D1 -> fr:a#statement, **$_docPath#missing**',
+          'Decision: D1 -> fr:a#statement, $_docPath#missing-key',
+          'Decision: D1 -> fr:a#statement, FR:b#missing',
+          'Decision: D1 -> fr:a#statement-missing',
+          'Decision: D1 -> feature:setup_migration (summary, mis-sing)',
+          'Decision: D1 -> feature:setup_migration (summary, Missing Key)',
+        ]) {
+          expect(
+            reasonOf({'author1.md': line}),
+            _openDecisions([('D1', 'author1.md')]),
+            reason: line,
+          );
+        }
+      });
+
+      _reportTest('keeps a decision open when its line carries the Not landed mark in any case', () {
+        for (final line in [
+          'Decision: D1 -> fr:a#statement (not landed yet)',
+          'Decision: D1 -> fr:a#statement (Not Landed)',
+        ]) {
+          expect(
+            reasonOf({'author1.md': line}),
+            _openDecisions([('D1', 'author1.md')]),
+            reason: line,
+          );
+        }
+      });
+
+      _reportTest('asks for a decision whose number is too large to read, and crashes nothing', () {
+        expect(
+          reasonOf({
+            'author1.md': 'Decision: D99999999999999999999 -> fr:a#statement',
+          }),
+          _notLandedIn('author1.md'),
+        );
+      });
 
       _reportTest('names an open decision and an unkeyed Not landed line, each with its file, in the order the files were passed', () {
         const keyed = 'Not landed: D3: x';

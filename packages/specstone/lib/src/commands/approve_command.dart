@@ -133,6 +133,7 @@ class ApproveCommand extends WriteCommand {
           saveAuditedCopies: asJson,
           auditPaths: args.multiOption('audit'),
           workingDirectory: specstoneRunner.workingDirectory,
+          generators: specstoneRunner.generators,
         ),
         asJson: asJson,
       );
@@ -149,7 +150,12 @@ class ApproveCommand extends WriteCommand {
     }
     if (!confirmation.prompts) {
       return runWrite(
-        (session) => approveNamed(session, seen, codeTarget: targetOf(args)),
+        (session) => approveNamed(
+          session,
+          seen,
+          codeTarget: targetOf(args),
+          generators: specstoneRunner.generators,
+        ),
         asJson: false,
       );
     }
@@ -162,6 +168,7 @@ class ApproveCommand extends WriteCommand {
         context: context,
         color: color,
         codeTarget: targetOf(args),
+        generators: specstoneRunner.generators,
       );
       return const ReadAnswer(text: '', json: {});
     }, asJson: false);
@@ -213,7 +220,8 @@ class ApproveCommand extends WriteCommand {
       approveModeVariable: console.approveModeVariable,
     );
     return runWriteAsync(
-      (session) => approveAuto(session, call),
+      (session) =>
+          approveAuto(session, call, generators: specstoneRunner.generators),
       asJson: args.flag('json'),
     );
   }

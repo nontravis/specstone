@@ -60,6 +60,16 @@ final class LockedDocTexts {
     );
   });
 
+  /// The LF text of each changed doc, laid out as [writeChangedDocs] writes it,
+  /// by DocPath.
+  Map<String, String> get laidOutChanged => {
+    for (final text in changed)
+      text.doc.docPath: layOutDoc(
+        text.text,
+        _session.docTypeAt(text.doc.docPath),
+      ),
+  };
+
   /// The docs whose text an edit changed, in DocPath order.
   List<LockedDocText> get changed => [
     for (final text in _byPath.values)
@@ -83,22 +93,27 @@ final class WrittenDoc {
   IndexedDoc get doc => text.doc;
 }
 
-/// Lays out each changed doc of [texts] and writes them all through one
-/// journal, or writes none; returns them in DocPath order.
+/// Lays out each changed doc of [texts] and writes them all, then [steps],
+/// through one journal, or writes none; returns them in DocPath order.
 ///
 /// Trust is checked before each path, so a project whose roots wait refuses
 /// with the trust text first. A run that changed no doc writes no journal.
-List<WrittenDoc> writeChangedDocs(WriteSession session, LockedDocTexts texts) {
+List<WrittenDoc> writeChangedDocs(
+  WriteSession session,
+  LockedDocTexts texts, {
+  List<JournalStep> steps = const [],
+}) {
   final changed = texts.changed;
   final laidOut = [
     for (final text in changed)
       layOutDoc(text.text, session.docTypeAt(text.doc.docPath)),
   ];
-  final steps = [
+  final docSteps = [
     for (final (at, text) in changed.indexed)
       _stepOf(session, text, laidOut[at]),
   ];
-  if (steps.isNotEmpty) MoveJournal(steps).run(session.journalTarget);
+  final allSteps = [...docSteps, if (docSteps.isNotEmpty) ...steps];
+  if (allSteps.isNotEmpty) MoveJournal(allSteps).run(session.journalTarget);
   return [
     for (final (at, text) in changed.indexed)
       WrittenDoc(

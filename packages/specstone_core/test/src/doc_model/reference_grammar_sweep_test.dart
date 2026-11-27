@@ -93,47 +93,47 @@ final _allowed = <_Allowed>[
   ),
   // Report lines of `approve --auto`: label and heading shapes of a report.
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp(r'^## Round [0-9]+[ \t]*$'""",
     'Round heading line of an audit report, no reference.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp(r'^(Audited|Styled): ([^\s@]+)@([0-9a-f]{12})$'""",
     'Report label line; the name in it is read by readDocAddress.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp( r'^(Findings|Outside the drafts|Outside the round):(?:[ \t]+(.*))?$'""",
     'Report section label line, no reference.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp(r'^Queued: (.+)$'""",
     'Report label line; the name in it is read by leadNameOf.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     """RegExp('^(?:NOT ADDRESSED: )?(?:check: )?`?'""",
     'Report item lead labels, dropped before the name is read.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp(r'^Verdicts:$'""",
     'Report section label line, no reference.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r'''RegExp(r"^[A-Z][A-Za-z ']*:(?: |$)"''',
     'Report label line such as `Lenses:`, no reference.',
   ),
   _core(
-    'document_writing/clean_draft_judge.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp(r'^#{1,6}(?:[ \t]|$)'""",
     'ATX heading line of a report, no reference.',
   ),
   _core(
-    'document_writing/author_decisions.dart',
+    'document_writing/report_grammar.dart',
     r"""RegExp(r'^D([0-9]+)(?=[ :(]|$)'""",
     'Decision key `D<n>` of a report line, not a doc reference.',
   ),

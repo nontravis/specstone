@@ -19,6 +19,7 @@ import 'package:yaml/yaml.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/cold_node.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/write_fixture.dart' show readDoc, writeIn;
 
 const _story = 'login/email_login';
@@ -355,7 +356,13 @@ void main() {
 
     writeIn(
       plain,
-      (s) => answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'a'),
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        generators: noGenerators,
+      ),
     );
     writeIn(
       hooked,

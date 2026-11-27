@@ -8,15 +8,20 @@ import 'package:specstone_core/src/document_writing/approval_writes.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart'
     show approvedCopyLookupOf;
 import 'package:specstone_core/src/document_writing/audited_copy_store.dart';
+import 'package:specstone_core/src/document_writing/author_decisions.dart';
 import 'package:specstone_core/src/document_writing/clean_draft_judge.dart';
 import 'package:specstone_core/src/document_writing/draft_sections.dart'
     show sectionBodyOf;
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/held_items.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
@@ -65,7 +70,8 @@ final class AutoApproveCall {
 /// A long item the draft's approved copy holds, and a finding it gives too at
 /// the same place, do not make the draft ask; [history] finds that copy, a
 /// fresh one when null. The copy check runs only for a draft with a finding no
-/// other rule passes.
+/// other rule passes. The clean drafts are written with the generated blocks
+/// of [generators] they make stale ([writeApprovals]).
 ///
 /// Throws [IndexFault], [WriteFault] `draft_not_found`, `RenderFault`
 /// `output_not_writable`, or `MigrateFault` `git_work_tree_required` before the
@@ -76,6 +82,7 @@ Future<ReadAnswer> approveAuto(
   AutoApproveCall call, {
   MermaidNodeRun? mermaidRunner,
   ApprovalHistory? history,
+  required GeneratorRegistry<DocIndex> generators,
 }) async {
   final drafts = _namedDrafts(session, call);
   if (drafts.firstOrNull case final first?) requireTrusted(session, first);
@@ -91,6 +98,7 @@ Future<ReadAnswer> approveAuto(
           addresses,
           mermaidRunner,
           ownHistory,
+          generators,
         )
       : _Judgment(
           verdicts: [
@@ -106,7 +114,8 @@ Future<ReadAnswer> approveAuto(
   return _answerOf(mode, judgment.verdicts, [
     ...warnings,
     ...judgment.checkWarnings,
-  ]);
+    ...judgment.refresh.refused,
+  ], judgment.refresh);
 }
 
 /// Returns the docs [call] names, each once, in tree order.
@@ -130,6 +139,7 @@ Future<_Judgment> _judgeAndWrite(
   List<String> addresses,
   MermaidNodeRun? mermaidRunner,
   ApprovalHistory history,
+  GeneratorRegistry<DocIndex> generators,
 ) async {
   final reports = ReportFiles.read(
     auditPaths: call.auditPaths,
@@ -159,11 +169,15 @@ Future<_Judgment> _judgeAndWrite(
         for (final (at, doc) in drafts.indexed) ...[addresses[at], doc.docPath],
       },
       passedFindings: passed.keys,
+      sections: SectionLookup.ofIndex(
+        session.index,
+        codeTarget: call.codeTarget,
+      ),
       carriedFindings: passed.carried,
     );
     final verdicts = [
       for (final (at, doc) in drafts.indexed)
-        _judgeAndApprove(
+        _judgeOne(
           session,
           judge,
           doc,
@@ -173,8 +187,16 @@ Future<_Judgment> _judgeAndWrite(
           passed.carriedBy[doc.docPath] ?? const [],
         ),
     ];
+    final refresh = writeApprovals(session, [
+      for (final (at, doc) in drafts.indexed)
+        if (verdicts[at].ask == null) ApprovalWrite(doc, current[at]),
+    ], generators: generators);
     pruneApprovedCopiesLocked(session);
-    return _Judgment(verdicts: verdicts, checkWarnings: check.warnings);
+    return _Judgment(
+      verdicts: verdicts,
+      checkWarnings: check.warnings,
+      refresh: refresh,
+    );
   });
 }
 
@@ -286,7 +308,7 @@ List<List<int>> _currentBytes(WriteSession session, List<IndexedDoc> drafts) {
   return bytes;
 }
 
-_Verdict _judgeAndApprove(
+_Verdict _judgeOne(
   WriteSession session,
   CleanDraftJudge judge,
   IndexedDoc doc,
@@ -308,7 +330,6 @@ _Verdict _judgeAndApprove(
           _sectionTextOf(session, codeTarget, docName, sectionKey),
     ),
   );
-  if (ask == null) writeApproval(session, doc, bytes);
   return _Verdict(doc.docPath, address, ask, ask == null ? carried : const []);
 }
 
@@ -343,18 +364,21 @@ ReadAnswer _answerOf(
   String mode,
   List<_Verdict> verdicts,
   List<String> warnings,
+  BlockRefresh refresh,
 ) => ReadAnswer(
-  text: [
-    'mode: $mode',
-    for (final _Verdict(:address, :ask, :carried) in verdicts)
-      if (ask == null) ...[
-        'approved $address',
-        for (final CarriedFinding(:kind, :place) in carried)
-          'carried $address: $kind at $place',
-      ],
-    for (final _Verdict(:address, :ask) in verdicts)
-      if (ask != null) 'ask $address: ${ask.reason}',
-  ].map((line) => '$line\n').join(),
+  text:
+      [
+        'mode: $mode',
+        for (final _Verdict(:address, :ask, :carried) in verdicts)
+          if (ask == null) ...[
+            'approved $address',
+            for (final CarriedFinding(:kind, :place) in carried)
+              'carried $address: $kind at $place',
+          ],
+        for (final _Verdict(:address, :ask) in verdicts)
+          if (ask != null) 'ask $address: ${ask.reason}',
+      ].map((line) => '$line\n').join() +
+      refresh.linesOf(),
   json: {
     'approveMode': mode,
     'approved': [
@@ -370,16 +394,24 @@ ReadAnswer _answerOf(
       for (final _Verdict(:address, :docPath, :ask) in verdicts)
         if (ask != null) {'doc': address, 'path': docPath, ...ask.toJson()},
     ],
+    ...refresh.json,
   },
   warnings: warnings,
 );
 
 /// What the call decided for each draft, and what the check warned.
 final class _Judgment {
-  const new({required this.verdicts, this.checkWarnings = const []});
+  const new({
+    required this.verdicts,
+    this.checkWarnings = const [],
+    this.refresh = BlockRefresh.none,
+  });
 
   final List<_Verdict> verdicts;
   final List<String> checkWarnings;
+
+  /// The generated blocks the approvals rewrote.
+  final BlockRefresh refresh;
 }
 
 /// What the call decided for one draft: approved when [ask] is null.

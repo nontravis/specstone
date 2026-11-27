@@ -154,6 +154,7 @@ void main() {
       'retrim_due',
       'singular_doc_missing',
       'layer_doc_type_dropped',
+      'generated_block_stale',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
     const writeCodes = {

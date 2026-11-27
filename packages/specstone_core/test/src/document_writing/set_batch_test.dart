@@ -36,6 +36,7 @@ import '../../helpers/git_repo.dart' show hasGit;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/legacy_fixture.dart' show gitFixture;
 import '../../helpers/matrix_record_fixture.dart' show writeMatrixRecordProject;
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
@@ -60,8 +61,14 @@ String getText(Directory root, List<String> names) {
   }
 }
 
-ReadAnswer runBatch(Directory root, String text) =>
-    writeIn(root, (s) => answerSetBatch(s, parseBatchFile('batch.md', text)));
+ReadAnswer runBatch(Directory root, String text) => writeIn(
+  root,
+  (s) => answerSetBatch(
+    s,
+    parseBatchFile('batch.md', text),
+    generators: noGenerators,
+  ),
+);
 
 /// Returns [text] with its first [from] replaced by [to]; fails when [from] is
 /// not there, so an edit never silently misses.
@@ -162,6 +169,8 @@ void main() {
             'written': true,
           },
       ],
+      'rewritten': <Object>[],
+      'deleted': <Object>[],
     });
     expect(File(journalPathOf(root)).existsSync(), isFalse);
   });
@@ -733,6 +742,7 @@ void main() {
             base: partBase(root, _signOutUseCase),
           ),
           body,
+          generators: noGenerators,
         ),
       ),
       throwsA(
@@ -841,7 +851,11 @@ void main() {
 
     final answer = writeInNoHome(
       root,
-      (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+      (s) => answerSetBatch(
+        s,
+        parseBatchFile('batch.md', text),
+        generators: noGenerators,
+      ),
     );
 
     expect(docBytes(root), before);
@@ -889,7 +903,11 @@ void main() {
       final text = getText(root, names);
       final answer = writeInNoHome(
         root,
-        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+        (s) => answerSetBatch(
+          s,
+          parseBatchFile('batch.md', text),
+          generators: noGenerators,
+        ),
       );
       expect(answer.json['blocks'], [containsPair('written', false)]);
       expect(answer.json['blocks'], everyElement(containsPair('draft', false)));
@@ -927,7 +945,11 @@ void main() {
 
     final unchanged = writeInNoHome(
       root,
-      (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+      (s) => answerSetBatch(
+        s,
+        parseBatchFile('batch.md', text),
+        generators: noGenerators,
+      ),
     );
     expect(docFile(root, story2).readAsBytesSync(), bytes);
     expect(unchanged.json['blocks'], [containsPair('written', false)]);
@@ -1071,7 +1093,11 @@ void main() {
     expect(
       () => writeInNoHome(
         root,
-        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+        (s) => answerSetBatch(
+          s,
+          parseBatchFile('batch.md', text),
+          generators: noGenerators,
+        ),
       ),
       throwsA(
         isA<RenderFault>()
@@ -1098,7 +1124,11 @@ void main() {
 
     final unchanged = writeInNoHome(
       root,
-      (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+      (s) => answerSetBatch(
+        s,
+        parseBatchFile('batch.md', text),
+        generators: noGenerators,
+      ),
     );
     writeInNoHome(
       root,
@@ -1107,6 +1137,7 @@ void main() {
         'user_story:login/reset_password',
         slug: 'x',
         dryRun: true,
+        generators: noGenerators,
       ),
     );
     writeInNoHome(
@@ -1116,6 +1147,7 @@ void main() {
         'user_story:login/reset_password',
         place: '1',
         dryRun: true,
+        generators: noGenerators,
       ),
     );
     writeInNoHome(
@@ -1125,15 +1157,17 @@ void main() {
         ['user_story:login/reset_password'],
         under: 'signup',
         dryRun: true,
+        generators: noGenerators,
       ),
     );
     writeInNoHome(
       root,
-      (s) =>
-          answerDeleteDryRun(s, ['fr:login/email_login/lock_after_failures']),
+      (s) => answerDeleteDryRun(s, [
+        'fr:login/email_login/lock_after_failures',
+      ], generators: noGenerators),
     );
 
-    writeInNoHome(root, approveDryRun);
+    writeInNoHome(root, (s) => approveDryRun(s, generators: noGenerators));
 
     expect(unchanged.text, contains(' · unchanged <=='));
     expect(docBytes(root), before);
@@ -1145,6 +1179,7 @@ void main() {
         s,
         SetRequest.parse(_useCase, base: partBase(root, _useCase)),
         'Sign in with a passkey.\n',
+        generators: noGenerators,
       ),
     );
 
@@ -1277,7 +1312,11 @@ void main() {
       final text = getText(root, names);
       final answer = writeInNoHome(
         root,
-        (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+        (s) => answerSetBatch(
+          s,
+          parseBatchFile('batch.md', text),
+          generators: noGenerators,
+        ),
       );
       expect(answer.json['blocks'], [containsPair('written', false)]);
     }
@@ -1291,7 +1330,11 @@ void main() {
     final fault = writeIn(root, (s) {
       docFile(root, story3).deleteSync();
       try {
-        answerSetBatch(s, parseBatchFile('batch.md', text));
+        answerSetBatch(
+          s,
+          parseBatchFile('batch.md', text),
+          generators: noGenerators,
+        );
       } on BatchFault catch (fault) {
         return fault;
       }
@@ -1558,7 +1601,11 @@ void main() {
         expect(
           () => writeIn(
             root,
-            (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+            (s) => answerSetBatch(
+              s,
+              parseBatchFile('batch.md', text),
+              generators: noGenerators,
+            ),
             busyTimeout: Duration.zero,
           ),
           throwsA(
@@ -1662,7 +1709,11 @@ void main() {
 
     final answer = writeInNoHome(
       root,
-      (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+      (s) => answerSetBatch(
+        s,
+        parseBatchFile('batch.md', text),
+        generators: noGenerators,
+      ),
     );
 
     expect(docBytes(root), before);

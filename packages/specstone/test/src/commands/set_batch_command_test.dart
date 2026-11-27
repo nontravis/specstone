@@ -220,7 +220,10 @@ void main() {
     expect(result.code, 0, reason: result.err);
     expect(result.err, isEmpty);
     final printed = decode(result.out);
-    expect(printed.keys, unorderedEquals(['blocks', 'warnings']));
+    expect(
+      printed.keys,
+      unorderedEquals(['blocks', 'rewritten', 'deleted', 'warnings']),
+    );
     expect(printed['warnings'], isEmpty);
     final blocks = (printed['blocks']! as List).cast<Map<String, Object?>>();
     expect(blocks.map((b) => b['path']), [story2, fr11, loginArch]);

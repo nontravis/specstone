@@ -19,6 +19,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor, spots;
 import '../../helpers/grouped_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -56,6 +57,7 @@ void main() {
       top: top,
       codeTarget: codeTarget,
       dryRun: dryRun,
+      generators: noGenerators,
     ),
   );
 
@@ -602,6 +604,65 @@ void main() {
     ]);
   });
 
+  group('a feature move and the path length limit', () {
+    const recordTail = '/f01_cart/IMPLEMENTATION.md';
+
+    /// The nested project with its records, cart's stories dropped so its
+    /// record is the longest doc to land, and the feature `other` named
+    /// [slug].
+    Future<Directory> longProject(String slug) => writeNestedProject(
+      extra: {
+        ...nestedRecords(),
+        'docs/prds/features/f03_$slug/FEATURE.md': '# Other\n',
+      },
+      without: {'docs/$cartAdd', 'docs/$cartAddFr', 'docs/$cartDrop'},
+    );
+
+    /// Returns the slug of `other` that makes the cart record hold [units]
+    /// code units from the project root once it lands there.
+    String slugFor(int units) =>
+        'a' * (units - '.specstone/records/f03_$recordTail'.length);
+
+    // D6
+    test('a feature move whose record folder lands over 200 code units is refused naming the record, and moves no folder', () async {
+      final slug = slugFor(201);
+      final root = await longProject(slug);
+      expectRefused(
+        root,
+        () => moveAll(root, ['feature:shop/cart'], under: slug),
+        invalid(
+          '.specstone/records/f03_$slug$recordTail would have 201 '
+          'characters; the limit is 200',
+        ),
+      );
+    });
+
+    // D6
+    test(
+      'a feature move whose record lands at 200 code units is written',
+      () async {
+        final slug = slugFor(200);
+        final root = await longProject(slug);
+        moveAll(root, ['feature:shop/cart'], under: slug);
+        expect(hasDoc(root, '.specstone/records/f03_$slug$recordTail'), isTrue);
+      },
+    );
+  });
+
+  // D7
+  test('a feature landing whose spec folder holds a doc another doc type matches there is refused and moves no folder', () async {
+    final root = await project({
+      '.specstone/templates/spike.yaml': 'id: spike\ndescription: A spike.\npath: specs/f02_shop/f01_cart/SPIKE.md\n',
+      '.specstone/templates/snag.yaml': 'id: snag\ndescription: A snag.\npath: specs/f03_other/f03_cart/SPIKE.md\n',
+      'docs/$cartSpecs/SPIKE.md': '# Spike\n',
+    });
+    expectRefused(
+      root,
+      () => moveAll(root, ['feature:shop/cart'], under: 'other'),
+      invalid('$landedSpecs/SPIKE.md matches snag, not spike'),
+    );
+  });
+
   test('a code target on a feature move is argument_invalid', () async {
     final root = await project();
     expectRefused(
@@ -939,6 +1000,7 @@ void main() {
                 path: 'plan.txt',
               ),
               dryRun: false,
+              generators: noGenerators,
             ),
           ),
           throwsA(topRefused()),

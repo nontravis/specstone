@@ -24,6 +24,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/override_link_fixture.dart'
     show domainDoc, overrideFiles, rootAddress, rootFingerprint;
 import '../../helpers/rulebook_fixture.dart';
@@ -362,6 +363,7 @@ void main() {
                 const ['user_story:shop/cart/add_item#BR-02'],
                 under: 'user_story:shop/cart/drop_item',
                 dryRun: dryRun,
+                generators: noGenerators,
               ),
             );
           } on IndexFault catch (caught) {
@@ -424,7 +426,13 @@ void main() {
       try {
         writeIn(
           root,
-          (s) => answerMove(s, addresses, under: under, codeTarget: codeTarget),
+          (s) => answerMove(
+            s,
+            addresses,
+            under: under,
+            codeTarget: codeTarget,
+            generators: noGenerators,
+          ),
         );
       } on Object catch (fault) {
         expect(_docs(root), before);
@@ -469,8 +477,13 @@ void main() {
         expect(
           () => writeIn(
             root,
-            (s) =>
-                answerMove(s, const ['nowhere#INV-1'], under: null, top: true),
+            (s) => answerMove(
+              s,
+              const ['nowhere#INV-1'],
+              under: null,
+              top: true,
+              generators: noGenerators,
+            ),
           ),
           throwsA(
             isA<IndexFault>().having(
@@ -573,6 +586,7 @@ void main() {
               const ['rulebook:shop#INV-3'],
               under: 'rulebook:shop/cart',
               codeTarget: codeTarget,
+              generators: noGenerators,
             ),
           ),
           throwsA(
@@ -609,6 +623,7 @@ void main() {
         addresses,
         under: 'rulebook:shop/cart',
         dryRun: dryRun,
+        generators: noGenerators,
       ),
     );
 
@@ -866,6 +881,7 @@ void main() {
           {'path': cartDomain, 'from': 'INV-3', 'to': 'INV-13'},
         ],
         'rewritten': [shopDomain, cartDomain],
+        'deleted': <Object?>[],
         'mentions': <Object?>[],
       });
     });
@@ -1216,6 +1232,7 @@ void main() {
         ['fr:shop/cart/add_item/check_stock#$id'],
         under: under,
         dryRun: dryRun,
+        generators: noGenerators,
       ),
     );
 
@@ -1260,6 +1277,7 @@ void main() {
             path: 'plan.txt',
           ),
           dryRun: false,
+          generators: noGenerators,
         ),
       );
       expect(
@@ -1417,9 +1435,12 @@ void main() {
 
     void moveToDrop(Directory root) => writeIn(
       root,
-      (session) => answerMove(session, [
-        'fr:shop/cart/add_item/check_stock#E01',
-      ], under: 'fr:shop/cart/add_item/drop_stock'),
+      (session) => answerMove(
+        session,
+        ['fr:shop/cart/add_item/check_stock#E01'],
+        under: 'fr:shop/cart/add_item/drop_stock',
+        generators: noGenerators,
+      ),
     );
 
     Future<List<Object?>> suspectLinks(Directory root) async => [
@@ -1490,6 +1511,7 @@ void main() {
               top: top,
               codeTarget: codeTarget,
               dryRun: dryRun,
+              generators: noGenerators,
             ),
           );
         } on Object catch (fault) {
@@ -1656,6 +1678,7 @@ void main() {
         session,
         addresses,
         under: 'fr:shop/cart/add_item/drop_stock',
+        generators: noGenerators,
       ),
     );
 
@@ -1719,9 +1742,12 @@ void main() {
       );
       writeIn(
         root,
-        (session) => answerMove(session, [
-          'rulebook:shop#INV-3',
-        ], under: 'rulebook:shop/cart'),
+        (session) => answerMove(
+          session,
+          ['rulebook:shop#INV-3'],
+          under: 'rulebook:shop/cart',
+          generators: noGenerators,
+        ),
       );
       expect(readDoc(root, shopDomain), contains('retired_ids:\n  - INV-3\n'));
       expect(readDoc(root, cartDomain), isNot(contains('retired_ids')));

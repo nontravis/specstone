@@ -1,6 +1,9 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show isRecordsDocPath;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -9,8 +12,11 @@ import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/models/indexed_item_words.dart';
 import 'package:specstone_core/src/index_query/models/indexed_link.dart';
+import 'package:specstone_core/src/index_query/parents.dart'
+    show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/index_query/status_tree.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -39,7 +45,9 @@ final class DocIndex {
     required this.projectRoot,
     List<String> targetNames = const [],
     Map<String, DocContent> plannedContents = const {},
+    Map<String, DocContent>? loadedContents,
   }) : _plannedContents = plannedContents,
+       _loadedContents = loadedContents ?? {},
        statusTree = StatusTree(set, docs, targetNames: targetNames),
        _byName = _groupBy(docs, (doc) => doc.name),
        _chainTypes = _chainTypeIds(set),
@@ -175,6 +183,75 @@ final class DocIndex {
   }
 
   final _plannedViews = Expando<DocIndex>();
+
+  /// Returns this index as a write leaves it: each of [written] replaces the
+  /// doc at its DocPath or joins the docs, and each DocPath of [removed]
+  /// leaves them.
+  ///
+  /// The docs keep tree order and their parents; a write that adds or removes
+  /// a DocPath reads both again from the paths. [contents] gives [contentOf]
+  /// each written doc's content by DocPath. Built once per write; an empty
+  /// write gives this index.
+  DocIndex withWritten(
+    List<IndexedDoc> written, {
+    Map<String, DocContent> contents = const {},
+    Set<String> removed = const {},
+  }) {
+    if (written.isEmpty && removed.isEmpty) return this;
+    final byPath = {for (final doc in written) doc.docPath: doc};
+    final reshapes =
+        removed.isNotEmpty || written.any((doc) => at(doc.docPath) == null);
+    return DocIndex(
+      set,
+      reshapes
+          ? _reshaped(byPath, removed)
+          : [
+              for (final doc in docs)
+                if (byPath[doc.docPath] case final next?)
+                  _withParent(next, doc.parentPath)
+                else
+                  doc,
+            ],
+      _store,
+      _docPathOfFile,
+      docsRoot: docsRoot,
+      projectRoot: projectRoot,
+      targetNames: targetNames,
+      plannedContents: {..._plannedContents, ...contents},
+      // A written doc's planned content wins over its loaded one.
+      loadedContents: _loadedContents,
+    );
+  }
+
+  /// Returns the docs with [byPath] in and [removed] out, in tree order, each
+  /// under the parent its path gives it.
+  List<IndexedDoc> _reshaped(
+    Map<String, IndexedDoc> byPath,
+    Set<String> removed,
+  ) {
+    final kept = [
+      for (final doc in docs)
+        if (!removed.contains(doc.docPath) && !byPath.containsKey(doc.docPath))
+          doc,
+      ...byPath.values,
+    ];
+    final order = _TreeOrder(DocTypeMatcher(set, targetNames: targetNames));
+    kept.sort((a, b) => order.compare(a.docPath, b.docPath));
+    final parents = resolveParents(kept, set).parents;
+    return [
+      for (final doc in kept)
+        if (doc.parentPath == parents[doc.docPath])
+          doc
+        else
+          _withParent(doc, parents[doc.docPath]),
+    ];
+  }
+
+  /// Returns [docPaths] in the order a walk of the tree lists them.
+  List<String> inTreeOrder(Iterable<String> docPaths) {
+    final order = _TreeOrder(DocTypeMatcher(set, targetNames: targetNames));
+    return [...docPaths]..sort(order.compare);
+  }
 
   /// Throws for [codeTarget], unless [targetNames] holds it or it is null.
   ///
@@ -375,7 +452,9 @@ final class DocIndex {
         () => _store.loadContent(doc.docPath),
       );
 
-  final Map<String, DocContent> _loadedContents = {};
+  /// The content each [contentOf] call loaded from the store, by DocPath; an
+  /// index [withWritten] derives shares it, since both read the one store.
+  final Map<String, DocContent> _loadedContents;
 
   /// Returns the cited-by lines the index stored when it last wrote a doc, by
   /// the place each cites.
@@ -396,12 +475,17 @@ final class DocIndex {
     return _store.search(matchExpression);
   }
 
-  /// Returns the docs whose text holds [needle], case-sensitive.
+  /// Returns the docs whose text holds [needle], case-sensitive, each planned
+  /// doc read from its planned text, as [contentOf] reads it.
   List<IndexedDoc> holding(String needle) {
     final paths = _store.docPathsHolding(needle).toSet();
+    bool holds(IndexedDoc doc) => switch (_plannedContents[doc.docPath]) {
+      final planned? => planned.text.contains(needle),
+      null => paths.contains(doc.docPath),
+    };
     return [
       for (final doc in docs)
-        if (paths.contains(doc.docPath)) doc,
+        if (holds(doc)) doc,
     ];
   }
 
@@ -433,6 +517,82 @@ final class DocIndex {
 
 Never _notFound(String message) =>
     throw IndexFault(IndexFaultCode.docNotFound, message);
+
+/// Returns [doc] nested under [parentPath].
+IndexedDoc _withParent(IndexedDoc doc, String? parentPath) => IndexedDoc(
+  docPath: doc.docPath,
+  docTypeId: doc.docTypeId,
+  name: doc.name,
+  target: doc.target,
+  parentPath: parentPath,
+  title: doc.title,
+  frontmatter: doc.frontmatter,
+  tokens: doc.tokens,
+  formatted: doc.formatted,
+  approvalHash: doc.approvalHash,
+  order: doc.order,
+  warnings: doc.warnings,
+  matrixLines: doc.matrixLines,
+);
+
+/// The order a walk of the docs root, then the records root, lists DocPaths.
+///
+/// Inside one folder the files come before the subfolders; in each group the
+/// entries no `{nn}` pattern numbers come first, by name in code point order,
+/// then the numbered ones by number, ties by name.
+final class _TreeOrder {
+  new(this._matcher);
+
+  final DocTypeMatcher _matcher;
+  final _keys = <String, List<_Segment>>{};
+
+  int compare(String a, String b) {
+    final byRoot = _rootRank(a).compareTo(_rootRank(b));
+    if (byRoot != 0) return byRoot;
+    final left = _keyOf(a);
+    final right = _keyOf(b);
+    for (var i = 0; i < left.length && i < right.length; i++) {
+      final order = left[i].compareTo(right[i]);
+      if (order != 0) return order;
+    }
+    return left.length.compareTo(right.length);
+  }
+
+  static int _rootRank(String docPath) => isRecordsDocPath(docPath) ? 1 : 0;
+
+  List<_Segment> _keyOf(String docPath) => _keys.putIfAbsent(docPath, () {
+    final segments = docPath.split('/');
+    return [
+      for (var i = 0; i < segments.length; i++)
+        _Segment(
+          segments[i],
+          isFile: i == segments.length - 1,
+          number: _matcher.entryNumber(segments.sublist(0, i + 1)),
+        ),
+    ];
+  });
+}
+
+/// One segment of a DocPath as the tree walk orders it.
+final class _Segment {
+  const new(this.name, {required this.isFile, required this.number});
+
+  final String name;
+  final bool isFile;
+  final int? number;
+
+  int compareTo(_Segment other) {
+    if (name == other.name) return 0;
+    if (isFile != other.isFile) return isFile ? -1 : 1;
+    final left = number;
+    final right = other.number;
+    if ((left == null) != (right == null)) return left == null ? -1 : 1;
+    if (left != null && right != null && left != right) {
+      return left.compareTo(right);
+    }
+    return compareCodePoints(name, other.name);
+  }
+}
 
 Map<String, List<IndexedDoc>> _groupBy(
   List<IndexedDoc> docs,

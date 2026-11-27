@@ -110,6 +110,42 @@ void main() {
       );
     },
   );
+  // D6
+  test(
+    'new at a path over 200 code units exits 64 and prints the fault on stderr',
+    () async {
+      final root = await writeNestedProject();
+      const head = 'prds/features/f02_shop/f01_cart/us03_';
+      const tail = '/USER_STORY.md';
+      final slug = 'a' * (201 - 'docs/$head$tail'.length);
+      final before = treeBytes(root)
+        ..removeWhere((k, _) => !k.startsWith('docs'));
+      final (:runner, :out, :err) = writeRunner(root, console: FakeConsole());
+      expect(
+        await runner.run([
+          'new',
+          'user_story',
+          '--parent',
+          'shop/cart',
+          '--slug',
+          slug,
+          '--json',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+      expect(error['code'], 'argument_invalid');
+      expect(
+        error['message'],
+        'docs/$head$slug$tail would have 201 characters; the limit is 200',
+      );
+      expect(
+        treeBytes(root)..removeWhere((k, _) => !k.startsWith('docs')),
+        before,
+      );
+    },
+  );
   test('new with a slash in a one-slug segment exits 64', () async {
     final root = await writeWriteProject();
     final loginFolder = Directory('${root.path}/docs/prds/features/f01_login');
@@ -207,7 +243,7 @@ void main() {
       reason: err.toString(),
     );
     final json = jsonDecode(out.toString()) as Map<String, Object?>;
-    expect(json.keys, ['docs', 'warnings']);
+    expect(json.keys, ['docs', 'rewritten', 'deleted', 'warnings']);
     final docs = json['docs']! as List;
     expect(docs, hasLength(1));
     final element = docs.single as Map<String, Object?>;

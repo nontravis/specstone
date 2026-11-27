@@ -131,6 +131,18 @@ final class GeneratorRegistry<R> {
   );
 }
 
+/// The first generated block of a doc whose text a format run would change.
+final class StaleBlock {
+  const new({required this.kind, required this.line});
+
+  /// The generator kind of the block.
+  final String kind;
+
+  /// The 1-based line of the block's opening marker, or null when the doc
+  /// lacks the block.
+  final int? line;
+}
+
 /// The result of writing generated blocks into a doc.
 sealed class BlockWrite {
   const new();
@@ -262,6 +274,45 @@ String fillGeneratedBlocks<R>(
   };
 }
 
+/// Returns the first block of [docType]'s listed generators on [doc], the doc
+/// at [docPath], that a format run would rewrite or insert, or null.
+///
+/// It reads the edits [fillGeneratedBlocks] applies, so a doc is stale here
+/// exactly when that function changes it. A block whose generator returns none,
+/// a doc holding an opening marker with no end marker, and a type that lists no
+/// generator give null.
+StaleBlock? staleBlockOf<R>(
+  Doc doc,
+  MergedDocType docType,
+  GeneratorRegistry<R> registry,
+  R resolver, {
+  required String docPath,
+}) {
+  if (docType.listedGenerators.isEmpty) return null;
+  final lfText = doc.text;
+  final kinds = docType.listedGenerators.toSet();
+  final lines = _Lines.split(lfText);
+  final scan = _scan(lines, kinds, bodyStart: _bodyStart(lfText, doc));
+  if (scan.openBlock != null) return null;
+  final blocks = runGenerators(
+    doc,
+    docType,
+    registry,
+    resolver,
+    docPath: docPath,
+  );
+  final seen = <String>{};
+  for (final block in blocks) {
+    if (!kinds.contains(block.kind)) continue;
+    if (!seen.add(_slotKey(block))) continue;
+    final placed = _editFor(block, doc, docType, lines, scan);
+    if (lines.apply(placed.edits) == null) continue;
+    final open = placed.pair?.open;
+    return StaleBlock(kind: block.kind, line: open == null ? null : open + 1);
+  }
+  return null;
+}
+
 /// Writes [blocks] into [lfText] parsed as [doc], sharing that one parse.
 BlockWrite _writeBlocks(
   String lfText,
@@ -280,7 +331,7 @@ BlockWrite _writeBlocks(
   for (final block in blocks) {
     if (!kinds.contains(block.kind)) continue;
     if (!seen.add(_slotKey(block))) continue;
-    edits.addAll(_editFor(block, doc, docType, lines, scan));
+    edits.addAll(_editFor(block, doc, docType, lines, scan).edits);
   }
   return BlocksWritten(lines.apply(edits) ?? lfText);
 }
@@ -291,7 +342,16 @@ String _slotKey(GeneratedBlock block) => switch (block.place) {
     '${block.kind}\u0000${block.sectionId}\u0000$index',
 };
 
-List<_Edit> _editFor(
+/// The edits that bring one block current, and the pair of its kind they
+/// rewrite, null when they insert one.
+final class _BlockEdits {
+  const new(this.edits, [this.pair]);
+
+  final List<_Edit> edits;
+  final _Pair? pair;
+}
+
+_BlockEdits _editFor(
   GeneratedBlock block,
   Doc doc,
   MergedDocType docType,
@@ -299,7 +359,7 @@ List<_Edit> _editFor(
   _Scan scan,
 ) {
   final sectionIndex = sectionIndexOf(doc, docType, block.sectionId);
-  if (sectionIndex == null) return const [];
+  if (sectionIndex == null) return const _BlockEdits([]);
   final header = scan.bodyStart + doc.sectionLineIndexes[sectionIndex];
   final sectionEnd = sectionIndex + 1 < doc.sections.length
       ? scan.bodyStart + doc.sectionLineIndexes[sectionIndex + 1]
@@ -308,7 +368,7 @@ List<_Edit> _editFor(
     SectionTop() => header,
     BelowBodyLine(:final index) => header + 1 + index,
   };
-  if (anchor < header || anchor >= sectionEnd) return const [];
+  if (anchor < header || anchor >= sectionEnd) return const _BlockEdits([]);
 
   final inner = _innerLines(block.text);
   final pair = _pairAt(lines, scan, anchor + 1, block.kind);
@@ -321,7 +381,7 @@ List<_Edit> _editFor(
     final isProtected =
         scan.fenced[anchor - scan.bodyStart] || _inPair(scan, anchor);
     final trimmedAnchor = _trimEnd(anchorLine);
-    return [
+    return _BlockEdits([
       if (!isProtected && trimmedAnchor != anchorLine)
         _Edit(from: anchor, to: anchor + 1, replacement: [trimmedAnchor]),
       _Edit(
@@ -334,9 +394,11 @@ List<_Edit> _editFor(
           generatedEndMarker,
         ],
       ),
-    ];
+    ]);
   }
-  return [_Edit(from: pair.open + 1, to: pair.end, replacement: inner)];
+  return _BlockEdits([
+    _Edit(from: pair.open + 1, to: pair.end, replacement: inner),
+  ], pair);
 }
 
 bool _inPair(_Scan scan, int line) =>

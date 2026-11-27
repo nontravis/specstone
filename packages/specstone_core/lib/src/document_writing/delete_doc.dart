@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/generated_block_steps.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/record_edit.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -15,10 +16,15 @@ import 'package:specstone_core/src/document_writing/record_edit.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show byteOrderMark;
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show GeneratorRegistry;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
@@ -60,6 +66,12 @@ final class _DeletePlan {
 /// matrix row of a story or FR of it loses that entry and row and becomes a
 /// draft, through the same journal as the file moves; no record's approval
 /// guards the delete. A feature's own records leave with its spec folder.
+/// Each doc whose generated blocks the delete makes stale is rewritten with
+/// [generators] in that journal too, one `rewrote <DocPath>` line each, listed
+/// in the JSON's `rewritten` ([blockRefreshOf]). A features doc `format`
+/// deletes once its group empties goes too, one `deleted <DocPath>` line each,
+/// listed in `deleted`; it is a file of the delete, at the prompt and in the
+/// plan hash.
 ///
 /// [codeTarget] keeps a name to that code target's docs and the shared docs.
 ///
@@ -77,13 +89,22 @@ ReadAnswer answerDelete(
   required StringSink prompts,
   String? planHash,
   String? codeTarget,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   var unit = _resolveTargets(session, targets, codeTarget);
   var dangling = _checkReferrers(session, unit);
   while (true) {
     final shown = _planOf(session, unit.roots);
+    final shownRefresh = _refreshOf(
+      session,
+      shown,
+      _stepsFor(session, unit.roots, shown),
+      generators,
+      dryRun: true,
+    );
+    final shownDeleted = _deletedBytesOf(session, shownRefresh);
     if (confirmation == OwnerConfirmation.given &&
-        planHash != _planHashOf(shown)) {
+        planHash != _planHashOf(shown, shownDeleted)) {
       throw WriteFault(
         WriteFaultCode.planMismatch,
         'the delete list is not the one the Owner saw in the dry run; run '
@@ -102,10 +123,12 @@ ReadAnswer answerDelete(
         session.journalTarget.homeDirectory,
         session.project.projectRoot,
       );
+      final count = shown.files.length + shownRefresh.deletedPaths.length;
       prompts
         ..writeln(shown.files.keys.join('\n'))
         ..write(_rewritesOf(shown))
-        ..write('delete ${shown.files.length} files? [y/N] ');
+        ..write(shownRefresh.linesOf(dryRun: true))
+        ..write('delete $count files? [y/N] ');
       if (readLine() != 'y') return _answerFor(const []);
       session.refresh();
       unit = _resolveTargets(session, targets, codeTarget);
@@ -116,19 +139,52 @@ ReadAnswer answerDelete(
       final current = _planOf(session, roots);
       if (!_samePlan(current, shown)) return null;
       final mentions = _mentionsOf(session, current);
-      MoveJournal(_stepsFor(session, roots, current))
-          .run(session.journalTarget);
-      return (files: current.files.keys.toList(), mentions: mentions);
-    });
-    if (removed != null) {
+      final steps = _stepsFor(session, roots, current);
+      final refresh = _refreshOf(session, current, steps, generators);
+      // A doc the refresh deletes is a file of the delete the Owner saw.
+      if (_planHashOf(current, _deletedBytesOf(session, refresh)) !=
+          _planHashOf(current, shownDeleted)) {
+        return null;
+      }
+      MoveJournal([...steps, ...refresh.steps]).run(session.journalTarget);
       return _answerFor(
-        removed.files,
-        mentions: removed.mentions,
-        warnings: dangling,
+        current.files.keys.toList(),
+        mentions: mentions,
+        warnings: [...dangling, ...refresh.refused],
+        refresh: refresh,
       );
-    }
+    });
+    if (removed != null) return removed;
   }
 }
+
+/// Returns the refresh of the generated blocks the delete of [plan], written
+/// by [steps], makes stale ([blockRefreshOf]); [dryRun] plans it as a dry run.
+BlockRefresh _refreshOf(
+  WriteSession session,
+  _DeletePlan plan,
+  List<JournalStep> steps,
+  GeneratorRegistry<DocIndex> generators, {
+  bool dryRun = false,
+}) => blockRefreshOf(
+  session,
+  generators,
+  WrittenDocs(
+    texts: {
+      for (final step in steps.whereType<WriteStep>())
+        session.listedPathOf(step.path): toLf(
+          step.text.startsWith(byteOrderMark)
+              ? step.text.substring(1)
+              : step.text,
+        ),
+    },
+    removed: {
+      for (final docPath in plan.files.keys)
+        if (session.index.at(docPath) != null) docPath,
+    },
+  ),
+  dryRun: dryRun,
+);
 
 /// Lists every file a delete of [targets] would remove, each guarded one
 /// marked, each record it rewrites, and its plan line.
@@ -136,32 +192,44 @@ ReadAnswer answerDelete(
 /// The list is the one the terminal prompt shows before its `y`, and nothing
 /// is removed. The text is the files, each guarded one's line ended with
 /// ` (guarded)`, one `rewrites <DocPath>: <item>, …` line per record, naming
-/// each item whose entries or rows leave, one
-/// `mentions <path>:<line> <mention>` line per mention of a removed doc in a
-/// code file or an agent file, the `guarded: <n> docs` count line when any
+/// each item whose entries or rows leave, one `rewrites <DocPath>` line per
+/// doc whose generated blocks [answerDelete] would rewrite with [generators],
+/// then one `deletes <DocPath>` line per features doc it would delete, one
+/// `mentions <path>:<line> <mention>` line per mention of a removed doc in
+/// a code file or an agent file, the `guarded: <n> docs` count line when any
 /// file is guarded, the `plan <hash>` line, and
 /// `dry run: nothing removed`; the JSON holds `files`, `guarded` (the guarded
 /// files' paths), `records` (each with its `path` and `entries`, the items
-/// whose entries or rows leave), `mentions`, and `plan`. The plan hash covers
-/// the paths and their content hashes alone, so the marks change no hash.
+/// whose entries or rows leave), `rewritten`, `deleted`, `mentions`, and
+/// `plan`. The plan hash covers the paths and their content hashes alone, the
+/// deleted features docs included, so the marks change no hash.
 /// Warns of each link left to dangle, and throws, as [answerDelete] does before
 /// its prompt.
 ReadAnswer answerDeleteDryRun(
   WriteSession session,
   List<String> targets, {
   String? codeTarget,
+  required GeneratorRegistry<DocIndex> generators,
 }) {
   final unit = _resolveTargets(session, targets, codeTarget);
   final dangling = _checkReferrers(session, unit);
   final plan = _planOf(session, unit.roots);
   final files = plan.files.keys.toList();
-  final hash = _planHashOf(plan);
+  final refresh = _refreshOf(
+    session,
+    plan,
+    _stepsFor(session, unit.roots, plan),
+    generators,
+    dryRun: true,
+  );
+  final hash = _planHashOf(plan, _deletedBytesOf(session, refresh));
   final mentions = _mentionsOf(session, plan);
   final guarded = _guardedDocsOf(plan.files);
   final guardedSet = guarded.toSet();
   return ReadAnswer(
     text:
         '${_listOf(files, guardedSet)}${_rewritesOf(plan)}'
+        '${refresh.linesOf(dryRun: true)}'
         '${_mentionLinesOf(mentions)}'
         '${_guardedLineOf(guarded)}'
         'plan $hash\ndry run: nothing removed\n',
@@ -172,26 +240,42 @@ ReadAnswer answerDeleteDryRun(
         for (final record in plan.records)
           {'path': record.docPath, 'entries': record.entries},
       ],
+      ...refresh.json,
       'mentions': mentionsJsonOf(mentions),
       'plan': hash,
     },
-    warnings: dangling,
+    warnings: [...dangling, ...refresh.refused],
   );
 }
 
-/// Returns the plan hash of a delete: its files, then each record it rewrites.
+/// Returns the plan hash of a delete: its files, then each record it rewrites,
+/// then each doc of [refreshDeleted], the docs its block refresh deletes.
 ///
 /// It covers each listed path with the hash of its text, as the whole-doc
 /// `base` hashes a doc, so an edit to a listed file or record, committed or
 /// not, changes it.
-String _planHashOf(_DeletePlan plan) => baseHashOf(
-  [
-    for (final MapEntry(key: docPath, value: bytes) in plan.files.entries)
-      '$docPath ${_textHashOf(bytes)}\n',
-    for (final record in plan.records)
-      '${record.docPath} ${_textHashOf(record.bytes)}\n',
-  ].join(),
-);
+String _planHashOf(_DeletePlan plan, Map<String, List<int>> refreshDeleted) =>
+    baseHashOf(
+      [
+        for (final MapEntry(key: docPath, value: bytes) in plan.files.entries)
+          '$docPath ${_textHashOf(bytes)}\n',
+        for (final record in plan.records)
+          '${record.docPath} ${_textHashOf(record.bytes)}\n',
+        for (final MapEntry(key: docPath, value: bytes)
+            in refreshDeleted.entries)
+          '$docPath ${_textHashOf(bytes)}\n',
+      ].join(),
+    );
+
+/// Returns the bytes of each doc [refresh] deletes, by DocPath in its order;
+/// a doc gone from disk holds none.
+Map<String, List<int>> _deletedBytesOf(
+  WriteSession session,
+  BlockRefresh refresh,
+) => {
+  for (final docPath in refresh.deletedPaths)
+    docPath: session.readDocBytes(docPath) ?? const [],
+};
 
 /// Returns the whole-doc `base` hash of [bytes] when they are UTF-8 text, else
 /// the hash of the bytes themselves, so no two different binary files hash
@@ -591,10 +675,16 @@ ReadAnswer _answerFor(
   List<String> removed, {
   List<StaleMention> mentions = const [],
   List<String> warnings = const [],
+  BlockRefresh refresh = BlockRefresh.none,
 }) => ReadAnswer(
   text:
       '${[for (final docPath in removed) '$docPath\n'].join()}'
+      '${refresh.linesOf()}'
       '${_mentionLinesOf(mentions)}',
-  json: {'removed': removed, 'mentions': mentionsJsonOf(mentions)},
+  json: {
+    'removed': removed,
+    ...refresh.json,
+    'mentions': mentionsJsonOf(mentions),
+  },
   warnings: warnings,
 );

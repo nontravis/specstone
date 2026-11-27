@@ -41,6 +41,7 @@ class RenameCommand extends WriteCommand {
         slug: args.option('to'),
         codeTarget: targetOf(args),
         dryRun: args.flag('dry-run'),
+        generators: specstoneRunner.generators,
       ),
     );
   }

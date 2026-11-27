@@ -203,7 +203,11 @@ void main() {
       await writeCheckProject(
         extra: {
           ...doc(loginFeature, 'summary: Lets an agent sign in.\n', ''),
-          ...doc(_featuresDoc, '## Features\n\nOne feature.\n\n', ''),
+          ...doc(
+            _featuresDoc,
+            '## Features\n\n$featureCatalogBlock\n\nOne feature.\n\n',
+            '',
+          ),
         },
       ),
     );

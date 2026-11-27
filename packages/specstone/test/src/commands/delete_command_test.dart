@@ -5,11 +5,31 @@ import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart' show TemplateResolver;
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart'
+    show checkProjectFiles;
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
+import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
+
+/// Returns a clone of the check project whose `docs` links out of it, with no
+/// trust record, holding two features its feature map does not list yet.
+Future<Directory> _linkedCloneWithStaleMap() async {
+  final base = await writeTree({
+    for (final MapEntry(:key, :value) in checkProjectFiles().entries)
+      if (key.startsWith('docs/'))
+        'ext/${key.substring('docs/'.length)}': value
+      else
+        'src/clone/$key': value,
+    'ext/prds/features/f02_billing/FEATURE.md': '# Billing\n',
+    'ext/prds/features/f03_shop/FEATURE.md': '# Shop\n',
+  });
+  createRelativeLink('${base.path}/src/clone/docs', '../../ext');
+  return Directory('${base.path}/src/clone');
+}
 
 /// Returns the hash on the `plan <hash>` line `delete --dry-run` prints for
 /// [target] in [root].
@@ -76,6 +96,41 @@ void main() {
       ),
     );
     expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
+  });
+  // D17: a dry run checks the docs its refresh would write as the delete
+  // does, the trust record excepted, since it writes nothing.
+  test('--dry-run in a project whose roots wait for the trust record lists '
+      'the stale feature map and no output_not_writable', () async {
+    final clone = await _linkedCloneWithStaleMap();
+    final (:runner, :out, :err) = writeRunner(clone);
+    expect(
+      await runner.run(['delete', 'feature:billing', '--dry-run']),
+      0,
+      reason: '$err',
+    );
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), contains('rewrites $featuresIndex\n'));
+    expect(out.toString(), endsWith('dry run: nothing removed\n'));
+
+    final plan = await _dryRunPlanHash(clone, 'feature:billing');
+    final real = writeRunner(clone);
+    expect(
+      await real.runner.run([
+        'delete',
+        'feature:billing',
+        '--yes',
+        '--plan',
+        plan,
+      ]),
+      73,
+      reason: '${real.err}',
+    );
+    expect(real.err.toString(), contains('run specstone trust'));
+    expect(
+      File('${clone.path}/docs/prds/features/f02_billing/FEATURE.md')
+          .existsSync(),
+      isTrue,
+    );
   });
   test(
     '--dry-run --json prints the files and the plan as one JSON object',
@@ -207,6 +262,8 @@ void main() {
     expect(err.toString(), '$fr11\ndelete 1 files? [y/N] ');
     expect(jsonDecode(out.toString()), {
       'removed': [fr11],
+      'rewritten': <Object>[],
+      'deleted': <Object>[],
       'mentions': <Object>[],
       'warnings': <String>[],
     });

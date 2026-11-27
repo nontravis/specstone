@@ -25,12 +25,65 @@ final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
 /// Whether all of [text] is shaped like a doc type id: `[a-z][a-z0-9_]*`.
 bool isDocTypeIdShaped(String text) => _docTypeId.hasMatch(text);
 
-final _targetWithList = RegExp(r'[a-z][a-z0-9_]*:[^\s#()]+\s*\(([^)]*)\)');
+final _targetWithList = RegExp(r'([a-z][a-z0-9_]*:[^\s#()]+)\s*\(([^)]*)\)');
 
-/// Returns the text inside the parentheses of each `<type>:<name> (<list>)`
-/// target of [text], in order.
-Iterable<String> targetListsIn(String text) =>
-    _targetWithList.allMatches(text).map((match) => match[1]!);
+/// A section key as a whole list item or address tail.
+final _sectionKey = RegExp(r'^[A-Za-z0-9_]+$');
+
+/// One section a text names: the doc address as written, and a section key.
+final class NamedSection {
+  const new(this.docAddress, this.key);
+
+  /// A `<type>:<name>` or a DocPath.
+  final String docAddress;
+
+  /// The key after `#`, or one item of a `(<list>)`.
+  final String key;
+}
+
+/// Returns each section [text] names, in the order of its three forms: a
+/// `<type>:<name>#<key>` address, a `<DocPath>#<key>` address, and each key of
+/// a `<type>:<name> (<list>)` target; a list item that is no key is skipped
+/// (see [holdsUnreadSectionToken]).
+Iterable<NamedSection> sectionsNamedIn(String text) sync* {
+  for (final match in _sectionAddress.allMatches(text)) {
+    yield NamedSection(match[1]!, match[2]!);
+  }
+  for (final match in _docPathSectionAddress.allMatches(text)) {
+    yield NamedSection(match[1]!, match[2]!);
+  }
+  for (final match in _targetWithList.allMatches(text)) {
+    for (final item in match[2]!.split(',')) {
+      final key = item.replaceAll('#', '').trim();
+      if (_sectionKey.hasMatch(key)) yield NamedSection(match[1]!, key);
+    }
+  }
+}
+
+/// A `#` with a non-blank character on each side.
+final _joinedHash = RegExp(r'\S#\S');
+
+/// Whether [text] holds a `#`-joined token, or a list item, that none of the
+/// three forms [sectionsNamedIn] reads took whole, such as `x.md#missing-key`,
+/// `FR:b#missing`, or a list item `mis-sing`.
+///
+/// A line that holds one names a section the grammar cannot check, so a caller
+/// that lands on a section keeps it open.
+bool holdsUnreadSectionToken(String text) {
+  var rest = text;
+  for (final match in _targetWithList.allMatches(text)) {
+    final items = match[2]!.split(',');
+    for (final item in items) {
+      final key = item.replaceAll('#', '').trim();
+      if (key.isNotEmpty && !_sectionKey.hasMatch(key)) return true;
+    }
+    rest = rest.replaceFirst(match[0]!, ' ');
+  }
+  for (final read in [_sectionAddress, _docPathSectionAddress]) {
+    rest = rest.replaceAll(read, ' ');
+  }
+  return _joinedHash.hasMatch(rest);
+}
 
 final _cleanNameBody = RegExp(r'^[^\s`@#,;)\]:.]+$');
 
@@ -38,7 +91,17 @@ final _cleanNameBody = RegExp(r'^[^\s`@#,;)\]:.]+$');
 /// `;`, `)`, `]`, `:`, or `.`, and at least one character.
 bool isCleanNameBody(String body) => _cleanNameBody.hasMatch(body);
 
-final _docPathText = RegExp(r'^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$');
+/// The Names table's bounds of a name: one of these before it, and one after.
+const _nameLeftBound = r'[ \t`(\[]';
+const _nameRightBound = r'[ \t`@#:,.;)\]]';
+
+/// The bound after a section key: a name's right bound but `#`, since a key a
+/// second `#` follows names more than the section (`<key>#<item>`).
+const _sectionKeyRightBound = r'[ \t`@:,.;)\]]';
+
+const _docPathBody = '[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*';
+
+final _docPathText = RegExp('^$_docPathBody\$');
 
 /// Whether all of [text] is a DocPath: `/`-joined segments of
 /// `[A-Za-z0-9_.-]`, none empty, ending in `.md`.
@@ -51,12 +114,25 @@ bool isDocPathText(String text) =>
 /// An [isLeadless] search is for an item that leads with no doc name: `*` and
 /// `,` also bound a form on its left, and `*` on its right.
 RegExp mentionSearchOf(Iterable<String> forms, {bool isLeadless = false}) {
-  final left = isLeadless ? r'[ \t`(\[*,]' : r'[ \t`(\[]';
-  final right = isLeadless ? r'[ \t`@#:,.;)\]*]' : r'[ \t`@#:,.;)\]]';
+  final left = isLeadless ? r'[ \t`(\[*,]' : _nameLeftBound;
+  final right = isLeadless ? r'[ \t`@#:,.;)\]*]' : _nameRightBound;
   return RegExp(
     '(?<=^|$left)(?:${forms.map(RegExp.escape).join('|')})(?=\$|$right)',
     multiLine: true,
   );
+}
+
+const _docPathSuffix = '.md';
+
+/// Returns [token] up to its first `.md` that ends it or is followed by `:` or
+/// `.`, else null.
+String? docPathPrefixOf(String token) {
+  final end = token.indexOf(_docPathSuffix) + _docPathSuffix.length;
+  if (end < _docPathSuffix.length) return null;
+  final rest = token.substring(end);
+  return rest.isEmpty || rest[0] == ':' || rest[0] == '.'
+      ? token.substring(0, end)
+      : null;
 }
 
 final _leadEnd = RegExp(' — |: ');
@@ -90,10 +166,20 @@ DocAddress readDocAddress(String text) {
   );
 }
 
-final _sectionAddress = RegExp(r'[a-z][a-z0-9_]*:[^\s#]+#[A-Za-z0-9_]+');
+/// A `<type>:<name>`, `#`, and a section key that ends where
+/// [_sectionKeyRightBound] bounds it.
+final _sectionAddress = RegExp(
+  '([a-z][a-z0-9_]*:[^\\s#,`)]+)#([A-Za-z0-9_]+)(?=\$|$_sectionKeyRightBound)',
+  multiLine: true,
+);
 
-/// Whether [text] holds a `<type>:<name>#<key>` section address.
-bool holdsSectionAddress(String text) => _sectionAddress.hasMatch(text);
+/// A DocPath, `#`, and a section key, bounded on the left as the Names table
+/// bounds a name and on the right by [_sectionKeyRightBound].
+final _docPathSectionAddress = RegExp(
+  '(?<=^|$_nameLeftBound)($_docPathBody\\.md)#([A-Za-z0-9_]+)'
+  '(?=\$|$_sectionKeyRightBound)',
+  multiLine: true,
+);
 
 /// A run of the characters a Name or a doc type prefix is written in.
 final _addressRun = RegExp('[a-z0-9_/:]+');

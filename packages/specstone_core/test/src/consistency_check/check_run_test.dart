@@ -26,6 +26,7 @@ import '../../helpers/cold_node.dart';
 import '../../helpers/grouped_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/shipped_pins.dart' show shippedPinsConfig;
@@ -807,7 +808,9 @@ void main() {
         'prds/features/f01_login/us02_reset/notes.md',
         'specs/f01_login/notes.md',
       ];
+      // The feature map's catalog links the feature, which a delete refuses.
       final project = await writeCheckProject(
+        without: {'docs/prds/FEATURES.md'},
         extra: {for (final path in notes) 'docs/$path': '# Notes\n'},
       );
 
@@ -821,7 +824,10 @@ void main() {
         final removed = writeIn(
           project,
           (s) =>
-              answerDeleteDryRun(s, [target]).json['files']! as List<Object?>,
+              answerDeleteDryRun(s, [
+                    target,
+                  ], generators: noGenerators).json['files']!
+                  as List<Object?>,
         );
         final checked = [
           for (final f in (await checkOf(project, target: target)).findings)
@@ -873,6 +879,8 @@ void main() {
       '.specstone/AGENT.md:1: agent_block_stale',
       '$_brokenRecord:8: implements_path_unresolved',
       'app/lib/extra.dart:2: doc_cited_in_code',
+      // The broken record changes the status the feature map's catalog shows.
+      'prds/FEATURES.md:9: generated_block_stale',
       'prds/GLOSSARY.md:1: singular_doc_missing',
       'prds/features/f01_login/notes.md:1: untyped_doc',
       '$loginFr:1: required_field_missing',

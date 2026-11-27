@@ -35,6 +35,9 @@ final class RenamedNames {
         : newNameOf(typeId, address.body);
   }
 
+  /// The old Name of each renamed doc.
+  Set<String> get oldNames => {for (final key in _newNames.keys) key.name};
+
   /// Whether [text] holds the old Name of a renamed doc.
   bool anyOldNameIn(String text) =>
       _newNames.keys.any((key) => text.contains(key.name));

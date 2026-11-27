@@ -28,6 +28,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart';
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/no_generators.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -88,6 +89,7 @@ ReadAnswer _setSignOutUseCase(Directory clone) {
       s,
       SetRequest.parse(_signOutUseCase, base: base),
       'Signed out of every device.\n',
+      generators: noGenerators,
     ),
   );
 }
@@ -106,13 +108,24 @@ ReadAnswer _batchSignOut(Directory clone) {
   expect(changed, isNot(block), reason: 'the batch changes the doc');
   return writeIn(
     clone,
-    (s) => answerSetBatch(s, parseBatchFile('batch.md', changed)),
+    (s) => answerSetBatch(
+      s,
+      parseBatchFile('batch.md', changed),
+      generators: noGenerators,
+    ),
   );
 }
 
 /// The `new persona` write of [clone], whose folder its docs link leads to.
-ReadAnswer _newTeamPersona(Directory clone) =>
-    writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
+ReadAnswer _newTeamPersona(Directory clone) => writeIn(
+  clone,
+  (s) => answerNew(
+    s,
+    docTypeId: 'persona',
+    slug: 'team',
+    generators: noGenerators,
+  ),
+);
 
 /// Records the trust of the project [folder] holds, as the Owner's `trust`
 /// does, under [testHome].
@@ -127,6 +140,7 @@ ReadAnswer _deleteDraft(WriteSession session) => answerDelete(
   confirmation: OwnerConfirmation.missing,
   readLine: () => null,
   prompts: StringBuffer(),
+  generators: noGenerators,
 );
 
 Matcher _refusesOutside(String path) => throwsA(
@@ -344,7 +358,12 @@ void main() {
 
       writeIn(
         clone,
-        (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       );
 
       expect(
@@ -389,12 +408,24 @@ void main() {
 
   group('every journal command refuses first, before it plans a rewrite', () {
     final commands = <String, ReadAnswer Function(WriteSession)>{
-      'reorder': (s) =>
-          answerReorder(s, 'user_story:login/reset_password', place: '1'),
-      'rename': (s) =>
-          answerRename(s, 'user_story:login/reset_password', slug: 'x'),
-      'move': (s) =>
-          answerMove(s, ['user_story:login/reset_password'], under: 'signup'),
+      'reorder': (s) => answerReorder(
+        s,
+        'user_story:login/reset_password',
+        place: '1',
+        generators: noGenerators,
+      ),
+      'rename': (s) => answerRename(
+        s,
+        'user_story:login/reset_password',
+        slug: 'x',
+        generators: noGenerators,
+      ),
+      'move': (s) => answerMove(
+        s,
+        ['user_story:login/reset_password'],
+        under: 'signup',
+        generators: noGenerators,
+      ),
     };
 
     for (final MapEntry(:key, :value) in commands.entries) {
@@ -500,7 +531,12 @@ void main() {
       expect(
         () => writeIn(
           clone,
-          (s) => answerNew(s, docTypeId: 'persona', slug: 'team'),
+          (s) => answerNew(
+            s,
+            docTypeId: 'persona',
+            slug: 'team',
+            generators: noGenerators,
+          ),
         ),
         _refusesOutside('docs/rules/team.md'),
       );
@@ -539,7 +575,12 @@ void main() {
         expect(
           () => writeIn(
             clone,
-            (s) => answerNew(s, docTypeId: 'persona', slug: 'team'),
+            (s) => answerNew(
+              s,
+              docTypeId: 'persona',
+              slug: 'team',
+              generators: noGenerators,
+            ),
           ),
           _refusesOutside('docs/rules/team.md'),
           reason: content,
@@ -578,7 +619,15 @@ void main() {
         RootTrust.locate(clone, homeDirectory: testHome()).isTrusted,
         isTrue,
       );
-      writeIn(clone, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
+      writeIn(
+        clone,
+        (s) => answerNew(
+          s,
+          docTypeId: 'persona',
+          slug: 'team',
+          generators: noGenerators,
+        ),
+      );
 
       expect(File('${ext.path}/rules/team.md').existsSync(), isTrue);
       expect(treeBytes(Directory('${testHome().path}/.specstone')), record);
@@ -728,10 +777,23 @@ void main() {
 
       expect(RootTrust.locate(outer, homeDirectory: null).needsRecord, isFalse);
       writeIn(outer, (s) => s.writeDoc(story2, '# Changed\n', LineEnding.lf));
-      writeIn(outer, (s) => answerNew(s, docTypeId: 'persona', slug: 'team'));
       writeIn(
         outer,
-        (s) => answerRename(s, 'user_story:login/reset_password', slug: 'x'),
+        (s) => answerNew(
+          s,
+          docTypeId: 'persona',
+          slug: 'team',
+          generators: noGenerators,
+        ),
+      );
+      writeIn(
+        outer,
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: 'x',
+          generators: noGenerators,
+        ),
       );
 
       expect(readDoc(below, story2), contains('Changed'));
@@ -844,12 +906,17 @@ void main() {
           () => writeIn(
             clone,
             (s) => dryRun
-                ? approveDryRun(s, history: _countingHistory(calls))
+                ? approveDryRun(
+                    s,
+                    history: _countingHistory(calls),
+                    generators: noGenerators,
+                  )
                 : approveDrafts(
                     s,
                     readLine: () => fail('the Owner was asked'),
                     out: out,
                     history: _countingHistory(calls),
+                    generators: noGenerators,
                   ),
           ),
           _refusesBeforeGit,
@@ -868,7 +935,10 @@ void main() {
       _trust(clone);
       final objects = _looseObjects(victim);
 
-      final text = writeIn(clone, (s) => approveDryRun(s).text);
+      final text = writeIn(
+        clone,
+        (s) => approveDryRun(s, generators: noGenerators).text,
+      );
 
       expect(text, contains('docs/prds/personas/y/PERSONA.md'));
       expect(_looseObjects(victim), objects);
@@ -879,7 +949,10 @@ void main() {
       _gitWithUntrackedDraft(root);
       final objects = _looseObjects(root);
 
-      final text = writeIn(root, (s) => approveDryRun(s).text);
+      final text = writeIn(
+        root,
+        (s) => approveDryRun(s, generators: noGenerators).text,
+      );
 
       expect(text, contains('docs/prds/personas/y/PERSONA.md'));
       expect(_looseObjects(root), objects);

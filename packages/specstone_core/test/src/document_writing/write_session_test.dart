@@ -22,6 +22,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/no_generators.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
@@ -268,7 +269,12 @@ void main() {
     expect(
       () => writeIn(
         root,
-        (s) => answerSet(s, request, '\n- **Given** a changed text\n'),
+        (s) => answerSet(
+          s,
+          request,
+          '\n- **Given** a changed text\n',
+          generators: noGenerators,
+        ),
         busyTimeout: const Duration(milliseconds: 200),
       ),
       throwsA(
@@ -349,7 +355,12 @@ void main() {
       final journal = File('${root.path}/${MoveJournal.journalPath}');
       var sawJournal = false;
       writeIn(root, (s) {
-        final answer = answerSet(s, request, '\n- **Given** a changed text\n');
+        final answer = answerSet(
+          s,
+          request,
+          '\n- **Given** a changed text\n',
+          generators: noGenerators,
+        );
         sawJournal = journal.existsSync();
         return answer;
       });
@@ -619,7 +630,12 @@ void main() {
     expect(
       () => writeIn(root, (s) {
         Process.runSync('chmod', ['000', file.path]);
-        return answerSet(s, SetRequest.parse(target, base: base), 'New.\n');
+        return answerSet(
+          s,
+          SetRequest.parse(target, base: base),
+          'New.\n',
+          generators: noGenerators,
+        );
       }),
       throwsA(
         isA<RenderFault>()
