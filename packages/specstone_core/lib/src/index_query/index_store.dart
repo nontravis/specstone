@@ -109,8 +109,10 @@ const _notWritableMessage =
 /// which holds none, is rebuilt. Layout 40 adds each doc's address-shaped link
 /// texts to the line facts, so an index of layout 39, which holds none, is
 /// rebuilt. Layout 41 stores only the typed address link texts, so an index of
-/// layout 40, whose line facts hold bare ones, is rebuilt.
-const indexLayoutVersion = 41;
+/// layout 40, whose line facts hold bare ones, is rebuilt. Layout 42 stores
+/// each code file's label candidate texts with its mention texts, so an index
+/// of layout 41, whose rows hold none, is rebuilt.
+const indexLayoutVersion = 42;
 
 const _schema = '''
 CREATE TABLE meta (

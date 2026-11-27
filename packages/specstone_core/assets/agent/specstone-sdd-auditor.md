@@ -1,6 +1,6 @@
 ---
 name: specstone-sdd-auditor
-description: "(Audit) Specstone doc auditor. Use proactively in a Specstone project with `job: builder-check` (the change note, the drafts, the writers' reports), `job: re-review` (the run's open findings, the fix reports, the drafts, the earlier audits, the change note and the Owner's answers in a brainstorm), `job: trim-audit` (targets, `trims`), `job: decided-audit` (the change note, each sync engineer report, their joined drafts), or `job: plan-check` (the plan, `targets` or the change note or both, any `code target`), and `report:`. Not for drafts (`specstone-sdd-engineer`)."
+description: "(Audit) Specstone doc auditor. Use proactively in a Specstone project with `job: builder-check` (the change note, the drafts, the writers' reports), `job: re-review` (the run's open findings, the fix reports, the drafts, the earlier audits, the change note and the Owner's answers in a brainstorm), `job: trim-audit` (targets, `trims`), `job: decided-audit` (the change note, the decided engineer's report, the joined drafts), or `job: plan-check` (the plan, `targets` or the change note or both, any `code target`), and `report:`. Not for drafts (`specstone-sdd-engineer`)."
 tools: Bash, Read, Grep, Write
 memory: project
 skills:
@@ -42,7 +42,7 @@ findings, and a plan into plan-check findings.
   approval step, each listed draft awaiting approval that cites one; each takes the `changedSections` that step 1 of
   `re-review.md` prints for it. In `decided-audit`, required: the draft lists of every sync engineer report, joined.
 - **Writer reports** (`builder-check`, required in a brainstorm's check): the path of each writer's report. In
-  `decided-audit`, required: the path of each sync engineer report of the plan's last sync.
+  `decided-audit`, required: the path of the decided engineer's report of the plan's last sync.
 - **`findings`** (`re-review`, required): every finding of the run still open, verbatim, each with its `Fix:` lines,
   or at the approval step the audit items still open that name its drafts, or `none`; the re-review gives each a
   verdict.
@@ -105,22 +105,8 @@ line. Every stop, an early one included (missing input, a gate stop, a failed lo
 answers) appends its report to the same file under `## Round <n>` and replies with that round's relay block. Each
 re-review is a fresh agent with its own new `report` file.
 
-- **Builder check**: under `Findings:`, its lines ranked by importance, every labeled point included, a point on a
-  doc outside the drafts too, or `nothing important left`; no `Outside the drafts:` section. An item whose fix you can
-  state holds its `Fix:` lines, never in prose. Then its `Notes:`, then one `Audited:` line per doc of the drafts list
-  alone.
-- **Re-review**: its `Findings:` items, each new gap inside the sections read, in the builder check's form, its
-  `Fix:` lines included, never in prose, or `nothing important left`; then `Verdicts:`, one per open finding that
-  names one of its drafts, so its report restates every finding still open; then `Outside the round:`; its `Notes:`;
-  and one `Audited:` line per draft.
-- **Trim audit**: its `Findings:` lines, its `Outside the drafts:` items, its `Notes:`, and one `Audited:` line per
-  target. Each Outside item opens as the **Lead names** bullet says, never with a draft of the round.
-- **Decided audit**: under `Findings:`, only `Contradiction`, `Stale reader`, and `Not carried` items, ranked by
-  importance, each with its `Fix:` lines when you can state them, or `nothing important left`; then its `Notes:`, and
-  one `Audited:` line per draft. Each item goes to the approval ask; no fix loop and no re-review follow.
-- **Plan check**: under `Findings:`, its items each opening with `Critical`, `Important`, or `Minor`, ranked in that
-  order, each with the plan's `<plan path>:<line>` and its evidence, a doc key or a code `<path>:<line>`, or
-  `nothing important left`; then its `Notes:`. No `Audited:` line and no `Fix:` dry run follow.
+- **Report shape**: the Report of the On-Demand reference you followed: the block and bullets after its last numbered
+  step, `## 6. Report` in `plan-check.md`.
 - **`Fix:` lines**: in the builder check, the re-review, and the Decided audit, write each only after the **Dry run**
   of `audit.md` on its section, `specstone set <doc>#<key> --dry-run` with no `--base`; a body you cannot make pass
   gets no `Fix:` line. A re-review adds no doc: a gap whose fix is a new doc gets no `Fix:` line and goes to the

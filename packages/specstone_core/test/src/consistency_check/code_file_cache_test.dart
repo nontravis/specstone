@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -9,11 +11,11 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
-import 'package:specstone_core/src/index_query/refresh.dart' show statKeyOf;
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/forwarding_entities.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
@@ -193,7 +195,10 @@ void main() {
       'once with the facts unstored and the report whole', () async {
     final project = await writeCheckProject();
     _age(project, _hourAgo);
-    final session = openSession(project);
+    final session = openSession(
+      project,
+      busyTimeout: const Duration(minutes: 1),
+    );
     final holder = sqlite3.open('${project.path}/$indexFilePath')
       ..execute('BEGIN IMMEDIATE');
     addTearDown(() {
@@ -205,7 +210,9 @@ void main() {
     final report = await runCheck(session);
     session.close();
 
-    expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+    // A run that waits out the 1 min busy timeout fails this bound; no load
+    // slows the small fixture this far.
+    expect(watch.elapsed, lessThan(const Duration(seconds: 30)));
     expect(report.findings, isEmpty);
     holder.execute('ROLLBACK');
     expect(_rows(project), isEmpty);
@@ -300,9 +307,11 @@ void main() {
     },
   );
 
+  // D15: the stat key alone vouches for a stored row; `chmod` moves `ctime`
+  // and `mode`, so a file made unreadable after a run is read again.
   test(
-    'a file with an unchanged stat key that cannot be opened is read, so its '
-    'warning prints',
+    'a file made unreadable after a stored run is read again, since its stat '
+    'key changed, so its warning prints',
     skip: unreadablePathSkipReason(),
     () async {
       final project = await writeCheckProject();
@@ -311,20 +320,6 @@ void main() {
       final file = File('${project.path}/app/lib/login.dart');
       Process.runSync('chmod', ['000', file.path]);
       addTearDown(() => Process.runSync('chmod', ['644', file.path]));
-      final stat = statKeyOf(file)!;
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute(
-          'UPDATE code_files SET stat_size = ?, stat_mtime = ?, '
-          'stat_ctime = ?, stat_mode = ? WHERE path = ?',
-          [
-            stat.size,
-            stat.modified,
-            stat.changed,
-            stat.mode,
-            'app/lib/login.dart',
-          ],
-        )
-        ..close();
 
       final report = await checkOf(project);
 
@@ -334,4 +329,58 @@ void main() {
       );
     },
   );
+
+  // D15: a trusted file is never opened or read to confirm its row.
+  test(
+    'a warm run whose stat keys all match opens or reads no code file',
+    () async {
+      final project = await writeCheckProject();
+      _age(project, _hourAgo);
+      await checkOf(project);
+      final stored = _rows(project).keys.toList();
+      expect(stored, isNotEmpty);
+      final touched = <String>[];
+
+      await IOOverrides.runWithIOOverrides(
+        () => checkOf(project),
+        _OpenRecordingHook(touched.add),
+      );
+
+      expect(touched.where((path) => stored.any(path.endsWith)), isEmpty);
+    },
+  );
+}
+
+final class _OpenRecordingHook extends IOOverrides {
+  new(this._record);
+
+  final void Function(String path) _record;
+
+  @override
+  File createFile(String path) =>
+      _OpenRecordingFile(super.createFile(path), _record);
+}
+
+final class _OpenRecordingFile extends ForwardingFile {
+  const new(super.inner, this._record);
+
+  final void Function(String path) _record;
+
+  @override
+  RandomAccessFile openSync({FileMode mode = FileMode.read}) {
+    _record(path);
+    return super.openSync(mode: mode);
+  }
+
+  @override
+  Uint8List readAsBytesSync() {
+    _record(path);
+    return super.readAsBytesSync();
+  }
+
+  @override
+  String readAsStringSync({Encoding encoding = utf8}) {
+    _record(path);
+    return super.readAsStringSync(encoding: encoding);
+  }
 }

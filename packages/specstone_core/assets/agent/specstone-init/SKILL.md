@@ -35,8 +35,8 @@ Owner names, or none. For each draft:
 2. Ask the Owner for the title, each section, and each field the guide describes, such as `owner` on the project doc and
    `code` on the doc that has one; or propose a value and let them correct it. Write only what they gave or agreed to. A new
    project has one code target, so no `set` here carries `--target`.
-3. Read every base at once with `specstone get <type>:<name> --json`: `bases.title`, `bases.sections.<key>`,
-   `bases.fields.<id>`.
+3. Read every base at once with `specstone get <type>:<name> --json`: `docs[0].bases.title`,
+   `docs[0].bases.sections.<key>`, `docs[0].bases.fields.<id>`.
 4. Pipe each value in through the matching call:
 
 ```

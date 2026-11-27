@@ -297,6 +297,47 @@ void main() {
     expect(dotted, contains('sections.prefix_id'));
   });
 
+  test('each pattern list prints pattern_ref after pattern, and pattern is '
+      'required only without it', () {
+    final lists = [
+      for (final table in [docTypeFileFormat, packFileFormat])
+        for (final key in _walk(table))
+          if (key.children.any((child) => child.name == 'pattern')) key,
+    ];
+
+    expect(lists.map((key) => key.name), [
+      'banned_patterns',
+      'required_patterns',
+      'banned_patterns',
+      'shared_banned_patterns',
+      'shared_required_patterns',
+    ]);
+    for (final list in lists) {
+      final names = list.children.map((child) => child.name).toList();
+      final pattern = list.children[names.indexOf('pattern')];
+      final ref = list.children[names.indexOf('pattern') + 1];
+      expect(ref.name, 'pattern_ref', reason: list.name);
+      expect(pattern.whenRequired, 'when no pattern_ref is set');
+      expect(ref.whenRequired, 'when no pattern is set');
+      expect(ref.valueForm, 'string');
+      expect(
+        ref.meaning,
+        'the id of the shared pattern whose regex the entry takes',
+      );
+    }
+  });
+
+  test('the shared pattern lists require for_doc_types of a new entry no '
+      'pattern_ref names', () {
+    for (final name in ['shared_banned_patterns', 'shared_required_patterns']) {
+      final list = packFileFormat.singleWhere((key) => key.name == name);
+      final forDocTypes = list.children.singleWhere(
+        (key) => key.name == 'for_doc_types',
+      );
+      expect(forDocTypes.whenRequired, 'new entry no pattern_ref names');
+    }
+  });
+
   test('no table line breaks the printout field marks', () {
     final keys = [..._walk(docTypeFileFormat), ..._walk(packFileFormat)];
 

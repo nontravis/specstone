@@ -39,12 +39,13 @@ void main() {
     'feature_pattern_id_mismatch',
     'feature_pattern_duplicate',
     'checklist_item_duplicate',
+    'pattern_ref_invalid',
   ];
 
   group('FaultCode', () {
-    test('wire codes equal the 36 catalog codes in order', () {
+    test('wire codes equal the 37 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
-      expect(FaultCode.values, hasLength(36));
+      expect(FaultCode.values, hasLength(37));
     });
 
     test('only the two unknown-id codes exit 64, the rest 78', () {

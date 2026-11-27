@@ -1,25 +1,36 @@
+import 'package:specstone_core/src/consistency_check/contract_block.dart'
+    show contractBlockIn;
+import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart'
+    show edgeCaseBlocksIn;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
-import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
-    show heldSectionIndexIn;
+import 'package:specstone_core/src/consistency_check/tracked_links.dart'
+    show itemTextIn;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
-import 'package:specstone_core/src/doc_model/models/section_item.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show OverrideLabel, edgeCasesSectionKey, readLinkLabel;
+    show OverrideLabel, readLinkLabel;
 import 'package:specstone_core/src/document_writing/approval.dart';
-import 'package:specstone_core/src/index_query/held_sections.dart'
-    show heldTemplatesOf, sectionBodyLines;
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart' show docNameOf;
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show itemKeyOfHead, sectionItemsAt;
-import 'package:specstone_core/src/index_query/item_links.dart'
-    show citedSectionsOf;
+    show sectionItemsAt;
+import 'package:specstone_core/src/index_query/line_facts.dart'
+    show lineFactsOf;
 import 'package:specstone_core/src/index_query/matrix_rows.dart'
     show matrixLinesIn;
+import 'package:specstone_core/src/index_query/models/line_facts.dart'
+    show LineFacts;
+import 'package:specstone_core/src/index_query/models/link_cite.dart'
+    show ItemCite;
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart'
-    show carriesOverrides;
+    show
+        carriesOverrides,
+        isOverrideLine,
+        overrideLinkIn,
+        overrideTextStart,
+        readOverrideLinkIn;
 import 'package:specstone_core/src/setup_migration/models/stamp_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
@@ -33,13 +44,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _confirmedKey = 'confirmed';
 const _overridesKey = 'overrides';
-
-/// The FR sections a per-FR matrix row records, as `check` reads them.
-const List<String> _contractSectionKeys = [
-  'statement',
-  'input_output',
-  edgeCasesSectionKey,
-];
 
 // MARK: - StampPass
 
@@ -320,10 +324,11 @@ final class _LinkOnlyRestamp {
         text,
         _overridesKey,
         matched: (_, label, fingerprint) => _isLinkOnly(
-          (world) => world.overrideFingerprint(label, doc.target),
+          (world) => world.overrideFingerprint(doc.docPath, label, doc.target),
           fingerprint,
         ),
-        after: (label) => _after.overrideFingerprint(label, doc.target),
+        after: (label) =>
+            _after.overrideFingerprint(doc.docPath, label, doc.target),
       );
       text = overrides.lfText;
       count += overrides.count;
@@ -422,8 +427,8 @@ final class _EntryWalk {
 /// `overrides` entries and matrix rows track.
 ///
 /// It reads an override's item, an FR's contract block, and an edge case as
-/// `check`'s tracked block reader does, from the same section and item
-/// parse; a run's index cannot be opened before the pins move.
+/// `check`'s tracked block reader does, through the same content-level
+/// readers; a run's index cannot be opened before the pins move.
 final class _World {
   new(List<StampDoc> docs)
     : _docs = [
@@ -472,16 +477,74 @@ final class _World {
   }
 
   final Map<String, Map<String, String>> _edgeCases = {};
+  final Map<String, LineFacts> _facts = {};
 
   /// The fingerprint of the item the override address [address], written in
-  /// a doc of [target], names; null when it names none.
-  String? overrideFingerprint(String address, String? target) {
+  /// the doc at [docPath] of [target], names; null when it names none.
+  ///
+  /// The item is read from the section the anchor of that doc's override line
+  /// for it names, as `check` reads it.
+  String? overrideFingerprint(String docPath, String address, String? target) {
     final label = readLinkLabel(address);
-    if (label is! OverrideLabel) return null;
-    final doc = _named(label.address.docPart, target);
-    final text = doc == null ? null : _itemTextOf(doc, label.itemId);
+    final from = _byPath[docPath];
+    if (label is! OverrideLabel || from == null) return null;
+    final upstream = _named(label.address.docPart, target);
+    if (upstream == null) return null;
+    final sectionKey = _overrideSectionKeyOf(from, upstream, label.itemId);
+    if (sectionKey == null) return null;
+    final text = itemTextIn(
+      upstream.content,
+      upstream.type,
+      sectionKey: sectionKey,
+      itemId: label.itemId,
+    );
     return text == null ? null : fingerprintOf(text);
   }
+
+  /// The key of the section the anchor of the override line of [from] that
+  /// links the item [itemId] of [upstream] names; null when it holds none.
+  String? _overrideSectionKeyOf(
+    RenumberDoc from,
+    RenumberDoc upstream,
+    String itemId,
+  ) {
+    final facts = _factsOf(from);
+    final upstreamFacts = _factsOf(upstream);
+    for (final (at, _) in from.content.sections.indexed) {
+      for (final item in sectionItemsAt(from.content, at, from.type)) {
+        if (!isOverrideLine(item)) continue;
+        final column = overrideTextStart(from.lines[item.line - 1]);
+        final link = overrideLinkIn(facts, item.line, column);
+        if (link == null || link.target != upstream.docPath) continue;
+        final cite = readOverrideLinkIn(
+          link,
+          facts: upstreamFacts,
+          content: upstream.content,
+          type: upstream.type,
+        ).cite;
+        if (cite is ItemCite && cite.itemId == itemId) return cite.sectionKey;
+      }
+    }
+    return null;
+  }
+
+  /// The link and anchor facts of [doc], read once, as the index reads them.
+  LineFacts _factsOf(RenumberDoc doc) =>
+      _facts[doc.docPath] ??= _lineFactsOf(DocParse.of(doc.lf), doc.docPath);
+
+  LineFacts _lineFactsOf(DocParse parse, String docPath) => lineFactsOf(
+    parse: parse,
+    counted: parse,
+    countedText: parse.lfText,
+    docPath: docPath,
+    sectionCounts: const [],
+    frontmatterErrorLine: null,
+    bodyTbrMarkers: const [],
+    citeCandidates: const [],
+    bareItemIds: const [],
+    mermaidBlocks: const [],
+    warnings: [],
+  );
 
   /// The fingerprint of the block [row] of the record named [recordName]
   /// records: its FR's contract block, or the edge case it names; null when
@@ -490,68 +553,14 @@ final class _World {
     final fr = _named('$frTypeId:$recordName/${row.item}', null);
     if (fr == null) return null;
     final text = switch (row.edgeCase) {
-      null => _contractTextOf(fr),
-      final edgeCase => _edgeCaseBlocksOf(fr)[edgeCase],
+      null => contractBlockIn(fr.content, fr.type)?.text,
+      final edgeCase => (_edgeCases[fr.docPath] ??= edgeCaseBlocksIn(
+        fr.content,
+        fr.type,
+      ))[edgeCase],
     };
     return text == null ? null : fingerprintOf(text);
   }
-
-  /// The items of the section at [at] of [doc], as `check` reads them: a
-  /// closed generated block holds none.
-  List<SectionItem> _itemsIn(RenumberDoc doc, int at) =>
-      sectionItemsAt(doc.content, at, doc.type);
-
-  /// The own text of the first item of [doc] keyed [itemId], nested items
-  /// aside; null when it holds none.
-  String? _itemTextOf(RenumberDoc doc, String itemId) {
-    final sections = citedSectionsOf(doc.content, doc.type);
-    for (final (at, section) in sections.indexed) {
-      for (final item in _itemsIn(doc, at)) {
-        final key = itemKeyOfHead(
-          item.head,
-          isHeading: item.kind == SectionItemKind.heading,
-          prefixId: section.prefixId,
-          isAcceptanceCriteria: section.isAcceptanceCriteria,
-        );
-        if (key == itemId) return item.text;
-      }
-    }
-    return null;
-  }
-
-  /// The edge cases of [fr], each ID as written mapped to its block, nested
-  /// items included and trailing blank lines left off; the first of a
-  /// repeated ID wins.
-  Map<String, String> _edgeCaseBlocksOf(RenumberDoc fr) =>
-      _edgeCases[fr.docPath] ??= () {
-        final sections = fr.content.sections;
-        final templates = heldTemplatesOf(sections, fr.type);
-        final at = heldSectionIndexIn(templates, edgeCasesSectionKey);
-        final section = at == null ? null : templates[at];
-        if (at == null || section == null) return const <String, String>{};
-        final body = sectionBodyLines(sections, fr.content.lineFacts, at);
-        final tops = [
-          for (final item in _itemsIn(fr, at))
-            if (!item.nested) item,
-        ];
-        final blocks = <String, String>{};
-        for (final (i, item) in tops.indexed) {
-          final key = itemKeyOfHead(
-            item.head,
-            isHeading: item.kind == SectionItemKind.heading,
-            prefixId: section.prefixId,
-            isAcceptanceCriteria: false,
-          );
-          if (key == null || blocks.containsKey(key)) continue;
-          final end = i + 1 < tops.length ? tops[i + 1].line : null;
-          blocks[key] = [
-            for (final line in body)
-              if (line.line >= item.line && (end == null || line.line < end))
-                line.text,
-          ].join('\n').trimRight();
-        }
-        return blocks;
-      }();
 
   /// Whether the entry [label] [fingerprint] of the doc at [docPath] equals
   /// the fingerprint of its block.
@@ -576,17 +585,4 @@ final class _World {
     if (doc == null) return null;
     return (_blocks[blockPath] ??= trackedBlocksOf(doc))[key];
   }
-}
-
-/// Returns the contract block of [fr], as a per-FR matrix row records it: its
-/// held contract sections in doc order, each laid out, one blank line between
-/// them; null when it holds none.
-String? _contractTextOf(RenumberDoc fr) {
-  final sections = fr.content.sections;
-  final templates = heldTemplatesOf(sections, fr.type);
-  final held = [
-    for (final key in _contractSectionKeys) ?heldSectionIndexIn(templates, key),
-  ]..sort();
-  if (held.isEmpty) return null;
-  return [for (final at in held) upstreamText(sections[at].text)].join('\n');
 }

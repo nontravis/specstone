@@ -34,6 +34,7 @@ final class CodeLink {
     required this.recorded,
     required this.root,
     required this.target,
+    this.diskPath,
     this.item,
     this.status,
   });
@@ -52,6 +53,13 @@ final class CodeLink {
 
   /// The file or folder the entry names, from [root].
   final String path;
+
+  /// [path] as the disk spells it, when that differs in Unicode form; null
+  /// when the disk spells it as written.
+  final String? diskPath;
+
+  /// The path every file read opens: [diskPath], else [path].
+  String get readPath => diskPath ?? path;
 
   /// The fingerprint the entry ends in; null when it records none.
   final String? recorded;
@@ -167,7 +175,7 @@ String? _currentOf(CheckContext context, CodeLink link) {
   final key = [
     if (target == null) '' else 'target ${target.name}',
     link.root.path,
-    normalCodeEntry(link.path),
+    normalCodeEntry(link.readPath),
     ...nestedRoots,
   ].join('\u0000');
   final currents = _currentsByContext[context] ??= {};
@@ -193,7 +201,7 @@ String? _readCurrentOf(
   final reason = link.item == null ? CodeRead.codeLink : CodeRead.symbols;
   final target = link.target;
   return currentCodeFingerprint(
-    link.path,
+    link.readPath,
     codeRoot: link.root,
     nestedRoots: nestedRoots,
     bytesOf: (file) => target == null
@@ -293,7 +301,13 @@ Iterable<CodeLink> _entryLinks(
     if (parsed == null || item == null) continue;
     final entry = CodeLinkEntry(parsed.code);
     final status = tree.itemStatus(item, codeTarget: doc.target);
-    if (!readsEntryCode(exactPaths, codeRoot, status, entry.pointer)) continue;
+    final diskPath = readsEntryCode(
+      exactPaths,
+      codeRoot,
+      status,
+      entry.pointer,
+    );
+    if (diskPath == null) continue;
     yield CodeLink(
       field: fieldId,
       line: line,
@@ -302,6 +316,10 @@ Iterable<CodeLink> _entryLinks(
       status: status,
       pointer: entry.pointer,
       path: ImplementsEntry(entry.pointer).path,
+      diskPath: _spelledDifferently(
+        ImplementsEntry(entry.pointer).path,
+        diskPath,
+      ),
       recorded: entry.fingerprint,
       root: codeRoot,
       target: target,
@@ -326,7 +344,13 @@ Iterable<CodeLink> _coversLinks(
     if (value is! String) continue;
     final entry = CodeLinkEntry(value);
     if (isEmptyCodeEntry(entry.pointer)) continue;
-    if (!readsCoversCode(exactPaths, root, entry.pointer, endsWait: endsWait)) {
+    final diskPath = readsCoversCode(
+      exactPaths,
+      root,
+      entry.pointer,
+      endsWait: endsWait,
+    );
+    if (diskPath == null) {
       continue;
     }
     yield CodeLink(
@@ -335,6 +359,7 @@ Iterable<CodeLink> _coversLinks(
       value: value,
       pointer: entry.pointer,
       path: entry.pointer,
+      diskPath: _spelledDifferently(entry.pointer, diskPath),
       recorded: entry.fingerprint,
       root: root,
       target: target,
@@ -408,3 +433,8 @@ String? currentCodeFingerprint(
 
 String _currentFileHash(List<int> bytes, String path) =>
     fileCodeFingerprint(bytes, path: path);
+
+/// Returns [diskPath] when it spells [written] differently; null when
+/// [normalCodeEntry] of [written] is already it, so a reader needs no other.
+String? _spelledDifferently(String written, String diskPath) =>
+    normalCodeEntry(written) == diskPath ? null : diskPath;

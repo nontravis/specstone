@@ -342,6 +342,37 @@ void main() {
     },
   );
 
+  // D9: a `..` anywhere is refused, so no file is read.
+  test('an implements path holding .. anywhere is unresolved and reads no '
+      'file', () async {
+    final root = await _project(
+      _record(code: ['$_fr:app/lib/nope/../login.dart']),
+    );
+
+    final report = await _run(root);
+
+    final finding = _found(report).single;
+    expect(finding.kind, FindingKind.implementsPathUnresolved);
+    expect(finding.message, contains('`..`'));
+    expect(
+      report.findings.where((f) => f.kind == FindingKind.codeUnconfirmed),
+      isEmpty,
+    );
+  });
+
+  // D9: a path equals a disk name in Unicode NFC, whichever form either has.
+  test('an implements path written in NFC resolves a file whose disk name is '
+      'NFD', () async {
+    const nfc = 'caf\u{E9}.dart';
+    const nfd = 'cafe\u{301}.dart';
+    final root = await _project(
+      _record(code: ['$_fr:app/lib/$nfc']),
+      extra: {'app/lib/$nfd': 'class Cafe {}\n'},
+    );
+
+    expect(_spots(await _run(root)), isEmpty);
+  });
+
   test('an implements path that matches only by letter case takes no code '
       'fingerprint', () async {
     final root = await _project(
@@ -369,6 +400,27 @@ void main() {
     },
     skip: unreadablePathSkipReason(),
   );
+
+  // D10
+  test('an implements entry ending in : is implements_symbol_unresolved '
+      'and reads no file', () async {
+    final session = openSession(
+      await _project(_record(code: ['$_fr:$login:'])),
+    );
+    addTearDown(session.close);
+    final context = CheckContext(session);
+
+    final found = checkImplements(
+      context,
+      session.index.at(_recordPath)!,
+    ).single;
+
+    expect(found.kind, FindingKind.implementsSymbolUnresolved);
+    expect(found.line, _codeLine(1, 0));
+    expect(found.keys, {'entry': '$login:', 'symbol': ''});
+    expect(found.message, 'the Symbol after : is empty');
+    expect(context.codeFilesRead, 0);
+  });
 
   test('a pointer with no Symbol reads no file', () async {
     final session = openSession(await _project(_record(code: ['$_fr:$login'])));

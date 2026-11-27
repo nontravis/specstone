@@ -5,6 +5,8 @@ import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/sync_prefill.dart'
     show syncVerdictMarker;
+import 'package:specstone_core/src/templates/code_link_entry.dart'
+    show CodePointer;
 
 const _byteOrderMark = '\uFEFF';
 const _addSign = '+';
@@ -389,12 +391,20 @@ SyncLine? _readMismatch(int number, String rest) {
 SyncLine? _readRepoint(int number, String rest) {
   final match = _docEntryLast.firstMatch(rest);
   if (match == null) return null;
+  _requireWholePointer(match[3]!, 'repoint new path "${match[3]}"');
   return RepointLine(
     lineNumber: number,
     doc: match[1]!,
     entry: match[2]!,
     newPath: match[3]!,
   );
+}
+
+/// Throws [_Malformed] naming [shown] when [pointer] holds an empty path
+/// or an empty tail after `:`.
+void _requireWholePointer(String pointer, String shown) {
+  final fault = CodePointer(pointer).fault;
+  if (fault != null) throw _Malformed('$shown holds ${fault.description}');
 }
 
 SyncLine? _readRemoveTask(int number, String rest) {
@@ -419,6 +429,7 @@ SyncLine? _readTests(int number, String rest) {
   final head = rest.substring(0, split).split(' ');
   final file = _testFile.firstMatch(rest.substring(split + 2));
   if (head.length != 2 || head.contains('') || file == null) return null;
+  _requireWholePointer(file[2]!, file[2]!);
   return TestsLine(
     lineNumber: number,
     record: head[0],

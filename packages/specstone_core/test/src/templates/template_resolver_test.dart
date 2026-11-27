@@ -4044,4 +4044,39 @@ fields:
       );
     });
   });
+
+  group('TemplateResolver.frozenDocTypes', () {
+    // D12.
+    test('a frozen doc type holding pattern_ref is pattern_ref_invalid at '
+        'that key', () {
+      final resolver = TemplateResolver(
+        shippedFiles: {
+          ...shipped(),
+          _frozenX: _bytes(
+            'id: x\ndescription: An x\npath: specs/X.md\n'
+            'sections:\n  - id: goal\n    header: Goal\n'
+            '    lint:\n      banned_patterns:\n'
+            '        - id: a\n          pattern_ref: b\n          message: m\n',
+          ),
+        },
+      );
+
+      expect(
+        () => resolver.frozenDocTypes(
+          packNames: ['prd-core'],
+          homeDirectory: null,
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.patternRefInvalid)
+              .having((f) => f.file, 'file', 'packs/$_frozenX')
+              .having(
+                (f) => f.key,
+                'key',
+                'sections.goal.lint.banned_patterns[0].pattern_ref',
+              ),
+        ),
+      );
+    });
+  });
 }

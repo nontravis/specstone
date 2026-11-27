@@ -62,12 +62,11 @@ sections:
         max: 1
       banned_patterns:
         - id: second_shall
-          pattern: '\bshall\b.*\bshall\b'
+          pattern_ref: second_shall
           message: 'a second "shall"; guide line: Use one "shall" and a positive form'
           in: text
         - id: trace_outside_field
-          # A scenario ID, a "traces Scenario" or "Traces from [Scenario" phrase, "Scenario N of [story]", or a scenario link.
-          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \[|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          pattern_ref: scenario_trace
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
           in: all
       banned_words:
@@ -108,6 +107,7 @@ sections:
       Give each item its unit and allowed values in product words; write "don't care" for a value that does not matter.
       For a data interface, also cover the standard, message timing, protocol, error detection, initialization, and status, in product words.
       When the project's spec holds an operation that traces the FR, that operation holds the wire name, type, range, and code attributes, never the row.
+      With no operation tracing the FR, the row holds each name, type, and range a caller relies on.
     template: |-
       **Input**
       | Field | Required | Notes |
@@ -157,14 +157,8 @@ sections:
           pattern: '^(?:\d+\.|[-*]) (?!.*→)'
           message: 'edge case has no →; guide line: E01 — <trigger> → <response>'
           in: all
-        - id: exit_status
-          # An exit status given as a number or a zero word, or pointed to as a row or a link; a line that names the words only is free.
-          pattern: '\b[Ee]xit status(?: rows?\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-?)?zero\b))|\b(?:[Nn]on-?)?[Zz]ero [Ee]xit status\b|\[[Ee]xit status\]'
-          message: 'edge case states an exit status; guide line: State no exit status'
-          in: all
         - id: trace_outside_field
-          # As in the Statement, on prose only: an edge case quotes a scenario ID as a value in a code span.
-          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \[|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          pattern_ref: scenario_trace
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
           in: text
   - id: rationale
@@ -178,8 +172,7 @@ sections:
     lint:
       banned_patterns:
         - id: trace_outside_field
-          # As in the Statement.
-          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \[|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+          pattern_ref: scenario_trace
           message: 'trace outside traced_from; guide line: Keep the trace in `traced_from` alone'
           in: all
   - id: verification
@@ -188,7 +181,7 @@ sections:
     description: |-
       Give as pass criteria the observable condition that shows the requirement holds, apart from the statement.
       Give the proof level, such as unit, integration, or end to end.
-      Write `- **Pass criteria:** each edge case holds.`, with one nested bullet per condition that no edge case, the Statement, or an Input / Output row states; state no exit status.
+      Write `- **Pass criteria:** each edge case holds.`, with one nested bullet per condition that no edge case, the Statement, or an Input / Output row states.
       Name no test file here; each target's record names the tests that prove the FR.
       Write no results in the FR; the verification matrix points to the evidence.
     template: |-
@@ -224,6 +217,12 @@ lint:
   title_no_number: true
   max_lines: 400
   max_chars: 20000
+  banned_patterns:
+    - id: exit_status
+      # An exit status given as a number or a zero word, or pointed to as a row or a link; a line that names the words only is free.
+      pattern: '\b[Ee]xit status(?: rows?\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-?)?zero\b))|\b(?:[Nn]on-?)?[Zz]ero [Ee]xit status\b|\[[Ee]xit status\]'
+      message: 'states an exit status; guide line: State no exit status'
+      in: all
 reference:
   - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
     url: https://www.nasa.gov/reference/systems-engineering-handbook/

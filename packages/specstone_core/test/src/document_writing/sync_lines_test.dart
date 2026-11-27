@@ -262,6 +262,51 @@ void main() {
     );
   });
 
+  // D10: a repoint whose new path or new symbol is empty is refused.
+  test('a repoint line whose new path is lib/a.dart: with an empty symbol refuses argument_invalid naming its line number', () {
+    final fault = _refused(
+      '==> verdicts <==\nrepoint login app/lib/login.dart:signIn lib/a.dart:',
+    );
+
+    expect(fault.refusals.map((r) => (r.line, r.code)), [
+      (2, 'argument_invalid'),
+    ]);
+    expect(fault.exitStatus, 64);
+  });
+
+  // D10: see above.
+  test('a repoint line whose new path is :sym with an empty path refuses argument_invalid naming its line number', () {
+    final fault = _refused(
+      '==> verdicts <==\nrepoint login app/lib/login.dart:signIn :sym',
+    );
+
+    expect(fault.refusals.map((r) => (r.line, r.code)), [
+      (2, 'argument_invalid'),
+    ]);
+    expect(fault.exitStatus, 64);
+  });
+
+  // D10
+  test('a tests line whose test file is test/a_test.dart: with an empty name or :name with an empty path refuses argument_invalid naming the fault and its line number', () {
+    final fault = _refused(
+      [
+        '==> verdicts <==',
+        'tests implementation:login email_login/check_password: +test/a_test.dart:',
+        'tests implementation:login email_login/check_password: +:refuses',
+      ].join('\n'),
+    );
+
+    expect(fault.refusals.map((r) => (r.line, r.code, r.message)), [
+      (
+        2,
+        'argument_invalid',
+        'test/a_test.dart: holds an empty symbol after ":"',
+      ),
+      (3, 'argument_invalid', ':refuses holds an empty path before ":"'),
+    ]);
+    expect(fault.exitStatus, 64);
+  });
+
   test('each form break refuses its line: a bad fingerprint, no point, no new path, a row with no literal, a tests line with no sign, a remove-task with no link or a task id holding a colon', () {
     const broken = [
       '? login app/lib/login.dart:signIn 0123456789AB',

@@ -27,6 +27,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -74,6 +75,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -121,6 +123,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -168,6 +171,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -215,6 +219,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -248,8 +253,7 @@ sections:
       line_prefix: "- **Statement:**"
       banned_patterns:
         - id: trace_outside_field
-          # A scenario ID or an NFR or PG ID; the guide line asks the Statement to name a standard.
-          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b'
+          pattern_ref: trace_without_standard
           message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
           in: all
   - id: environment
@@ -268,6 +272,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -315,6 +320,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -362,6 +368,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -409,6 +416,7 @@ sections:
       - **Owner:** <name, or blank for the PROJECT owner>
       - **TBR:** <value, why, close action, who, by when; or none>
     lint:
+      names_codes: true
       banned_words:
         - flexible
         - easy
@@ -442,8 +450,7 @@ sections:
       line_prefix: "- **Statement:**"
       banned_patterns:
         - id: trace_outside_field
-          # A scenario ID or an NFR or PG ID; the guide line asks the Statement to name a standard.
-          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b'
+          pattern_ref: trace_without_standard
           message: "trace in the Statement; guide line: Keep the trace in the entry's `**Traced from:**` bullet"
           in: all
 lint:

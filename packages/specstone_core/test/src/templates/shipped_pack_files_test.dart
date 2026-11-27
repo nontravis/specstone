@@ -375,11 +375,7 @@ void main() {
         'feature.out_of_scope': {'out_of_scope_owner'},
         'user_story.acceptance_criteria': {'scenario_title'},
         'fr.statement': {'second_shall', 'trace_outside_field'},
-        'fr.edge_cases': {
-          'edge_case_arrow',
-          'exit_status',
-          'trace_outside_field',
-        },
+        'fr.edge_cases': {'edge_case_arrow', 'trace_outside_field'},
         'fr.rationale': {'trace_outside_field'},
         'glossary.terms': {'term_bullet_form'},
         'fr.verification': {'test_file_named'},
@@ -400,6 +396,16 @@ void main() {
             'trace_outside_field',
           },
       });
+    });
+
+    test('fr holds exit_status once, at doc level, reading the raw line', () {
+      // D6: Behavior and Input / Output reach it with no copy of their own.
+      final doc = prdCoreDocType(
+        set,
+        'fr',
+      ).lint.bannedPatterns!.where((p) => p.id == 'exit_status');
+
+      expect(doc.map((p) => p.scope), [PatternScope.all]);
     });
 
     test('each section pattern message that names a guide line names one the '
@@ -562,27 +568,27 @@ void main() {
       });
     });
 
-    test(
-      'names_codes is true on four fr and story sections and set nowhere else',
-      () {
-        const named = {
-          'fr.statement',
-          'fr.input_output',
-          'fr.edge_cases',
-          'user_story.acceptance_criteria',
-        };
-        final found = <String>{
-          for (final docType in set.docTypes)
-            for (final s in docType.sections)
-              if (s.namesCodes != null) '${docType.id}.${s.id}',
-        };
-        expect(found, named);
-        for (final key in named) {
-          final [docType, id] = key.split('.');
-          expect(section(docType, id).namesCodes, isTrue, reason: key);
-        }
-      },
-    );
+    test('names_codes is true on four fr and story sections, the nine gnfr '
+        'categories, and nf.statement, and set nowhere else (D13)', () {
+      final named = {
+        'fr.statement',
+        'fr.input_output',
+        'fr.edge_cases',
+        'user_story.acceptance_criteria',
+        for (final category in _gnfrCategories) 'gnfr.$category',
+        'nf.statement',
+      };
+      final found = <String>{
+        for (final docType in set.docTypes)
+          for (final s in docType.sections)
+            if (s.namesCodes != null) '${docType.id}.${s.id}',
+      };
+      expect(found, named);
+      for (final key in named) {
+        final [docType, id] = key.split('.');
+        expect(section(docType, id).namesCodes, isTrue, reason: key);
+      }
+    });
 
     test('diagram is an empty map on the feature flow, the fr behavior, and '
         'the features diagram, so only the quoting part reads', () {

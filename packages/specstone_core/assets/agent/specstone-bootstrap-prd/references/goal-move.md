@@ -22,7 +22,7 @@ with the batch; its glossary section asks the Owner nothing.
 
 Read the goal doc with `specstone get goal:goal --json` first. Unless its title already reads `Project goals`, the one
 `specstone guide goal` names, pipe `Project goals`, with no `#`, to `specstone set goal:goal --title --base <hash>`,
-`bases.title` its base. Then take PROJECT's goals in turn:
+`docs[0].bases.title` its base. Then take PROJECT's goals in turn:
 
 - **Kept:** a goal with no horizon answered, or whose `PG-` ID the goal doc already holds in any section, stays in
   PROJECT with its ID, never renumbered, and its section keeps its finding. List it once under open questions.

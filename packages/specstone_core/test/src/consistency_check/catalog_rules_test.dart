@@ -638,4 +638,80 @@ void main() {
       ]);
     },
   );
+
+  group('D13: a gnfr NFR section and an nf statement', () {
+    const projectApiDoc = 'specs/API.md';
+
+    /// The project API doc, its error model a catalog of [codes].
+    Map<String, String> projectApi(List<String> codes) => {
+      'docs/$projectApiDoc':
+          '---\n---\n# Login demo API\n\n## Error model\n\n### API-E1 — CLI\n\n'
+          '| Code | Status or exit | Condition | Client action | Retryable |\n'
+          '|---|---|---|---|---|\n'
+          '${[for (final code in codes) '| `$code` | 400 | a shared fault | Retry | no |'].join('\n')}\n',
+    };
+
+    List<String> catalogRows(CheckReport report) => [
+      for (final f in report.findings)
+        if (_catalogKinds.contains(f.kind))
+          '${f.path} ${f.kind.wire} ${f.keys['code']}',
+    ];
+
+    Map<String, String> gnfrNaming(String codes) => edit(gnfrDoc, [
+      (loginNfrStatement, '- **Statement:** The system shall answer $codes.'),
+    ]);
+
+    test('a project catalog code a gnfr NFR section names in a code span is '
+        'raised', () async {
+      final report = await _check({
+        ...projectApi(['shared_code']),
+        ...gnfrNaming('a sign-in with `shared_code` within 2 s'),
+      });
+
+      expect(catalogRows(report), isEmpty);
+    });
+
+    test('a gnfr naming a code only a feature catalog holds raises neither '
+        'finding', () async {
+      final report = await _check({
+        ...projectApi(['shared_code']),
+        'docs/$_apiDoc': _api('Login', ['bad_password']),
+        ...gnfrNaming('a sign-in with `shared_code` and `bad_password`'),
+      });
+
+      expect(catalogRows(report), [
+        '$_apiDoc error_code_unraised bad_password',
+      ]);
+    });
+
+    test('an nf statement naming a code neither its feature chain nor the '
+        'project catalogs is uncataloged', () async {
+      Future<List<String>> run(String code) async => catalogRows(
+        await _check({
+          ...projectApi(['shared_code']),
+          'docs/$_apiDoc': _api('Login', ['bad_password']),
+          ..._shop(['doc_not_found']),
+          ...edit(loginNf, [
+            (
+              'The system shall sign in within 1 s.',
+              'The system shall sign in with `$code` within 1 s.',
+            ),
+          ]),
+        }),
+      );
+
+      expect(
+        await run('doc_not_found'),
+        contains('$loginNf error_code_uncataloged doc_not_found'),
+      );
+      expect(
+        await run('bad_password'),
+        isNot(contains('$_apiDoc error_code_unraised bad_password')),
+      );
+      expect(
+        (await run('bad_password')).where((f) => f.contains('uncataloged')),
+        isEmpty,
+      );
+    });
+  });
 }

@@ -1,8 +1,13 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show heldSectionIndexIn;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show edgeCasesSectionKey;
+import 'package:specstone_core/src/index_query/held_sections.dart'
+    show heldTemplatesOf;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const List<String> _contractSectionKeys = [
   'statement',
@@ -28,16 +33,21 @@ final class ContractBlock {
 ///
 /// A missing section adds nothing; null when [fr] holds none of the three.
 ContractBlock? contractBlockOf(CheckContext context, IndexedDoc fr) {
+  final type = context.typeOf(fr);
+  return type == null ? null : contractBlockIn(context.contentOf(fr), type);
+}
+
+/// Returns the contract block of [content], an FR of [type], as
+/// [contractBlockOf] reads it.
+ContractBlock? contractBlockIn(DocContent content, MergedDocType type) {
+  final templates = heldTemplatesOf(content.sections, type);
   final held = [
-    for (final key in _contractSectionKeys) ?context.heldIndexOf(fr, key),
+    for (final key in _contractSectionKeys) ?heldSectionIndexIn(templates, key),
   ]..sort();
   if (held.isEmpty) return null;
-  final sections = context.contentOf(fr).sections;
+  final sections = content.sections;
   return ContractBlock(
     text: [for (final i in held) upstreamText(sections[i].text)].join('\n'),
-    headings: [
-      for (final i in held)
-        context.templateSectionAt(fr, i)?.header ?? sections[i].key,
-    ],
+    headings: [for (final i in held) templates[i]?.header ?? sections[i].key],
   );
 }

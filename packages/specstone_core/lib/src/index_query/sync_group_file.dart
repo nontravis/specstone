@@ -77,7 +77,8 @@ String syncCodePart(
     ...covered,
   ];
   for (final work in ordered) {
-    if (!seenFiles.add(_codeKeyOf(work.link.root, work.link.path))) continue;
+    final key = _codeKeyOf(work.link.root, work.link.readPath);
+    if (!seenFiles.add(key)) continue;
     if (!covered.contains(work)) _writeCode(out, work);
     writeDocs(_judgedOn(work.link, judgedDocs));
   }
@@ -92,8 +93,8 @@ String syncCodePart(
 
 /// Whether [work]'s code lies under a folder link of [links] of the same root,
 /// whose own diff or listing already holds it.
-bool _isUnderFolderLink(SyncLinkWork work, List<SyncLinkWork> links) =>
-    links.any((other) => _isUnder(work.link.root, work.link.path, other.link));
+bool _isUnderFolderLink(SyncLinkWork work, List<SyncLinkWork> links) => links
+    .any((other) => _isUnder(work.link.root, work.link.readPath, other.link));
 
 /// Whether [path], from [root], lies under the folder [folder] names, of the
 /// same root.
@@ -152,11 +153,11 @@ void _writeCode(StringBuffer out, SyncLinkWork work) {
 void _writeWhole(StringBuffer out, SyncLinkWork work) {
   final link = work.link;
   final isFolder = FileSystemEntity.isDirectorySync(
-    '${link.root.path}/${link.path}',
+    '${link.root.path}/${link.readPath}',
   );
   final files = isFolder
-      ? codeLinkFiles(link.root, link.path, nestedRoots: work.nestedRoots)
-      : [link.path];
+      ? codeLinkFiles(link.root, link.readPath, nestedRoots: work.nestedRoots)
+      : [link.readPath];
   for (final path in files) {
     _writeFile(out, link.root, path, 'whole');
   }

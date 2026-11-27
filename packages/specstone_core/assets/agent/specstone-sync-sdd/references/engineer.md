@@ -7,7 +7,7 @@ each.
 2. **Sync**: with `decided` and no group file, follow `decided.md` `## Decided-only run` in place of `procedure.md`,
    `picks`, and the rest of this step. Else follow `procedure.md` from its step 1 on your group file, writing it by
    one `specstone set --sync`, which changes only your scope's docs and runs your group's task-ref removals. Write
-   each of `picks` by its step 5. With a `change note`, follow `decided.md` as you judge, its drafts written before
+   each of `picks` by its step 5. With a `change note`, judge by `decided.md` `## 1`, writing no decided draft before
    procedure step 3. A `feature: <name>` work list takes its record's `covers:` links, its other spec docs' included.
    Run again a `specstone` command that ends `index_busy`; it is no CLI error. Then step 3 of this file.
 3. **Check and report**: in sync mode, run no gate or done `check`: `specstone set --sync` refuses a wrong line, and
@@ -24,5 +24,6 @@ Write these lines:
   each task whose refs the sync removed.
 - Each `Mismatches:` point; each behavior handed to `specstone-brainstorming-sdd`; open
   questions.
-- With a `change note`, the lines of `decided.md`'s Report.
+- A group engineer with a `change note`: `match` or `Mismatches:` points against the decided lines only, no
+  `Decision:` or `Not landed:` line. The decided engineer: the lines of `decided.md`'s Report.
 - Then `Findings:`, each line still refused after the procedure's step 4 reruns, or `none`.

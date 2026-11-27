@@ -1104,6 +1104,21 @@ void main() {
       return run.out.toString();
     }
 
+    // D3
+    test('a story --for implement --out prints its first two stdout lines again as its last two', () async {
+      final project = await writeReadProject();
+      final stdout = await saved(project, [
+        story,
+        '--for',
+        'implement',
+        '--out',
+      ]);
+      final lines = const LineSplitter().convert(stdout);
+      expect(lines[lines.length - 2], lines.first);
+      expect(lines.last, lines[1]);
+      expect(lines.last, startsWith('read whole, in 1 read: lines 1-'));
+    });
+
     test('a bare --out at the root makes .specstone/bundles/, writes the read-first file, and prints its header and index', () async {
       final project = await writeReadProject();
       expect(
@@ -1467,9 +1482,9 @@ void main() {
           for (final line in run.out.toString().split('\n'))
             ?header.firstMatch(line)?.group(4),
         ];
-        expect(paths, hasLength(2));
+        expect(paths, hasLength(3));
         final names = [
-          for (final path in paths) path.split(RegExp(r'[/\\]')).last,
+          for (final path in paths.take(2)) path.split(RegExp(r'[/\\]')).last,
         ];
         expect(utf8.encode(names.first).length, lessThanOrEqualTo(250));
         expect(utf8.encode(names.last).length, lessThanOrEqualTo(255));
@@ -1822,7 +1837,7 @@ void main() {
           final first = bundleFile(project, 'login-email_login.$mode.txt');
           final refs = bundleFile(project, 'login-email_login.$mode.refs.txt');
           final headers = headersOf(text);
-          expect(headers, hasLength(2));
+          expect(headers, hasLength(3));
           for (final (i, file) in [first, refs].indexed) {
             expect(headers[i].group(4), file.resolveSymbolicLinksSync());
             expect(headers[i].group(3), '${file.readAsLinesSync().length}');
@@ -2827,7 +2842,7 @@ void main() {
           .toString()
           .split('\n')
           .where((l) => l.startsWith('==> bundle: '));
-      expect(headers, hasLength(2));
+      expect(headers, hasLength(3));
       expect(headers.first, contains(name));
     });
   });

@@ -104,11 +104,13 @@ final class SyncLinkWork {
   }
 
   List<String>? _readUntracked() {
-    if (!FileSystemEntity.isDirectorySync('${link.root.path}/${link.path}')) {
+    if (!FileSystemEntity.isDirectorySync(
+      '${link.root.path}/${link.readPath}',
+    )) {
       return const [];
     }
     try {
-      return untrackedUnder(link.root, link.path, nestedRoots: nestedRoots);
+      return untrackedUnder(link.root, link.readPath, nestedRoots: nestedRoots);
     } on ProcessException {
       return null;
     }
@@ -319,7 +321,7 @@ final class _LinkFacts {
     final code = [
       if (target == null) '' else 'target ${target.name}',
       link.root.path,
-      normalCodeEntry(link.path),
+      normalCodeEntry(link.readPath),
     ].join('\u0000');
     return SyncLinkWork(
       doc: doc,
@@ -392,7 +394,7 @@ bool _isSmall(
   var changed = 0;
   final seen = <String>{};
   for (final work in links) {
-    if (!seen.add('${work.link.root.path}/${work.link.path}')) continue;
+    if (!seen.add('${work.link.root.path}/${work.link.readPath}')) continue;
     if (work.untracked?.isNotEmpty ?? true) return false;
     final lines = _changedLinesOf(work.diff);
     if (lines == null) return false;

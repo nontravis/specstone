@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/models/trace_note.dart';
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
@@ -453,11 +453,11 @@ void main() {
   group('itemFactsOf', () {
     test('a doc with no layout counts its text as it is', () {
       const text = '# T\n\nLead.\n\n## Notes\nx\n';
-      final doc = Doc.parse(text);
+      final parse = DocParse.of(text);
       final facts = itemFactsOf(
-        doc: doc,
-        lfText: text,
-        lineFacts: lineStructureOf(lfText: text, doc: doc),
+        parse: parse,
+        counted: parse,
+        lineFacts: lineStructureOf(parse),
         laid: null,
         type: null,
       );
@@ -470,11 +470,11 @@ void main() {
 
     test('a doc type that defines no prefix_id gives no ID', () {
       const text = '# T\n\n## Statement\nE01 — a\n';
-      final doc = Doc.parse(text);
+      final parse = DocParse.of(text);
       final facts = itemFactsOf(
-        doc: doc,
-        lfText: text,
-        lineFacts: lineStructureOf(lfText: text, doc: doc),
+        parse: parse,
+        counted: parse,
+        lineFacts: lineStructureOf(parse),
         laid: null,
         type: typeOf(_frPath),
       );

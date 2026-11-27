@@ -1,25 +1,23 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
-    show namesFileOrFolderFrom;
+    show CodePathField, codePathMessageOf;
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show isRootedOrDrivePath, isWebLink;
-import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'
     show FieldType;
-
-const _parentSegment = '..';
 
 /// Returns the `source_path_missing` and `source_path_outside_project`
 /// findings of a typed [doc].
 ///
 /// Reads each entry of every `source_ref` field, found by field type alone.
 /// A web URL is never checked. Any other entry is a path from the project
-/// root: one that leaves it, once normalized, is reported unread; one that
-/// names no file or folder there, links followed, is missing.
+/// root: a rooted one, or one holding a `..` segment, is reported unread; one
+/// that names no file or folder there, in exact letter case and links
+/// followed, is missing.
 Iterable<Finding> checkDesignSources(
   CheckContext context,
   IndexedDoc doc,
@@ -44,29 +42,31 @@ Iterable<Finding> _entryFindings(
   String entry,
   int line,
 ) sync* {
-  if (_leavesProject(entry)) {
+  final verdict = context.exactPaths.resolve(context.projectRoot, entry);
+  if (isRootedOrDrivePath(entry) ||
+      verdict.kind == CodePathKind.parentSegment) {
     yield context.finding(
       doc,
       FindingKind.sourcePathOutsideProject,
       line: line,
-      message: '$entry leaves the project root',
+      message: verdict.kind == CodePathKind.parentSegment
+          ? codePathMessageOf(CodePathField.covers, entry, verdict)
+          : '$entry leaves the project root',
       keys: {'entry': entry},
     );
-  } else if (!namesFileOrFolderFrom(context.projectRoot, entry)) {
+  } else if (!verdict.exists && verdict.kind != CodePathKind.empty) {
     yield context.finding(
       doc,
       FindingKind.sourcePathMissing,
       line: line,
-      message: '$entry names nothing on disk',
-      keys: {'entry': entry},
+      message: verdict.kind == CodePathKind.wrongCase
+          ? '$entry is spelled ${verdict.diskPath} on disk'
+          : '$entry names nothing on disk',
+      keys: {
+        'entry': entry,
+        if (verdict.kind == CodePathKind.wrongCase)
+          'diskPath': ?verdict.diskPath,
+      },
     );
   }
-}
-
-/// Whether [entry] is rooted, or reaches above the project root after its
-/// `.` and `..` segments apply, `\` read as a separator too.
-bool _leavesProject(String entry) {
-  if (isRootedOrDrivePath(entry)) return true;
-  final normal = normalCodeEntry(entry.replaceAll(r'\', '/'));
-  return normal == _parentSegment || normal.startsWith('$_parentSegment/');
 }

@@ -15,7 +15,7 @@ tickets. Judge by that description alone, never by a name, and name no tool that
 For each ticket a tool makes for an item of a spec doc, add its ref to that doc's `tasks` field. A ref is
 `<item>:<task>`, or `<task>` alone for the whole doc, `<task>` the id the tool gives the ticket.
 
-1. Read the base: run `specstone get <type>:<name> --json` and take `bases.fields.tasks`.
+1. Read the base: run `specstone get <type>:<name> --json` and take `docs[0].bases.fields.tasks`.
 2. Write the whole list as YAML `- <entry>` lines: the refs the doc already holds, then each new one. Quote an entry
    YAML reads as a comment or a number, such as `- "#123"`. Pipe it to
    `specstone set <type>:<name> --field tasks --base <hash>`.

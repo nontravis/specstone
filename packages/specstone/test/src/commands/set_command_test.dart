@@ -675,6 +675,29 @@ void main() {
       );
     });
 
+    // D9: a `..` segment is refused, never folded.
+    test('set --stamp on an entry holding a .. segment prints its refusal line with stamp_entry_unresolved', () async {
+      const outside = 'app/lib/../lib/login.dart';
+      final root = await check.writeCheckProject(
+        extra: check.doc(check.loginRecord, '  - app/lib/\n', '  - $outside\n'),
+        unfingerprinted: {check.loginRecord},
+      );
+      final before = recordText(root);
+
+      final run = await _set(root, [
+        address,
+        '--stamp',
+        '$outside=0123456789ab',
+      ]);
+
+      expect(run.status, 64);
+      expect(
+        run.err,
+        'stamp_entry_unresolved: $outside does not resolve: covers_path_outside\n',
+      );
+      expect(recordText(root), before);
+    });
+
     test('a comma in a --stamp path stays one entry', () async {
       final root = await project();
 

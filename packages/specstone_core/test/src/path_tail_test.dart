@@ -1,7 +1,7 @@
-import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/models/path_tail.dart';
 import 'package:specstone_core/src/path_tail.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -23,10 +23,7 @@ void main() {
   test('the index and the entry read one line to the same path and name', () {
     const rest = 'test/a_test.dart:rejects: a wrong #2';
 
-    expect(
-      recordTestLineOf('show:$rest')?.path,
-      const ImplementsEntry(rest).path,
-    );
-    expect(const ImplementsEntry(rest).testName, 'rejects: a wrong #2');
+    expect(recordTestLineOf('show:$rest')?.path, CodePointer(rest).path);
+    expect(CodePointer(rest).tail, 'rejects: a wrong #2');
   });
 }

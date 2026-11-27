@@ -4,7 +4,8 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart'
     show currentCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
-    show namesFileOrFolderFrom;
+    show CodePathField, codePathFindingOf, readPathOf;
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
@@ -16,8 +17,6 @@ import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/document_writing/stamp_fault.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
-import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show isEmptyCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/index_query/record_entries.dart'
     show recordCodeFieldOf, recordCodeLineOf;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
@@ -52,10 +51,9 @@ final class StampField {
   String pathOf(String entry) =>
       isRecord ? ImplementsEntry(codeOf(entry)).path : entry;
 
-  /// The finding `check` gives an entry of this field whose path is gone.
-  FindingKind get pathFinding => isRecord
-      ? FindingKind.implementsPathUnresolved
-      : FindingKind.coversPathMissing;
+  /// The field `check` reads an entry of this one as.
+  CodePathField get pathField =>
+      isRecord ? CodePathField.implements : CodePathField.covers;
 }
 
 /// Returns the fields of [docType] a stamp reads: its `covers`-like fields,
@@ -99,9 +97,12 @@ String withStampedFields(String lfText, List<StampField> fields) {
 /// with, so a stamp refuses what `check` reports and never writes a
 /// fingerprint `check` would call stale.
 final class CodeJudge {
-  new(this._session, this._target);
+  new(this._session, this._target, this._paths);
 
   final WriteSession _session;
+
+  /// The resolver of every entry, one per run so each folder is listed once.
+  final ExactCasePaths _paths;
 
   /// The target the doc's entries read from; null for a doc of none.
   final CodeTarget? _target;
@@ -113,10 +114,11 @@ final class CodeJudge {
     if (root == null) {
       return _unresolved(entry, FindingKind.sharedDocCodePath.wire);
     }
-    final unresolved = _unresolvedKind(field, entry, root);
+    final verdict = _paths.resolve(root, field.pathOf(entry));
+    final unresolved = _unresolvedKind(field, entry, root, verdict);
     if (unresolved != null) return _unresolved(entry, unresolved.wire);
     final current = currentCodeFingerprint(
-      field.pathOf(entry),
+      readPathOf(field.pathOf(entry), verdict.diskPath!),
       codeRoot: root,
       nestedRoots: _nestedRootsOf(field.field),
       bytesOf: (file) => _bytesOf(root, file),
@@ -146,17 +148,22 @@ final class CodeJudge {
         : _session.project.nestedRootsOf(target);
   }
 
-  FindingKind? _unresolvedKind(StampField field, String entry, Directory root) {
-    if (!field.isRecord) {
-      if (isEmptyCodeEntry(entry)) return FindingKind.coversEntryEmpty;
-      return namesFileOrFolderFrom(root, entry) ? null : field.pathFinding;
+  FindingKind? _unresolvedKind(
+    StampField field,
+    String entry,
+    Directory root,
+    CodePathVerdict verdict,
+  ) {
+    final kind = codePathFindingOf(field.pathField, verdict);
+    if (kind != null || !field.isRecord) return kind;
+    final code = field.codeOf(entry);
+    if (CodePointer(code).fault == CodePointerFault.emptyTail) {
+      return FindingKind.implementsSymbolUnresolved;
     }
-    final code = ImplementsEntry(field.codeOf(entry));
-    if (!code.namesFileFrom(root)) return field.pathFinding;
-    final bytes = _bytesOf(root, normalCodeEntry(code.path));
+    final bytes = _bytesOf(root, verdict.diskPath!);
     if (bytes == null) return null;
     final text = const Utf8Decoder(allowMalformed: true).convert(bytes);
-    return unresolvedSymbolOf(code.text, text) == null
+    return unresolvedSymbolOf(code, text) == null
         ? null
         : FindingKind.implementsSymbolUnresolved;
   }

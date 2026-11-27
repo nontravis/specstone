@@ -12,9 +12,10 @@ confirmation in `SKILL.md`.
    `approve`. In `specstone-brainstorming-sdd` add `--audit <path>` per audit report of the run, the builder check,
    then each loop re-review, oldest first, and `--author <path>` once per writer, its one report file holding every
    round of that writer; in a bootstrap round with a trim batch, its fix loop included, `--audit <path>` per audit
-   report of the round, the trim audit, then each loop re-review, oldest first; for a Decided change's drafts at a
-   plan's last sync, before the branch lands, the Decided audit's report as the one `--audit <path>` and
-   `--author <path>` once per sync engineer report; else `--no-audit`.
+   report of the round, the trim audit, then each loop re-review, oldest first; for a Decided change's drafts, every
+   draft of a sync run with a change note, the fix-the-spec ones included, at a plan's last sync, before the branch
+   lands, the Decided audit's report as the one `--audit <path>` and the decided engineer's report as the one
+   `--author <path>`; else `--no-audit`.
 3. Exit 75 on the first or second call: rerun it once; a second sends its drafts to Owner confirmation.
 4. After each call, list each `approved` entry's `doc`, `path`, and `Why:`, with no wait, and each finding of its
    `carried` key beside it; for a reconfirmation, the upstream change. In a brainstorm, show the change note's
@@ -37,6 +38,6 @@ confirmation in `SKILL.md`.
 8. Send each `asked` entry with `waitsFor` `owner` to Owner confirmation; after a second call, Owner confirmation
    starts once, for the first call's `owner` entries no re-review took and every entry the second asks. Ask them in
    one message, each `Why:` naming the change made after the audit. A draft with a call or question of the fix
-   loop's breaker shows it beside the draft as its `Why:`. A Decided change's drafts take no re-review and no other
-   call: each `asked` entry goes to Owner confirmation, and each other Decided audit item goes to the Owner at the
+   loop's breaker shows it beside the draft as its `Why:`. A Decided change's drafts, every draft of a sync run with a
+   change note, take no re-review and no other call: each `asked` entry goes to Owner confirmation, and each other Decided audit item goes to the Owner at the
    approval ask with its `Fix:` lines when it has them.

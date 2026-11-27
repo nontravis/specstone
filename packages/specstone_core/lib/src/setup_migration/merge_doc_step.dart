@@ -442,61 +442,127 @@ int _placeholdersIn(PathPattern pattern) =>
 
 // MARK: - Links
 
-/// The typed name a folded doc's name takes: the `to` doc's type id and
-/// Name, and the section key each mapped `from` section key takes.
+/// The typed name a folded doc's name takes: the last `to` doc's type id and
+/// Name, and the section key each `from` section key takes there.
 final class _TypedFold {
   const new(this.toId, this.toName, this.keys);
 
   final String toId;
   final String toName;
   final Map<String, String> keys;
+
+  String get typedName => '$toId:$toName';
+
+  /// Returns this fold carried on by a later step of its `to` doc, which
+  /// leaves it as [nextName] of type [nextId] and maps its keys by [later].
+  _TypedFold through(
+    String nextId,
+    String nextName,
+    Map<String, String> later,
+  ) => _TypedFold(nextId, nextName, _composed(keys, later));
 }
 
-/// The typed names of the docs the run folds, by `<from id>:<Name>`.
-final class FoldedDocs {
-  new() : _folds = {}, _fromIds = {};
+/// Returns the key map [first] then [later] give: each key of [first] maps
+/// through [later], and a key [first] keeps takes [later]'s value.
+Map<String, String> _composed(
+  Map<String, String> first,
+  Map<String, String> later,
+) => {
+  for (final MapEntry(:key, :value) in later.entries)
+    if (!first.containsKey(key)) key: value,
+  for (final MapEntry(:key, :value) in first.entries)
+    key: later[value] ?? value,
+};
 
+/// A link text a fold or a section rename retyped.
+final class RetypedText {
+  const new(this.text, {required this.isFolded});
+
+  final String text;
+
+  /// Whether a fold changed the text, not a section rename alone.
+  final bool isFolded;
+}
+
+/// The typed names and section keys the run's folds and section renames
+/// give, composed in step order.
+final class FoldedDocs {
+  new() : _folds = {}, _fromIds = {}, _renamedKeys = {};
+
+  /// By `<from id>:<Name>`.
   final Map<String, _TypedFold> _folds;
 
   /// The `from` doc type id of each fold.
   final Set<String> _fromIds;
 
-  bool get isEmpty => _folds.isEmpty;
+  /// The key each renamed section key of a doc type takes, by type id.
+  final Map<String, Map<String, String>> _renamedKeys;
+
+  bool get isEmpty => _folds.isEmpty && _renamedKeys.isEmpty;
 
   /// Records that [source] folds under [step], the `to` sections headed as
   /// [toHeaders] gives.
+  ///
+  /// An earlier fold whose `to` doc this folds follows it to the new `to`
+  /// doc, its keys mapped through this fold's.
   void add(
     FoldSource source,
     MergeDoc step, {
     required Map<String, String> toHeaders,
   }) {
+    final keys = _composed(_renamedKeys[step.fromId] ?? const {}, {
+      for (final section in step.sections)
+        if (toHeaders[section.toId] case final header?)
+          sectionKeyOf(section.fromHeader): sectionKeyOf(header),
+    });
+    final from = '${step.fromId}:${source.fromName}';
+    _folds.updateAll(
+      (_, fold) => fold.typedName == from
+          ? fold.through(step.toId, source.toName, keys)
+          : fold,
+    );
     _fromIds.add(step.fromId);
-    _folds['${step.fromId}:${source.fromName}'] = _TypedFold(
-      step.toId,
-      source.toName,
-      {
-        for (final section in step.sections)
-          if (toHeaders[section.toId] case final header?)
-            sectionKeyOf(section.fromHeader): sectionKeyOf(header),
-      },
+    _folds[from] = _TypedFold(step.toId, source.toName, keys);
+  }
+
+  /// Records that [step] renames a section of its doc type, for each fold
+  /// landing on that type and each typed text naming it directly.
+  ///
+  /// The `from` section matches a key by its id or its header's key.
+  void renamed(RenameSection step) {
+    final to = sectionKeyOf(step.toHeader);
+    final rename = {step.fromId: to, sectionKeyOf(step.fromHeader): to};
+    _folds.updateAll(
+      (_, fold) => fold.toId == step.docType
+          ? fold.through(fold.toId, fold.toName, rename)
+          : fold,
+    );
+    _renamedKeys[step.docType] = _composed(
+      _renamedKeys[step.docType] ?? const {},
+      rename,
     );
   }
 
   /// Whether [body] may hold a link text that starts with a folded doc's
-  /// `<from id>:`, so the link text pass needs its parse.
-  bool mayNameFolded(String body) =>
-      _fromIds.any((id) => body.contains('[$id:'));
+  /// `<from id>:` or a renamed type's `<doc type>:`, so the link text pass
+  /// needs its parse.
+  bool mayRetype(String body) =>
+      [..._fromIds, ..._renamedKeys.keys].any((id) => body.contains('[$id:'));
 
-  /// Returns [text], a link text, as the `to` doc's typed name when it is a
-  /// folded doc's `<from id>:<Name>`, a `#<key>` taking the mapped key; null
-  /// when it names no folded doc.
-  String? textOf(String text) {
+  /// Returns [text], a link text, as a folded doc's last typed name and key,
+  /// else with the renamed key of the type it names; null when neither
+  /// changes it.
+  RetypedText? textOf(String text) {
     final address = readDocAddress(text);
-    if (address.typeId == null || !address.isName) return null;
-    final fold = _folds[address.docPart];
-    if (fold == null) return null;
+    final typeId = address.typeId;
+    if (typeId == null || !address.isName) return null;
     final key = address.sectionKey;
-    final mapped = key == null ? '' : '#${fold.keys[key] ?? key}';
-    return '${fold.toId}:${fold.toName}$mapped';
+    if (_folds[address.docPart] case final fold?) {
+      final mapped = key == null ? '' : '#${fold.keys[key] ?? key}';
+      return RetypedText('${fold.typedName}$mapped', isFolded: true);
+    }
+    final renamed = key == null ? null : _renamedKeys[typeId]?[key];
+    if (renamed == null || renamed == key) return null;
+    return RetypedText('${address.docPart}#$renamed', isFolded: false);
   }
 }

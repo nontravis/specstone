@@ -65,13 +65,14 @@ final class MergedSharedPattern {
     required this.declaringPack,
   });
 
-  /// The pattern with each key its layers wrote, never disabled.
+  /// The pattern with each key its layers wrote, never disabled; its regex
+  /// is the shared pattern a `pattern_ref` named, when one was written.
   final PatternEntry entry;
 
   /// The list the pattern belongs to.
   final SharedPatternKind kind;
 
-  /// The doc type ids the pattern names.
+  /// The doc type ids the pattern names; empty for a source-only pattern.
   final List<String> forDocTypes;
 
   /// The section ids the pattern is limited to, or null for none.
@@ -79,6 +80,10 @@ final class MergedSharedPattern {
 
   /// The pack whose layer first defined the pattern.
   final String declaringPack;
+
+  /// Whether the pattern reaches no doc type and no section, so it reports
+  /// nothing and serves only a `pattern_ref`.
+  bool get isSourceOnly => forDocTypes.isEmpty && sections == null;
 
   /// The id the layers matched the pattern by, within its [kind].
   String get id => entry.id;
@@ -140,12 +145,19 @@ final class SharedSet {
 /// and an id two packs declare with neither extending the other;
 /// `override_id_not_found` for an entry that can neither change nor add; and
 /// `missing_key` for a new shared field or pattern with no `for_doc_types`
-/// and a new required pattern with no `sections`.
+/// and a new required pattern with no `sections`, a new pattern with neither
+/// reach key excepted when a `pattern_ref` names it, and `pattern_ref_invalid`
+/// for a shared `pattern_ref` that names no entry of its list or loops.
+///
+/// [bannedRefIds] and [requiredRefIds] hold the ids the doc-type layers'
+/// `pattern_ref` entries name in each list.
 SharedSet mergeSharedEntries({
   required List<LoadedPack> ordered,
   required List<SharedLine> projectLines,
   required Map<String, Set<String>> docTypeIdsByPack,
   required Set<String> mergedDocTypeIds,
+  Set<String> bannedRefIds = const {},
+  Set<String> requiredRefIds = const {},
 }) {
   final extendsOf = extendsMapOf(ordered);
   for (final pack in ordered) {
@@ -153,11 +165,18 @@ SharedSet mergeSharedEntries({
   }
   _checkProjectReach(projectLines, mergedDocTypeIds);
   _checkNewFieldReach(ordered);
-  _checkNewPatternReach(ordered);
+  final sources = _checkNewPatternReach(ordered);
   final merge = _SharedMerge(extendsOf);
   ordered.forEach(merge.addPack);
   merge.addProjectLines(projectLines);
-  return merge.build();
+  final set = merge.build();
+  _checkSourcesNamed(
+    sources,
+    set,
+    banned: {...bannedRefIds, ...merge.refIds(SharedPatternKind.banned)},
+    required: {...requiredRefIds, ...merge.refIds(SharedPatternKind.required)},
+  );
+  return set;
 }
 
 /// Throws `missing_key` for the first complete new shared field, one no lower
@@ -181,13 +200,16 @@ void _checkNewFieldReach(List<LoadedPack> ordered) {
 }
 
 /// Throws `missing_key` for the first complete new shared pattern, one no
-/// lower pack holds in its list, that writes no `for_doc_types`, or, when
-/// required, no `sections`.
+/// lower pack holds in its list, that writes `sections` but no
+/// `for_doc_types`, or, when required, `for_doc_types` but no `sections`.
 ///
-/// Runs before the merge pass, as [_checkNewFieldReach] does.
-void _checkNewPatternReach(List<LoadedPack> ordered) {
+/// Runs before the merge pass, as [_checkNewFieldReach] does. Returns the
+/// complete new patterns that write neither reach key: each is a source only
+/// when a `pattern_ref` names it, which [_checkSourcesNamed] checks.
+List<SharedPattern> _checkNewPatternReach(List<LoadedPack> ordered) {
   final bannedIds = <String>{};
   final requiredIds = <String>{};
+  final sources = <SharedPattern>[];
   for (final pack in ordered) {
     for (final pattern in pack.manifest.shared.patterns) {
       final ids = switch (pattern.kind) {
@@ -197,16 +219,45 @@ void _checkNewPatternReach(List<LoadedPack> ordered) {
       if (pattern.disabled) {
         ids.remove(pattern.id);
       } else if (!ids.contains(pattern.id) && _isComplete(pattern)) {
-        final missing = _missingReachKey(pattern);
-        if (missing != null) throw _missingPatternReach(pattern, missing);
+        if (pattern.forDocTypes == null && pattern.sections == null) {
+          sources.add(pattern);
+        } else {
+          final missing = _missingReachKey(pattern);
+          if (missing != null) throw _missingPatternReach(pattern, missing);
+        }
         ids.add(pattern.id);
       }
     }
   }
+  return sources;
+}
+
+/// Throws `missing_key` at the `for_doc_types` of the first of [sources]
+/// that still reaches nothing and that no `pattern_ref` names.
+///
+/// [banned] and [required] hold the ids the refs name in each list.
+void _checkSourcesNamed(
+  List<SharedPattern> sources,
+  SharedSet set, {
+  required Set<String> banned,
+  required Set<String> required,
+}) {
+  for (final source in sources) {
+    final named = switch (source.kind) {
+      SharedPatternKind.banned => banned,
+      SharedPatternKind.required => required,
+    }.contains(source.id);
+    final merged = set.patterns.where(
+      (pattern) => pattern.kind == source.kind && pattern.id == source.id,
+    );
+    if (named || merged.isEmpty || !merged.single.isSourceOnly) continue;
+    throw _missingPatternReach(source, _forDocTypesKey);
+  }
 }
 
 bool _isComplete(SharedPattern pattern) =>
-    pattern.pattern != null && pattern.message != null;
+    (pattern.pattern != null || pattern.patternRef != null) &&
+    pattern.message != null;
 
 /// Returns the reach key a complete new [pattern] lacks, or null.
 String? _missingReachKey(SharedPattern pattern) {
@@ -322,9 +373,59 @@ final class _Declarer {
   final int index;
 }
 
+/// Where a shared pattern takes its regex from while layers merge.
+sealed class _Source {
+  const new();
+}
+
+/// A regex a layer wrote in a `pattern` key.
+final class _OwnSource extends _Source {
+  const new(this.regex);
+
+  final String regex;
+}
+
+/// A `pattern_ref` a layer wrote, at its [writer] entry.
+final class _RefSource extends _Source {
+  const new(this.ref, this.writer);
+
+  /// The id of the shared pattern whose regex the entry takes.
+  final String ref;
+
+  /// The entry that wrote the ref, where a fault names it.
+  final SharedPattern writer;
+}
+
+/// A shared pattern mid-merge, its regex still a ref when a layer wrote one.
+final class _PatternDraft {
+  const new({
+    required this.id,
+    required this.kind,
+    required this.source,
+    required this.message,
+    required this.scope,
+    required this.except,
+    required this.perSubsection,
+    required this.forDocTypes,
+    required this.sections,
+    required this.declaringPack,
+  });
+
+  final String id;
+  final SharedPatternKind kind;
+  final _Source source;
+  final String message;
+  final PatternScope scope;
+  final List<String> except;
+  final bool perSubsection;
+  final List<String> forDocTypes;
+  final List<String>? sections;
+  final String declaringPack;
+}
+
 /// The running merge of one shared pattern list, its own id space.
 final class _PatternList {
-  final merged = <String, MergedSharedPattern>{};
+  final merged = <String, _PatternDraft>{};
   final disabledIds = <String>{};
   final declarers = <String, List<_Declarer>>{};
 }
@@ -379,8 +480,8 @@ final class _SharedMerge {
     lines: List.unmodifiable(_lines.values),
     fields: List.unmodifiable(_fields.values),
     patterns: List.unmodifiable([
-      ..._bannedPatterns.merged.values,
-      ..._requiredPatterns.merged.values,
+      ..._resolved(_bannedPatterns),
+      ..._resolved(_requiredPatterns),
     ]),
     disabledLineIds: Set.unmodifiable(_disabledLineIds),
   );
@@ -509,17 +610,11 @@ final class _SharedMerge {
         list.disabledIds.add(pattern.id);
         return;
       }
-      list.merged[pattern.id] = MergedSharedPattern(
-        entry: _overlayPattern(held.entry, pattern),
-        kind: held.kind,
-        forDocTypes: _frozen(pattern.forDocTypes) ?? held.forDocTypes,
-        sections: _frozen(pattern.sections) ?? held.sections,
-        declaringPack: held.declaringPack,
-      );
+      list.merged[pattern.id] = _overlayPattern(held, pattern);
       return;
     }
     if (pattern.disabled && list.disabledIds.contains(pattern.id)) return;
-    final source = pattern.pattern;
+    final source = _sourceWritten(pattern);
     final message = pattern.message;
     if (pattern.disabled || source == null || message == null) {
       throw _notFound(
@@ -532,32 +627,144 @@ final class _SharedMerge {
       );
     }
     list.disabledIds.remove(pattern.id);
-    list.merged[pattern.id] = MergedSharedPattern(
-      entry: PatternEntry(
-        id: pattern.id,
-        pattern: source,
-        message: message,
-        scope: pattern.scope ?? PatternScope.text,
-        except: _frozen(pattern.except) ?? const [],
-        perSubsection: pattern.perSubsection ?? false,
-      ),
+    list.merged[pattern.id] = _PatternDraft(
+      id: pattern.id,
       kind: pattern.kind,
-      // `_checkNewPatternReach` refused a new pattern with no `for_doc_types`.
-      forDocTypes: List.unmodifiable(pattern.forDocTypes!),
+      source: source,
+      message: message,
+      scope: pattern.scope ?? PatternScope.text,
+      except: _frozen(pattern.except) ?? const [],
+      perSubsection: pattern.perSubsection ?? false,
+      // `_checkNewPatternReach` refused a new pattern writing `sections` or
+      // one `for_doc_types` key alone; no reach key makes a source.
+      forDocTypes: List.unmodifiable(pattern.forDocTypes ?? const []),
       sections: _frozen(pattern.sections),
       declaringPack: packName,
     );
   }
 
+  /// Returns the regex source [pattern] writes, or null when it writes none.
+  _Source? _sourceWritten(SharedPattern pattern) {
+    final regex = pattern.pattern;
+    if (regex != null) return _OwnSource(regex);
+    final ref = pattern.patternRef;
+    return ref == null ? null : _RefSource(ref, pattern);
+  }
+
   /// Returns [lower] with each key [upper] writes replacing the same one.
-  PatternEntry _overlayPattern(PatternEntry lower, SharedPattern upper) =>
-      PatternEntry(
+  _PatternDraft _overlayPattern(_PatternDraft lower, SharedPattern upper) =>
+      _PatternDraft(
         id: lower.id,
-        pattern: upper.pattern ?? lower.pattern,
+        kind: lower.kind,
+        source: _sourceWritten(upper) ?? lower.source,
         message: upper.message ?? lower.message,
         scope: upper.scope ?? lower.scope,
         except: _frozen(upper.except) ?? lower.except,
         perSubsection: upper.perSubsection ?? lower.perSubsection,
+        forDocTypes: _frozen(upper.forDocTypes) ?? lower.forDocTypes,
+        sections: _frozen(upper.sections) ?? lower.sections,
+        declaringPack: lower.declaringPack,
+      );
+
+  /// Returns the ids the `pattern_ref` of each merged pattern of [kind] names.
+  Set<String> refIds(SharedPatternKind kind) => {
+    for (final draft in _patternsOf(kind).merged.values)
+      if (draft.source case _RefSource(:final ref)) ref,
+  };
+
+  /// Returns the merged patterns of [list] with each `pattern_ref` resolved
+  /// to the regex of the entry it names, which resolves first.
+  ///
+  /// Throws `pattern_ref_invalid` at the `pattern_ref` of an entry that names
+  /// no merged entry of [list], or of the first entry of a ref cycle.
+  List<MergedSharedPattern> _resolved(_PatternList list) {
+    final regexes = <String, String>{};
+    return [
+      for (final draft in list.merged.values)
+        MergedSharedPattern(
+          entry: PatternEntry(
+            id: draft.id,
+            pattern: _regexOf(draft, list, const [], regexes),
+            message: draft.message,
+            scope: draft.scope,
+            except: draft.except,
+            perSubsection: draft.perSubsection,
+          ),
+          kind: draft.kind,
+          forDocTypes: draft.forDocTypes,
+          sections: draft.sections,
+          declaringPack: draft.declaringPack,
+        ),
+    ];
+  }
+
+  /// Returns the regex of [draft], following refs through [list].
+  ///
+  /// [via] holds the drafts being resolved above [draft]; [regexes] keeps
+  /// each resolved regex by id.
+  String _regexOf(
+    _PatternDraft draft,
+    _PatternList list,
+    List<_PatternDraft> via,
+    Map<String, String> regexes,
+  ) {
+    final known = regexes[draft.id];
+    if (known != null) return known;
+    final source = draft.source;
+    final regex = switch (source) {
+      _OwnSource(:final regex) => regex,
+      _RefSource() => _regexOfRef(draft, source, list, via, regexes),
+    };
+    return regexes[draft.id] = regex;
+  }
+
+  /// Returns the regex of the entry [source], written by [draft], names.
+  String _regexOfRef(
+    _PatternDraft draft,
+    _RefSource source,
+    _PatternList list,
+    List<_PatternDraft> via,
+    Map<String, String> regexes,
+  ) {
+    final target = list.merged[source.ref];
+    if (target == null) throw _refNamesNone(source.writer, source.ref);
+    final path = [...via, draft];
+    if (path.contains(target)) {
+      throw _refCycle(path.sublist(path.indexOf(target)), list);
+    }
+    return _regexOf(target, list, path, regexes);
+  }
+
+  TemplateFault _refNamesNone(SharedPattern writer, String ref) => _refInvalid(
+    writer,
+    'pattern_ref names no shared ${writer.kind.name} '
+    'pattern: $ref',
+  );
+
+  /// The fault at the `pattern_ref` of the entry of [cycle] that comes first
+  /// in [list].
+  TemplateFault _refCycle(List<_PatternDraft> cycle, _PatternList list) {
+    final order = list.merged.keys.toList();
+    final first = cycle.reduce(
+      (a, b) => order.indexOf(a.id) <= order.indexOf(b.id) ? a : b,
+    );
+    final writer = switch (first.source) {
+      _RefSource(:final writer) => writer,
+      _OwnSource() => throw StateError('an own pattern is no cycle member'),
+    };
+    return _refInvalid(
+      writer,
+      'pattern_ref loops back to ${first.id}: '
+      '${cycle.map((draft) => draft.id).join(', ')}',
+    );
+  }
+
+  TemplateFault _refInvalid(SharedPattern writer, String message) =>
+      TemplateFault(
+        FaultCode.patternRefInvalid,
+        message,
+        file: writer.file,
+        key: '${writer.kind.listKey}[${writer.index}].pattern_ref',
       );
 
   /// Throws `unknown_value` at [field]'s own entry for a pointer or root the

@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
-    show namesFileExactlyFrom;
+    show CodePathField, codePathFindingOf, codePathMessageOf;
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart'
+    show CodePathKind;
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/models/record_doc.dart';
@@ -57,28 +59,40 @@ Iterable<Finding> _resolve(
   String code,
   int line,
 ) sync* {
-  final entry = ImplementsEntry(code);
-  final path = entry.path;
-  if (!namesFileExactlyFrom(
-    context.exactPaths,
-    context.codeRootOf(target),
-    path,
-  )) {
+  final pointer = CodePointer(code);
+  final path = pointer.path;
+  final verdict = context.exactPaths.resolve(context.codeRootOf(target), path);
+  if (codePathFindingOf(CodePathField.implements, verdict) case final kind?) {
     yield context.finding(
       doc,
-      FindingKind.implementsPathUnresolved,
+      kind,
       line: line,
-      message: path.isEmpty ? 'the code path is empty' : '$path is no file',
-      keys: {'entry': code},
+      message: codePathMessageOf(CodePathField.implements, path, verdict),
+      keys: {
+        'entry': code,
+        if (verdict.kind == CodePathKind.wrongCase)
+          'diskPath': ?verdict.diskPath,
+      },
     );
     return;
   }
-  final symbol = entry.symbol;
-  if (symbol.isEmpty) return;
+  final symbol = pointer.tail;
+  if (symbol == null) return;
+  if (pointer.fault == CodePointerFault.emptyTail) {
+    yield context.finding(
+      doc,
+      FindingKind.implementsSymbolUnresolved,
+      line: line,
+      message: 'the Symbol after : is empty',
+      keys: {'entry': code, 'symbol': ''},
+    );
+    return;
+  }
   final root = context.codeRootOf(target);
-  final file = normalCodeEntry(path);
+  final diskPath = verdict.diskPath!;
+  final file = normalCodeEntry(diskPath);
   if (context.codeFiles.isResolved(root, file, code)) return;
-  final text = context.codeTextOf(target, path);
+  final text = context.codeTextOf(target, diskPath);
   if (text == null) return;
   final unresolved = unresolvedSymbolOf(code, text);
   if (unresolved == null) context.codeFiles.putResolved(root, file, code);

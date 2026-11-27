@@ -17,6 +17,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/pattern_findings.dart';
@@ -128,30 +129,27 @@ void main() {
   setUpAll(() async => set = await resolveSoftwareDesignSystem());
 
   group('manifest', () {
-    test(
-      'ships at 1.6.0, extends software-tech, and carries nineteen doc types',
-      () {
-        final bytes = shippedPackFiles['software-design-system/pack.yaml'];
-        expect(bytes, isNotNull);
-        final manifest = PackManifest.parse(
-          utf8.decode(bytes!),
-          file: 'packs/software-design-system/pack.yaml',
-        );
-        expect(manifest.name, 'software-design-system');
-        expect(manifest.version.toString(), '1.6.0');
-        expect(manifest.extendsPack, 'software-tech');
-        expect(
-          shippedPackFiles.keys.where(
-            (k) => k.startsWith('software-design-system/'),
-          ),
-          unorderedEquals([
-            'software-design-system/pack.yaml',
-            for (final id in softwareDesignSystemIds)
-              'software-design-system/$id.yaml',
-          ]),
-        );
-      },
-    );
+    test('ships at 1.7.0 over software-tech with its nineteen doc types', () {
+      final bytes = shippedPackFiles['software-design-system/pack.yaml'];
+      expect(bytes, isNotNull);
+      final manifest = PackManifest.parse(
+        utf8.decode(bytes!),
+        file: 'packs/software-design-system/pack.yaml',
+      );
+      expect(manifest.name, 'software-design-system');
+      expect(manifest.version.toString(), '1.7.0');
+      expect(manifest.extendsPack, 'software-tech');
+      expect(
+        shippedPackFiles.keys.where(
+          (k) => k.startsWith('software-design-system/'),
+        ),
+        unorderedEquals([
+          'software-design-system/pack.yaml',
+          for (final id in softwareDesignSystemIds)
+            'software-design-system/$id.yaml',
+        ]),
+      );
+    });
 
     test('ships one mark_retrim entry from 1.5.0 on every section of its nineteen doc types', () async {
       final migrations = _manifest().migrations;
@@ -160,7 +158,9 @@ void main() {
       expect(mark.docTypes, [...softwareDesignSystemIds]..sort());
       expect(mark.sections.toSet(), {
         for (final id in softwareDesignSystemIds)
-          for (final section in set.lookup(id)!.sections) section.id,
+          for (final section in set.lookup(id)!.sections)
+            // D7: source_of_truth is optional and new at 1.7.0, so no mark.
+            if (section.id != 'source_of_truth') section.id,
       });
 
       final versions = shippedPackVersions();
@@ -231,8 +231,10 @@ void main() {
       final patterns = _manifest().shared.patterns;
       expect(patterns.map((p) => (p.id, p.kind)), [
         ('token_value', SharedPatternKind.banned),
+        ('link_item', SharedPatternKind.banned),
       ]);
-      expect(patterns.single.forDocTypes, [
+      final tokenValue = patterns.singleWhere((p) => p.id == 'token_value');
+      expect(tokenValue.forDocTypes, [
         'color',
         'elevation',
         'motion',
@@ -240,7 +242,7 @@ void main() {
         'spacing',
         'typography',
       ]);
-      expect(patterns.single.sections, [
+      expect(tokenValue.sections, [
         'color_roles',
         'type_scale',
         'spacing_scale',
@@ -249,7 +251,38 @@ void main() {
         'durations',
         'easings',
       ]);
-      expect(patterns.single.scope, PatternScope.all);
+      expect(tokenValue.scope, PatternScope.all);
+    });
+
+    // D12.
+    test('reading_order and components_used take link_item by pattern_ref from one shared source that reaches no doc type', () {
+      final source = _manifest().shared.patterns.singleWhere(
+        (p) => p.id == 'link_item',
+      );
+      expect(source.pattern, isNotNull);
+      expect(source.patternRef, isNull);
+      expect(source.forDocTypes, isNull);
+      expect(source.sections, isNull);
+      for (final (docTypeId, sectionId) in [
+        ('guidelines', 'reading_order'),
+        ('ui_pattern', 'components_used'),
+      ]) {
+        final file = loadYaml(
+          utf8.decode(
+            shippedPackFiles['software-design-system/$docTypeId.yaml']!,
+          ),
+        ) as YamlMap;
+        final section = (file['sections'] as YamlList).singleWhere(
+          (s) => (s as YamlMap)['id'] == sectionId,
+        ) as YamlMap;
+        final entry =
+            ((section['lint'] as YamlMap)['banned_patterns'] as YamlList)
+                    .singleWhere((e) => (e as YamlMap)['id'] == 'link_item')
+                as YamlMap;
+        expect(entry['pattern_ref'], 'link_item', reason: docTypeId);
+        expect(entry.containsKey('pattern'), isFalse, reason: docTypeId);
+        expect(entry['message'], isNotNull, reason: docTypeId);
+      }
     });
 
     test('the pack writes no layer over a prd-core or software-tech doc '
@@ -336,10 +369,19 @@ void main() {
         'order, with its header the id in sentence case', () {
       for (final MapEntry(key: id, value: (_, sections))
           in _plainDocTypes.entries) {
-        expectSections(prdCoreDocType(set, id), [
-          for (final (sectionId, header) in sections)
-            SectionSpec(sectionId, header, required: true),
-        ]);
+        // D7: tokens also holds the optional source_of_truth section.
+        expect(
+          [
+            for (final s in prdCoreDocType(set, id).sections)
+              if (id != 'tokens' || s.required)
+                (s.id, s.header, s.prefixId, s.required),
+          ],
+          [
+            for (final (sectionId, header) in sections)
+              (sectionId, header, null, true),
+          ],
+          reason: id,
+        );
       }
       expect(
         sectionOf(prdCoreDocType(set, 'ui_pattern'), 'purpose').summary,
@@ -653,12 +695,28 @@ void main() {
       }
     });
 
-    test('tokens holds one required section, token_list, and no per-target '
-        'key', () {
+    test('tokens holds an optional source_of_truth section before its '
+        'required token_list', () {
       final tokens = prdCoreDocType(set, 'tokens');
-      expect(tokens.sections.map((s) => s.id), ['token_list']);
-      expect(tokens.sections.single.required, isTrue);
+      expect(tokens.sections.map((s) => s.id), [
+        'source_of_truth',
+        'token_list',
+      ]);
+      expect(tokens.sections.map((s) => s.required), [isFalse, isTrue]);
       expect(tokens.isPerTarget, isFalse);
+    });
+
+    test('the tokens and theme guides tell a cell to cite the source symbol '
+        'when source_of_truth is written', () {
+      final hexColor = RegExp(r'#[0-9a-fA-F]{3,8}\b');
+      const citeLine =
+          'in a code span, not the value; with none, write the value.';
+      for (final id in ['tokens', 'theme']) {
+        final guide = prdCoreDocType(set, id).renderGuide();
+        expect(guide, contains('Source of truth section'), reason: id);
+        expect(guide, contains(citeLine), reason: id);
+        expect(guide, isNot(contains(hexColor)), reason: id);
+      }
     });
 
     test('the new command writes a motion doc whose headers are Durations '

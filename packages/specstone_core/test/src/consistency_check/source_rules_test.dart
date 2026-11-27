@@ -65,25 +65,15 @@ void main() {
     expect(_sources(await checkOf(project)), isEmpty);
   });
 
-  test(
-    'a file or folder under the project root gives no finding, with or '
-    'without a trailing slash, a . or .. segment that stays inside',
-    () async {
-      final project = await _project(
-        [
-          'design/buttons.fig',
-          'design/kit/',
-          'design/kit',
-          'design/./kit/',
-          'design/other/../kit/',
-          '.',
-        ],
-        extra: {'design/buttons.fig': 'x', 'design/kit/a.fig': 'x'},
-      );
+  test('a file or folder under the project root gives no finding, with or '
+      'without a trailing slash, a . segment', () async {
+    final project = await _project(
+      ['design/buttons.fig', 'design/kit/', 'design/kit', 'design/./kit/', '.'],
+      extra: {'design/buttons.fig': 'x', 'design/kit/a.fig': 'x'},
+    );
 
-      expect(_sources(await checkOf(project)), isEmpty);
-    },
-  );
+    expect(_sources(await checkOf(project)), isEmpty);
+  });
 
   test('a path that names nothing is source_path_missing at its line, key '
       'entry as written', () async {
@@ -113,7 +103,6 @@ void main() {
       '/etc/hosts',
       'C:/kit.fig',
       '..',
-      r'..\kit.fig',
     ]);
     final sibling = File('${project.parent.path}/$outside')
       ..writeAsStringSync('x');
@@ -132,8 +121,43 @@ void main() {
       _at(project, _mockupDoc, 'source_path_outside_project', '/etc/hosts'),
       _at(project, _mockupDoc, 'source_path_outside_project', 'C:/kit.fig'),
       _at(project, _mockupDoc, 'source_path_outside_project', '..'),
-      _at(project, _mockupDoc, 'source_path_outside_project', r'..\kit.fig'),
     ]);
+  });
+
+  // D9: a design source matches a disk name in letter case exactly.
+  test(
+    'a design source in another letter case is source_path_missing',
+    () async {
+      final project = await _project(
+        ['Design/Buttons.fig'],
+        extra: {'design/buttons.fig': 'x'},
+      );
+
+      expect(_sources(await checkOf(project)), [
+        _at(project, _mockupDoc, 'source_path_missing', 'Design/Buttons.fig'),
+      ]);
+    },
+  );
+
+  // D9: a .. segment anywhere is outside, though it stays inside lexically.
+  test('a design source holding .. anywhere is source_path_outside_project '
+      'naming the segment', () async {
+    final project = await _project(
+      ['art/../kit.fig'],
+      extra: {'kit.fig': 'x', 'art/a.fig': 'x'},
+    );
+
+    final report = await checkOf(project);
+
+    expect(_sources(report), [
+      _at(project, _mockupDoc, 'source_path_outside_project', 'art/../kit.fig'),
+    ]);
+    expect(
+      report.findings
+          .singleWhere((f) => f.kind == FindingKind.sourcePathOutsideProject)
+          .message,
+      contains('..'),
+    );
   });
 
   test('a doc without the field gives no finding', () async {

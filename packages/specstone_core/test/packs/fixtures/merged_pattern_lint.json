@@ -632,6 +632,12 @@
   "fr": {
     "doc": {
       "banned": {
+        "exit_status": {
+          "id": "exit_status",
+          "pattern": "\\b[Ee]xit status(?: rows?\\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-?)?zero\\b))|\\b(?:[Nn]on-?)?[Zz]ero [Ee]xit status\\b|\\[[Ee]xit status\\]",
+          "message": "states an exit status; guide line: State no exit status",
+          "in": "all"
+        },
         "doc_citation": {
           "id": "doc_citation",
           "pattern": "DESIGN-[A-Z]|\\b[Rr]uling|\\bPlan [A-Z]\\.[0-9]|\\bM[0-9][0-9]*-T[0-9]+\\b|\\b[Mm]ilestone M?[0-9]+|\\bschema v[0-9]|docs/superpowers|\\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\\b",
@@ -678,12 +684,6 @@
             "id": "edge_case_arrow",
             "pattern": "^(?:\\d+\\.|[-*]) (?!.*→)",
             "message": "edge case has no →; guide line: E01 — <trigger> → <response>",
-            "in": "all"
-          },
-          "exit_status": {
-            "id": "exit_status",
-            "pattern": "\\b[Ee]xit status(?: rows?\\b|:? (?:(?:is|of|=) )?`?(?:[0-9]|(?:non-?)?zero\\b))|\\b(?:[Nn]on-?)?[Zz]ero [Ee]xit status\\b|\\[[Ee]xit status\\]",
-            "message": "edge case states an exit status; guide line: State no exit status",
             "in": "all"
           },
           "trace_outside_field": {
@@ -2013,6 +2013,10 @@
       "banned": {}
     },
     "sections": {
+      "source_of_truth": {
+        "banned": {},
+        "required": {}
+      },
       "token_list": {
         "banned": {},
         "required": {}

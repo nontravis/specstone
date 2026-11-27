@@ -96,17 +96,20 @@ LinkText textFreeLinkOf(LinkPlace place) => LinkText(
 /// [noLinks] for a body with no link syntax, which it never parses. Given
 /// [tree], the tree either `parseMarkdownTree` or `parseMarkdownTreeByBlock`
 /// gives [lfBody], the caller has passed that gate, so it is not run again.
+/// Given [linkSources], the [linkSourcesOf] of [lfBody] from [firstLine], the
+/// scan is not run again either.
 LinkPlaces? linkPlacesOf(
   String lfBody, {
   required String docPath,
   required int firstLine,
   MarkdownTree? tree,
+  List<LinkSource>? linkSources,
 }) {
   if (tree == null && !holdsLinkSyntax(lfBody)) return noLinks;
   final hrefs = _hrefsOf(lfBody, tree: tree);
   if (hrefs == null) return null;
   final placed = _placedHrefs(docPath, hrefs);
-  final sources = linkSourcesOf(lfBody, firstLine: firstLine);
+  final sources = linkSources ?? linkSourcesOf(lfBody, firstLine: firstLine);
   final agree = readersAgree(sources, hrefs);
   final located = agree
       ? [

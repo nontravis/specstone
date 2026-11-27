@@ -222,11 +222,13 @@ String? lineCommentMarkOf(String extension) => _commentMarks[extension];
 ///
 /// With [withMermaid], markdown also yields the tokens of its `mermaid`
 /// blocks, as [nameMentionsInMarkdown] does; a doc's reference readers set it,
-/// a code file's or a cite's reader does not.
+/// a code file's or a cite's reader does not. [parsed] is the [Doc.parse] of
+/// [lf] a caller already holds.
 List<NameMention> nameMentionsInFile(
   String lf,
   String extension, {
   bool withMermaid = false,
+  Doc? parsed,
 }) {
   final holdsTokens = withMermaid && lf.contains(mermaidInfoWord);
   if (!lf.contains('`') && !lf.contains(markdownExtension) && !holdsTokens) {
@@ -237,6 +239,7 @@ List<NameMention> nameMentionsInFile(
     extension,
     _namesAndPathsOnLine,
     onMermaidLine: withMermaid ? _tokenMentionsOnLine : _noMentions,
+    parsed: parsed,
   );
 }
 
@@ -333,6 +336,7 @@ List<NameMention> _readFile(
   String extension,
   Iterable<NameMention> Function(String line, int number) onLine, {
   _MermaidLineReader onMermaidLine = _noMentions,
+  Doc? parsed,
 }) {
   if (extension != markdownExtension) {
     final lines = lf.split('\n');
@@ -341,7 +345,7 @@ List<NameMention> _readFile(
         if (isCommentLine(lines[i], extension)) ...onLine(lines[i], i + 1),
     ];
   }
-  final body = Doc.parse(lf).afterFrontmatter;
+  final body = (parsed ?? Doc.parse(lf)).afterFrontmatter;
   final bodyStart = _breaksIn(lf.substring(0, lf.length - body.length));
   return _readLines(
     body.split('\n'),

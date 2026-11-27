@@ -14,11 +14,14 @@ import 'package:sqlite3/sqlite3.dart';
 /// index's `code_files` table.
 ///
 /// A file's facts are trusted only while its stat key, as the refresh reads
-/// it, matches the stored one and the file opens. A file whose mtime lies
-/// within the racy window before the run began is never stored: the run began
-/// before it read any code file, so a file edited during the run has an mtime
-/// past that start and an edit in the same mtime tick as a stored stat key
-/// cannot slip by. A file that cannot be statted is never stored or trusted.
+/// it, matches the stored one. A permission change moves the key's `ctime`
+/// and `mode`, so a file made unreadable is read again.
+///
+/// A file whose mtime lies within the racy window before the run began is
+/// never stored: the run began before it read any code file, so a file edited
+/// during the run has an mtime past that start and an edit in the same mtime
+/// tick as a stored stat key cannot slip by. A file that cannot be statted is
+/// never stored or trusted.
 final class CodeFileCache {
   /// Reads every stored row of [store], once.
   ///
@@ -31,7 +34,6 @@ final class CodeFileCache {
   final Map<CodeFileKey, CodeFileFacts> _facts;
   final int _startedAt;
   final Map<CodeFileKey, FileStatKey?> _stats = {};
-  final Map<CodeFileKey, bool> _opens = {};
   final Set<CodeFileKey> _changed = {};
 
   /// Returns the fingerprint stored for [path] under [root], or null when the
@@ -119,23 +121,12 @@ final class CodeFileCache {
   FileStatKey? _statOf(CodeFileKey key) =>
       _stats.putIfAbsent(key, () => statKeyOf(File('${key.root}/${key.path}')));
 
-  /// Whether the file at [key] opens, checked once per run; a file that was
-  /// readable when stored may be unreadable under an unchanged stat key.
-  bool _canOpen(CodeFileKey key) => _opens.putIfAbsent(key, () {
-    try {
-      File('${key.root}/${key.path}').openSync().closeSync();
-      return true;
-    } on FileSystemException {
-      return false;
-    }
-  });
-
   CodeFileFacts? _trusted(Directory root, String path) {
     final key = _key(root, path);
     final stat = _statOf(key);
     final facts = _facts[key];
     if (stat == null || facts == null || facts.stat != stat) return null;
-    return _canOpen(key) ? facts : null;
+    return facts;
   }
 
   /// The facts of [key] to add to: the trusted ones, or fresh ones when the

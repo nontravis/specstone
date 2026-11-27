@@ -1,7 +1,9 @@
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show isEmptyCodeEntry, normalCodeEntry;
+    show isEmptyCodeEntry, isOutsideCodeEntry, normalCodeEntry;
+import 'package:specstone_core/src/models/path_tail.dart';
+import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One entry of a code-link field: a pointer, then optionally a fingerprint.
@@ -30,6 +32,46 @@ extension type const CodeLinkEntry(String text) {
   }
 }
 
+/// Why a [CodePointer] names nothing a reader can resolve.
+enum CodePointerFault {
+  /// The text before the first `:` is empty.
+  emptyPath('an empty path before ":"'),
+
+  /// A `:` is written and nothing follows it.
+  emptyTail('an empty symbol after ":"');
+
+  new(this.description);
+
+  /// What a refusal says the pointer holds.
+  final String description;
+}
+
+/// A code pointer `path[:tail]`, split at its first `:`.
+///
+/// The tail keeps its own colons and spaces. The check rules and the sync
+/// writer read a pointer through this one value; a [fault] is theirs to report
+/// or to refuse.
+final class CodePointer {
+  new(String text) : _split = splitPathTail(text);
+
+  final PathTail _split;
+
+  /// The text before the first `:`, or all of the pointer.
+  String get path => _split.path;
+
+  /// The text after the first `:`; null when the pointer has no `:`.
+  String? get tail => _split.tail;
+
+  /// The first thing wrong with the pointer; null when it holds none.
+  CodePointerFault? get fault {
+    if (path.isEmpty) return CodePointerFault.emptyPath;
+    return tail == '' ? CodePointerFault.emptyTail : null;
+  }
+
+  /// The pointer as written: [path], and with a [tail], `:` and the tail.
+  String get text => tail == null ? path : '$path:$tail';
+}
+
 /// Returns the entry text that records [fingerprint] after [pointer].
 String codeLinkEntryOf(String pointer, String fingerprint) =>
     '$pointer $fingerprint';
@@ -56,13 +98,16 @@ bool readsFromProjectRoot(MergedField field) =>
     field.root == PointerRoot.project;
 
 /// Returns the path [entry] names, in `normalCodeEntry`'s form; null when it
-/// is empty, so it names no path of its own.
+/// is empty, so it names no path of its own, or holds a `..`, so it leaves
+/// the root.
 ///
 /// The one reader of a `covers` entry as a path: coverage, `context --code`,
-/// and the topic scope rule take it, so an empty entry reaches nothing in any.
+/// and the topic scope rule take it, so such an entry reaches nothing in any.
 String? reachablePathOf(String entry) {
   final pointer = CodeLinkEntry(entry).pointer;
-  return isEmptyCodeEntry(pointer) ? null : normalCodeEntry(pointer);
+  return isEmptyCodeEntry(pointer) || isOutsideCodeEntry(pointer)
+      ? null
+      : normalCodeEntry(pointer);
 }
 
 /// Whether [entry] equals [path] or names a folder that holds it.

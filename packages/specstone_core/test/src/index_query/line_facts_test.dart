@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
@@ -716,11 +717,12 @@ void main() {
         MermaidBlock(fenceLine: 3, hash: 'aa'),
         MermaidBlock(fenceLine: 9, hash: 'bb'),
       ];
+      final parse = DocParse.of('# T\n');
       final facts = lineFactsOf(
-        lfText: '# T\n',
+        parse: parse,
+        counted: parse,
         countedText: '# T\n',
         docPath: 'doc.md',
-        doc: Doc.parse('# T\n'),
         sectionCounts: const [],
         frontmatterErrorLine: null,
         bodyTbrMarkers: const [],
@@ -745,7 +747,7 @@ void main() {
 
     test('structureOf stores no block', () {
       const text = '# T\n\n```mermaid\npie\n```\n';
-      final facts = lineStructureOf(lfText: text, doc: Doc.parse(text));
+      final facts = lineStructureOf(DocParse.of(text));
 
       expect(facts.mermaidBlocks, isEmpty);
     });
@@ -785,11 +787,12 @@ void main() {
     test('lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
       const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
+      const counted = 'one\ntwo\n\nthree\n';
       final facts = lineFactsOf(
-        lfText: disk,
-        countedText: 'one\ntwo\n\nthree\n',
+        parse: DocParse.of(disk),
+        counted: DocParse.of(counted),
+        countedText: counted,
         docPath: 'doc.md',
-        doc: Doc.parse(disk),
         sectionCounts: const [
           SectionCounts(lines: 3, chars: 9),
           SectionCounts(lines: 2, chars: 4),

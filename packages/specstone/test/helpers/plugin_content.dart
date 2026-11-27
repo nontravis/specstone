@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:args/command_runner.dart';
 import 'package:markdown/markdown.dart';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
@@ -39,7 +40,8 @@ final _relativeMarkdownPath = RegExp(
   r'^(?:\.\.|\.|references|\.agents|\.claude|specstone-[\w-]+)(?:/[\w.-]+)+\.md$',
 );
 
-/// Host tool names no English word spells, so a bare prose match is one.
+/// Host tool names whose exact capitalized spelling skill prose never uses for
+/// an English word, so a case-sensitive bare prose match is one.
 const _bareHostToolNames = [
   'Grep',
   'Glob',
@@ -288,7 +290,7 @@ List<String> checkCallsWithoutSavedFile(List<ContentFile> files) => [
 /// Host-tied text is a `${CLAUDE_` variable, a `.claude/skills/` path in a file
 /// outside `.claude/`, an inline code span that is a host's tool name
 /// ([_quotedHostToolNames]) or opens with one and `(`, or a bare whole word of
-/// prose that is a tool name no English word spells ([_bareHostToolNames]),
+/// prose spelled as one of [_bareHostToolNames], case-sensitive,
 /// code spans and blocks left out. Frontmatter is never read.
 List<String> hostTiedText(List<ContentFile> files) {
   final problems = <String>{};
@@ -426,7 +428,7 @@ Set<String> shippedDocTypes() {
 /// The doc types outside `prd-core` that the shipped packs define, plus the
 /// retired ones, each with its path file name.
 final class PackDocTypes {
-  new(this.fileNameById);
+  new(this.fileNameById, {this.typesBySectionKey = const {}});
 
   /// Reads the types from the packs the binary carries.
   factory shipped() => PackDocTypes.fromPackFiles(shippedPackFiles);
@@ -438,6 +440,8 @@ final class PackDocTypes {
   factory fromPackFiles(Map<String, Uint8List> packFiles) {
     final foreign = <String, String?>{..._retiredDocTypes};
     final core = <String>{};
+    final coreKeys = <String>{};
+    final typesByKey = <String, Set<String>>{};
     for (final entry in packFiles.entries) {
       final segments = entry.key.split('/');
       if (segments.length != _packFileSegments ||
@@ -448,20 +452,33 @@ final class PackDocTypes {
       final node = loadYaml(utf8.decode(entry.value));
       if (node is! YamlMap || node['id'] is! String) continue;
       final id = node['id'] as String;
+      final keys = _sectionKeysOf(node['sections']);
       if (segments.first == _corePackName) {
         core.add(id);
+        coreKeys.addAll(keys);
       } else {
         foreign[id] = _fileNameOf(node['path']) ?? foreign[id];
+        for (final key in keys) {
+          typesByKey.putIfAbsent(key, () => {}).add(id);
+        }
       }
     }
     return PackDocTypes(
       Map.of(foreign)..removeWhere((id, _) => core.contains(id)),
+      typesBySectionKey: {
+        for (final MapEntry(:key, :value) in typesByKey.entries)
+          if (!coreKeys.contains(key)) key: (value.toList()..sort()),
+      },
     );
   }
 
   /// Each type id with the file name of its path, null when the path holds
   /// `{nn}` or `{slug}` or the type has none.
   final Map<String, String?> fileNameById;
+
+  /// Each section key a non-`prd-core` type defines and no `prd-core` type
+  /// defines, with those type ids sorted.
+  final Map<String, List<String>> typesBySectionKey;
 }
 
 const _corePackName = 'prd-core';
@@ -480,6 +497,13 @@ const _retiredDocTypes = <String, String?>{
   'topic': null,
 };
 
+Iterable<String> _sectionKeysOf(Object? sections) => [
+  if (sections is YamlList)
+    for (final section in sections)
+      if (section is YamlMap && section['id'] is String)
+        section['id'] as String,
+];
+
 String? _fileNameOf(Object? path) {
   if (path is! String) return null;
   final name = path.split('/').last;
@@ -489,10 +513,16 @@ String? _fileNameOf(Object? path) {
 /// Returns one `<file>: <type>` problem per doc type outside `prd-core` that a
 /// `.md` or `.toml` file of [files] names, sorted.
 ///
-/// A type is named by a `<type>:<name>` address or by its path file name with
-/// the `.md` extension, such as `ARCHITECTURE.md`. A bare id, a file stem, and
-/// prose are words other packs share, so inspection judges them.
-List<String> packDocTypeNames(List<ContentFile> files, PackDocTypes types) {
+/// A type is named by a `<type>:<name>` address, by its path file name with
+/// the `.md` extension, such as `ARCHITECTURE.md`, or by a code span that is
+/// its id or a section key only such types define. A span in [cliWords] passes.
+/// Prose and fenced code are words other packs share, so inspection judges
+/// them.
+List<String> packDocTypeNames(
+  List<ContentFile> files,
+  PackDocTypes types, {
+  required Set<String> cliWords,
+}) {
   final ids = types.fileNameById.keys.toList()..sort();
   if (ids.isEmpty) return const [];
   final idByFileName = <String, String>{};
@@ -516,8 +546,31 @@ List<String> packDocTypeNames(List<ContentFile> files, PackDocTypes types) {
     for (final match in fileName?.allMatches(text) ?? const <RegExpMatch>[]) {
       problems.add('${file.path}: ${idByFileName[match.group(1)]}');
     }
+    for (final span in _inlineSpans(text)) {
+      if (cliWords.contains(span)) continue;
+      if (types.fileNameById.containsKey(span)) {
+        problems.add('${file.path}: $span');
+      } else if (types.typesBySectionKey[span] case final owners?) {
+        problems.add('${file.path}: $span of ${owners.join(', ')}');
+      }
+    }
   }
   return problems.toList()..sort();
+}
+
+/// Returns every command name and option name of every command of [runner],
+/// subcommands included, with no `--`.
+Set<String> cliWordsOf(SpecstoneCommandRunner runner) {
+  final words = <String>{};
+  void collect(Command<int> command) {
+    words
+      ..add(command.name)
+      ..addAll(command.argParser.options.keys);
+    command.subcommands.values.forEach(collect);
+  }
+
+  runner.commands.values.forEach(collect);
+  return words;
 }
 
 /// Returns one problem per inline code span in a `.md` or `.toml` file of

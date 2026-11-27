@@ -1,13 +1,16 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/code_rules.dart'
+    show CodePathField, codePathMessageOf, readPathOf;
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/models/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
 /// Returns the test pointer findings of a record [doc]; any other doc has
@@ -49,21 +52,40 @@ Iterable<Finding> _resolve(
   String code,
   int line,
 ) sync* {
-  final entry = ImplementsEntry(code);
-  final path = entry.path;
-  if (!entry.namesFileFrom(context.codeRootOf(target))) {
+  final pointer = CodePointer(code);
+  final path = pointer.path;
+  final verdict = context.exactPaths.resolve(context.codeRootOf(target), path);
+  if (verdict.kind != CodePathKind.file) {
     yield context.finding(
       doc,
       FindingKind.testsUnresolved,
       line: line,
-      message: path.isEmpty ? 'the test path is empty' : '$path is no file',
+      message: _unresolvedMessageOf(path, verdict),
+      keys: {
+        'entry': code,
+        if (verdict.kind == CodePathKind.wrongCase)
+          'diskPath': ?verdict.diskPath,
+      },
+    );
+    return;
+  }
+  final name = pointer.tail;
+  if (name == null) return;
+  if (pointer.fault == CodePointerFault.emptyTail) {
+    yield context.finding(
+      doc,
+      FindingKind.testsUnresolved,
+      line: line,
+      message: 'the test name after : is empty',
       keys: {'entry': code},
     );
     return;
   }
-  final name = entry.testName;
-  if (name == null || name.isEmpty) return;
-  final text = testFileTextOf(context, target, path);
+  final text = testFileTextOf(
+    context,
+    target,
+    readPathOf(path, verdict.diskPath!),
+  );
   if (text == null || text.contains(name)) return;
   yield context.finding(
     doc,
@@ -73,6 +95,16 @@ Iterable<Finding> _resolve(
     keys: {'entry': code, 'test': name},
   );
 }
+
+String _unresolvedMessageOf(String path, CodePathVerdict verdict) =>
+    switch (verdict.kind) {
+      CodePathKind.parentSegment || CodePathKind.wrongCase => codePathMessageOf(
+        CodePathField.implements,
+        path,
+        verdict,
+      ),
+      _ => path.isEmpty ? 'the test path is empty' : '$path is no file',
+    };
 
 /// Returns the text of the test file at [path] under [target]'s code root, or
 /// null when it cannot be read.

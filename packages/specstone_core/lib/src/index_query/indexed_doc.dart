@@ -9,6 +9,7 @@ import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/bare_item_ids.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
@@ -164,7 +165,8 @@ ParsedDoc parseIndexedDoc({
   final warnings = <String>[];
   final _Decoded(:text, :isUtf8) = _decode(bytes, docPath, warnings);
   final lfText = toLf(text);
-  final doc = Doc.parse(lfText);
+  final parse = DocParse.of(lfText);
+  final doc = parse.doc;
   final (:docType, :target) = switch (match) {
     MatchedDocType(:final docType, :final target) => (
       docType: docType,
@@ -188,7 +190,9 @@ ParsedDoc parseIndexedDoc({
     for (final section in doc.sections) _sectionOf(section, templates),
   ];
   final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
-  final counted = laid is Formatted ? laid.doc : doc;
+  final counted = laid is Formatted && laid.text != lfText
+      ? DocParse.parsed(laid.text, laid.doc)
+      : parse;
   final matrixLines = docType == null
       ? const <MatrixLine>[]
       : matrixLinesOfDoc(doc, lfText, docType);
@@ -200,12 +204,12 @@ ParsedDoc parseIndexedDoc({
           skipLines: testRowLinesOf(matrixLines),
         );
   final lineFacts = lineFactsOf(
-    lfText: lfText,
+    parse: parse,
+    counted: counted,
     countedText: docType == null
-        ? counted.text
-        : withoutMatrixSection(counted, docType),
+        ? counted.doc.text
+        : withoutMatrixSection(counted.doc, docType),
     docPath: docPath,
-    doc: doc,
     sectionCounts: _countsOf(sections, laid, templates),
     frontmatterErrorLine: yaml?.errorLine,
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
@@ -240,8 +244,8 @@ ParsedDoc parseIndexedDoc({
       ),
     ),
     readItemFacts: () => itemFactsOf(
-      doc: doc,
-      lfText: lfText,
+      parse: parse,
+      counted: counted,
       lineFacts: lineFacts,
       laid: laid is Formatted ? laid : null,
       type: docType,
@@ -287,8 +291,9 @@ ParsedDoc parseIndexedDoc({
 /// links, banned matches, or section counts (see [lineStructureOf]). Its
 /// item facts count [lfText] as it is, with no layout.
 DocContent docStructureOf(String lfText, MergedDocType? docType) {
-  final doc = Doc.parse(lfText);
-  final lineFacts = lineStructureOf(lfText: lfText, doc: doc);
+  final parse = DocParse.of(lfText);
+  final doc = parse.doc;
+  final lineFacts = lineStructureOf(parse);
   return DocContent(
     readText: () => lfText,
     frontmatterText: doc.frontmatter == null
@@ -300,8 +305,8 @@ DocContent docStructureOf(String lfText, MergedDocType? docType) {
     lineFacts: lineFacts,
     readBannedMatches: () => const [],
     readItemFacts: () => itemFactsOf(
-      doc: doc,
-      lfText: lfText,
+      parse: parse,
+      counted: parse,
       lineFacts: lineFacts,
       laid: null,
       type: docType,

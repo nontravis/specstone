@@ -18,8 +18,7 @@ sections:
     lint:
       banned_patterns:
         - id: link_item
-          # A list item that does not open with a link; a wrapped, blank, table, or header line is no item.
-          pattern: '^(?:[-*+]|\d+[.)]) (?!\[)'
+          pattern_ref: link_item
           message: 'list item does not open with a markdown link; guide line: List each component the pattern uses, one markdown link each.'
           in: all
   - id: composition

@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ownerTargetOf;
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart'
+    show ExactCasePaths;
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -103,7 +105,11 @@ ReadAnswer answerStamp(WriteSession session, StampRequest request) {
       session.index.typeOf(doc) ??
       (throw StateError('${doc.docPath} is typed but its type is gone'));
   final address = session.index.addressOf(doc);
-  final code = CodeJudge(session, ownerTargetOf(doc, session.project.targets));
+  final code = CodeJudge(
+    session,
+    ownerTargetOf(doc, session.project.targets),
+    ExactCasePaths(),
+  );
   final stamped = {for (final pair in request.stamps) pair.entry}.toList();
   return session.locked(() {
     final locked = readLocked(session, doc, MatchedDocType(docType));

@@ -6,7 +6,7 @@ import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
+    show CodeEntryListing, isOutsideCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show isPortableCodeEntry;
@@ -16,7 +16,6 @@ const syncBaseWalkLimit = 50;
 
 const _separator = '/';
 const _dotName = '.';
-const _parentSegment = '..';
 const _gitDir = '.git';
 const _literalPathspecs = '--literal-pathspecs';
 const _symlinkMode = '120000';
@@ -42,8 +41,7 @@ final class SyncDiffBase {
     required this.repo,
     required this.repoPath,
     this.isWorkingTree = false,
-    this.isFolder = false,
-    this.nestedRoots = const [],
+    this.folder,
   });
 
   /// The newest commit whose content gives the link's recorded fingerprint.
@@ -60,13 +58,29 @@ final class SyncDiffBase {
   /// its diff is empty.
   final bool isWorkingTree;
 
-  /// Whether the code is a folder, whose diff keeps only the files its
-  /// listing keeps.
-  final bool isFolder;
+  /// The listing of a folder's code, whose diff keeps only the files it
+  /// keeps; null for a file.
+  final FolderListing? folder;
 
-  /// The paths from [repo] of the code roots nested in a folder's code, which
-  /// its listing leaves out.
-  final List<String> nestedRoots;
+  /// Whether the code is a folder.
+  bool get isFolder => folder != null;
+}
+
+/// The files a folder link's listing keeps, judged from its code root by
+/// [CodeEntryListing], for paths git gives from the repository's top.
+final class FolderListing {
+  new(this.place, this.listing);
+
+  /// Where the repository lies from [listing]'s code root.
+  final CodePlace place;
+  final CodeEntryListing listing;
+
+  /// Whether the listing keeps the file at [repoPath], a path from [place]'s
+  /// top.
+  bool keepsRepoPath(String repoPath) {
+    final path = place.rootPathOf(repoPath);
+    return path != null && listing.keeps(path);
+  }
 }
 
 // MARK: - Repositories
@@ -280,11 +294,7 @@ final class SyncDiffBases {
                 commit: commit,
                 repo: Directory(code.place.top),
                 repoPath: code.repoPath,
-                isFolder: true,
-                nestedRoots: [
-                  for (final root in nestedRoots)
-                    ?code.place.repoPathOf(normalCodeEntry(root)),
-                ],
+                folder: code.folderListing(nestedRoots),
               );
       }
       final version = history.fileBaseOf(code, recorded);
@@ -301,10 +311,10 @@ final class SyncDiffBases {
 
   /// Returns where [link]'s code lies; null when the walk reads none of it.
   _Code? _codeOf(CodeLink link) {
-    final entry = normalCodeEntry(link.path);
+    final entry = normalCodeEntry(link.readPath);
     if (entry.isEmpty ||
         !isPortableCodeEntry(entry) ||
-        entry.startsWith(_parentSegment) ||
+        isOutsideCodeEntry(entry) ||
         !link.root.existsSync()) {
       return null;
     }
@@ -312,6 +322,7 @@ final class SyncDiffBases {
     final repoPath = place?.repoPathOf(entry);
     if (place == null || repoPath == null) return null;
     return _Code(
+      root: link.root,
       place: place,
       entry: entry,
       repoPath: repoPath,
@@ -343,20 +354,29 @@ final class SyncDiffBases {
 /// Where one code link's code lies.
 final class _Code {
   const new({
+    required this.root,
     required this.place,
     required this.entry,
     required this.repoPath,
     required this.isFile,
   });
 
+  final Directory root;
   final CodePlace place;
 
-  /// The path from the code root.
+  /// The path from [root].
   final String entry;
 
   /// The path from [place]'s top.
   final String repoPath;
   final bool isFile;
+
+  /// Returns the listing of the folder at [entry], leaving out the code roots
+  /// of [nestedRoots], paths from [root].
+  FolderListing folderListing(List<String> nestedRoots) => FolderListing(
+    place,
+    CodeEntryListing(root, entry, skipFolders: nestedRoots),
+  );
 }
 
 /// One version of a file in its history: a commit that changed it and the
@@ -457,9 +477,10 @@ final class _RepoHistory {
       _pathspecOf(code.repoPath),
     ]);
     if (result.exitCode != 0) return null;
+    final listing = code.folderListing(nestedRoots);
     for (final commit in gitStdoutText(result.stdout).split('\n')) {
       if (commit.isEmpty) continue;
-      if (_folderFingerprintAt(commit, code, nestedRoots) == recorded) {
+      if (_folderFingerprintAt(commit, code, listing) == recorded) {
         return commit;
       }
     }
@@ -469,7 +490,7 @@ final class _RepoHistory {
   String? _folderFingerprintAt(
     String commit,
     _Code code,
-    List<String> nestedRoots,
+    FolderListing listing,
   ) {
     final result = _run([
       'ls-tree',
@@ -485,7 +506,7 @@ final class _RepoHistory {
       final listed = _listedBlobOf(field);
       if (listed == null) continue;
       final path = code.place.rootPathOf(listed.repoPath);
-      if (path == null || !_isListed(path, code.entry, nestedRoots)) continue;
+      if (path == null || !listing.listing.keeps(path)) continue;
       final fingerprint = _fingerprintOf(listed.blob, listed.repoPath, path);
       if (fingerprint == null) return null;
       files.add(FileFingerprint(path: path, fingerprint: fingerprint));
@@ -704,13 +725,14 @@ List<List<String>> _chunked(Set<String> paths) {
 String diffSince(SyncDiffBase base, {RunGit git = runRealGitBytes}) {
   if (base.isWorkingTree) return '';
   final whole = [_pathspecOf(base.repoPath)];
-  if (!base.isFolder) return _diffText(base, const [], whole, git);
+  final folder = base.folder;
+  if (folder == null) return _diffText(base, const [], whole, git);
   final changed = _nulFields(
     _diffText(base, const ['--name-only', '--no-renames', '-z'], whole, git),
   );
   final listed = {
     for (final path in changed)
-      if (_isListed(path, base.repoPath, base.nestedRoots)) path,
+      if (folder.keepsRepoPath(path)) path,
   };
   if (listed.isEmpty) return '';
   if (listed.length == changed.length) {
@@ -766,7 +788,7 @@ List<String> untrackedUnder(
   List<String> nestedRoots = const [],
 }) {
   final entry = normalCodeEntry(prefix);
-  if (entry.startsWith(_parentSegment)) return const [];
+  if (isOutsideCodeEntry(entry)) return const [];
   final folder = _existingFolderOf(root, entry);
   final below = folder.isEmpty
       ? entry
@@ -784,37 +806,14 @@ List<String> untrackedUnder(
     if (reason.contains(_notARepository)) return const [];
     throw ProcessException('git', ['ls-files'], reason, result.exitCode);
   }
+  final listing = CodeEntryListing(root, entry, skipFolders: nestedRoots);
   return [
     for (final listed in _nulFields(gitStdoutText(result.stdout)))
       if (_join(folder, listed) case final path
-          when _isListed(path, entry, nestedRoots) &&
+          when listing.keeps(path) &&
               !FileSystemEntity.isLinkSync(_join(root.path, path)))
         path,
   ]..sort(compareCodePoints);
-}
-
-/// Whether [path], from the code root, is a file the listing of the entry
-/// [entry] keeps: under it, no name below it starting with a dot, and in no
-/// folder of [nestedRoots].
-bool _isListed(String path, String entry, List<String> nestedRoots) {
-  final below = _belowEntry(path, entry);
-  if (below == null) return false;
-  if (below.split(_separator).any((name) => name.startsWith(_dotName))) {
-    return false;
-  }
-  return !nestedRoots.any(
-    (folder) => path == folder || path.startsWith('$folder$_separator'),
-  );
-}
-
-/// Returns [path] below [entry]; empty when it is [entry], null when it lies
-/// outside it.
-String? _belowEntry(String path, String entry) {
-  if (entry.isEmpty) return path;
-  if (path == entry) return '';
-  return path.startsWith('$entry$_separator')
-      ? path.substring(entry.length + 1)
-      : null;
 }
 
 List<String> _nulFields(String text) => [

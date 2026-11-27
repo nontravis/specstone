@@ -4011,6 +4011,52 @@ void main() {
         );
       }
     });
+    test('printedDocRunesOf equals the runes of the doc entries the split design answer prints, the matrix part of a record and an ancestor spec piece included', () async {
+      const frFile =
+          'docs/prds/features/f02_signup/us01_create_account/fr01_store_account.md';
+      const targets = ['login', 'signup/create_account'];
+      final i = await indexWith({
+        recordFile: record('$validateRow$lockRow$resetRow'),
+        frFile:
+            '---\nverify_method: test\n---\n\n# Store the account\n\n'
+            '## Statement\nThe system shall use '
+            '[the components](../../../../specs/f02_signup/ARCHITECTURE.md#components).\n',
+      });
+      final bundle = pickBundle(
+        i,
+        targets,
+        BundleMode.design,
+        noProject: false,
+        picksWorkUnits: true,
+      );
+      final answer = answerContext(i, bundle, targets: targets, split: true);
+      final texts = [answer.readFirst, ?answer.refs];
+      final printed = <String, int>{};
+      for (final text in texts) {
+        final lines = text.text.split('\n');
+        for (final entry in text.entries) {
+          if (entry.kind != BundleEntryKind.doc) continue;
+          final block = lines.sublist(entry.first - 1, entry.last).join('\n');
+          printed.update(
+            entry.doc.docPath,
+            (sum) => sum + runeCountOf(block),
+            ifAbsent: () => runeCountOf(block),
+          );
+        }
+      }
+
+      expect([
+        for (final text in texts)
+          for (final entry in text.entries)
+            if (entry.kind == BundleEntryKind.cited) entry.doc.docPath,
+      ], contains('specs/f02_signup/ARCHITECTURE.md'));
+      expect([
+        for (final text in texts)
+          for (final entry in text.entries)
+            if (entry.doc.docPath.endsWith('IMPLEMENTATION.md')) entry.kind,
+      ], hasLength(2));
+      expect(printedDocRunesOf(i, bundle), printed);
+    });
     test('the token size counts the trimmed matrix', () async {
       final kept = await bundleOf(
         '$validateRow$lockRow',

@@ -12,8 +12,10 @@ dependencies:
   crypto: ^3.0.8
   markdown: ^7.3.1
   sqlite3: ^3.9.1
+  unorm_dart: ^0.3.3
   yaml: ^3.1.4
 
 dev_dependencies:
   coverage: ^1.16.0
+  specstone_test_support:
   test: ^1.33.0

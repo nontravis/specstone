@@ -7,6 +7,7 @@ environment:
 workspace:
   - packages/specstone_core
   - packages/specstone
+  - packages/specstone_test_support
 
 dependencies:
   specstone_core:

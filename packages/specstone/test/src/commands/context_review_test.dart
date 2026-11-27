@@ -142,8 +142,10 @@ void main() {
         '- crud (feature pattern) · N-M',
       ],
     );
-    final refsHeader = headerPattern.firstMatch(lines.last)!;
-    expect(lines, hasLength(10));
+    final refsHeader = headerPattern.firstMatch(lines[9])!;
+    expect(lines, hasLength(12));
+    expect(lines[10], lines.first);
+    expect(lines.last, lines[1]);
     expect(refsHeader.group(4), endsWith(_bundleEnd(_refsName)));
     expect(_bundleFile(root, _readFirstName).existsSync(), isTrue);
     expect(_bundleFile(root, _refsName).existsSync(), isTrue);

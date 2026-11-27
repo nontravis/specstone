@@ -26,7 +26,7 @@ sections:
     lint:
       banned_patterns:
         - id: history
-          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          pattern_ref: history
           message: history prose; state the present truth only
           in: text
   - id: method
@@ -39,7 +39,7 @@ sections:
     lint:
       banned_patterns:
         - id: history
-          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          pattern_ref: history
           message: history prose; state the present truth only
           in: text
         - id: method_numbered
@@ -59,7 +59,7 @@ sections:
     lint:
       banned_patterns:
         - id: history
-          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          pattern_ref: history
           message: history prose; state the present truth only
           in: text
   - id: results
@@ -84,7 +84,7 @@ sections:
     lint:
       banned_patterns:
         - id: history
-          pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone)|[Aa]s before (?:[A-Z][\w-]* )?v?\d+\.\d+)\b'
+          pattern_ref: history
           message: history prose; state the present truth only
           in: text
 lint:

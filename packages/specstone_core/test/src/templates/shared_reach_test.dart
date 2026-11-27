@@ -866,4 +866,220 @@ lint:
       );
     });
   });
+
+  group('a pattern_ref reuses a shared pattern', () {
+    const nontPack = '''
+name: nont-prd
+version: 1.0.0
+extends: prd-core
+''';
+    const nontFeature = '''
+id: feature
+description: Describes one feature.
+path: features/{slug}.md
+sections:
+  - id: goal
+    header: Goal
+''';
+
+    // D12.
+    test('a section or doc pattern_ref takes the shared pattern with its own message, in, and except', () async {
+      final set = await _resolvePatterns(
+        {
+          'feature.yaml': '''
+sections:
+  - id: goal
+    lint:
+      banned_patterns:
+        - id: no_tbd_here
+          pattern_ref: no_tbd
+          message: m
+          in: code
+          except: [TBD-1]
+lint:
+  banned_patterns:
+    add:
+      - id: no_tbd_doc
+        pattern_ref: no_tbd
+        message: m
+''',
+        },
+        personal: ['nont-prd'],
+        home: {
+          '.specstone/packs/nont-prd/pack.yaml':
+              '''
+${nontPack}shared_banned_patterns:
+  - id: no_tbd
+    pattern: TBD|TODO
+    message: Settle it.
+    for_doc_types: [feature]
+''',
+          '.specstone/packs/nont-prd/feature.yaml': nontFeature,
+        },
+      );
+
+      final feature = _type(set, 'feature');
+      final inSection = _section(feature, 'goal').bannedPatterns!.single;
+      expect(inSection.id, 'no_tbd_here');
+      expect(inSection.pattern, 'TBD|TODO');
+      expect(inSection.message, 'm');
+      expect(inSection.scope, PatternScope.code);
+      expect(inSection.except, ['TBD-1']);
+      final inDoc = _docPattern(feature, 'no_tbd_doc');
+      expect(inDoc.pattern, 'TBD|TODO');
+      expect(inDoc.message, 'm');
+      expect(inDoc.scope, PatternScope.text);
+      expect(_docPattern(feature, 'no_tbd').message, 'Settle it.');
+    });
+
+    // D12.
+    test('an entry holding pattern and pattern_ref, or a ref naming no shared entry of its kind, is pattern_ref_invalid', () async {
+      const file = '.specstone/templates/fr.yaml';
+      for (final (written, key) in [
+        (
+          'sections:\n  - id: cases\n    lint:\n      banned_patterns:\n'
+              '        - id: x\n          pattern: a\n'
+              '          pattern_ref: history\n          message: m\n',
+          'sections.cases.lint.banned_patterns[0].pattern_ref',
+        ),
+        (
+          'lint:\n  banned_patterns:\n    add:\n      - id: x\n'
+              '        pattern_ref: nope\n        message: m\n',
+          'lint.banned_patterns.add[0].pattern_ref',
+        ),
+        (
+          'lint:\n  banned_patterns:\n    add:\n      - id: x\n'
+              '        pattern_ref: then_line\n        message: m\n',
+          'lint.banned_patterns.add[0].pattern_ref',
+        ),
+      ]) {
+        await expectLater(
+          _resolvePatterns({'fr.yaml': written}),
+          throwsA(_faultAt(FaultCode.patternRefInvalid, file, key)),
+          reason: key,
+        );
+      }
+    });
+
+    // D12.
+    test('a shared pattern with no reach keys lends its regex to a pattern_ref and joins no doc type, and one no ref names is missing_key', () async {
+      final home = {
+        '.specstone/packs/nont-prd/pack.yaml':
+            '''
+${nontPack}shared_banned_patterns:
+  - id: src
+    pattern: TBD
+    message: Source.
+''',
+      };
+
+      final set = await _resolvePatterns(
+        {
+          'fr.yaml': '''
+sections:
+  - id: cases
+    lint:
+      banned_patterns:
+        - id: tbd_fr
+          pattern_ref: src
+          message: Fr message.
+''',
+          'nf.yaml': '''
+sections:
+  - id: statement
+    lint:
+      banned_patterns:
+        add:
+          - id: tbd_nf
+            pattern_ref: src
+            message: Nf message.
+''',
+        },
+        personal: ['nont-prd'],
+        home: home,
+      );
+
+      final inFr = _section(_type(set, 'fr'), 'cases').bannedPatterns!.single;
+      expect(inFr.pattern, 'TBD');
+      expect(inFr.message, 'Fr message.');
+      final inNf = _section(
+        _type(set, 'nf'),
+        'statement',
+      ).bannedPatterns!.singleWhere((entry) => entry.id == 'tbd_nf');
+      expect(inNf.pattern, 'TBD');
+      expect(inNf.message, 'Nf message.');
+      for (final type in set.docTypes) {
+        expect(_patternIds(type.lint.bannedPatterns), isNot(contains('src')));
+        for (final section in type.sections) {
+          expect(_patternIds(section.bannedPatterns), isNot(contains('src')));
+        }
+      }
+      await expectLater(
+        _resolvePatterns({}, personal: ['nont-prd'], home: home),
+        throwsA(
+          _faultAt(
+            FaultCode.missingKey,
+            '~/.specstone/packs/nont-prd/pack.yaml',
+            'shared_banned_patterns[0].for_doc_types',
+          ),
+        ),
+      );
+    });
+
+    // D12.
+    test('a shared pattern_ref takes another shared pattern, its own sections kept, and a ref cycle is pattern_ref_invalid', () async {
+      final set = await _resolvePatterns(
+        {},
+        personal: ['nont-prd'],
+        home: {
+          '.specstone/packs/nont-prd/pack.yaml':
+              '''
+${nontPack}shared_banned_patterns:
+  - id: src
+    pattern: TBD
+    message: Source.
+  - id: reuse
+    pattern_ref: src
+    message: Reused.
+    for_doc_types: [fr]
+    sections: [cases]
+''',
+        },
+      );
+
+      final reused = _section(_type(set, 'fr'), 'cases').bannedPatterns!.single;
+      expect(reused.id, 'reuse');
+      expect(reused.pattern, 'TBD');
+      expect(reused.message, 'Reused.');
+      expect(_patternIds(_type(set, 'nf').lint.bannedPatterns), ['history']);
+
+      await expectLater(
+        _resolvePatterns(
+          {},
+          personal: ['nont-prd'],
+          home: {
+            '.specstone/packs/nont-prd/pack.yaml':
+                '''
+${nontPack}shared_banned_patterns:
+  - id: first
+    pattern_ref: second
+    message: m
+    for_doc_types: [fr]
+  - id: second
+    pattern_ref: first
+    message: m
+    for_doc_types: [fr]
+''',
+          },
+        ),
+        throwsA(
+          _faultAt(
+            FaultCode.patternRefInvalid,
+            '~/.specstone/packs/nont-prd/pack.yaml',
+            'shared_banned_patterns[0].pattern_ref',
+          ),
+        ),
+      );
+    });
+  });
 }

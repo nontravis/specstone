@@ -190,7 +190,6 @@ final class _Walk {
   final _printedRanges = <String, List<LineRange>>{};
   final _queue = <_Printed>[];
   final _parts = <AppendedPart>[];
-  final _views = <String, _DocView>{};
 
   /// Queues [doc], which the bundle prints whole or, when [summary], in
   /// summary.
@@ -226,11 +225,8 @@ final class _Walk {
     return _parts;
   }
 
-  _DocView _viewOf(IndexedDoc doc) => _views[doc.docPath] ??= _DocView(
-    doc,
-    index.contentOf(doc),
-    index.typeOf(doc),
-  );
+  _DocView _viewOf(IndexedDoc doc) => (_viewsOf[index] ??= {})[doc.docPath] ??=
+      _DocView(doc, index.contentOf(doc), index.typeOf(doc));
 
   void _queuePrinted(_DocView view, List<LineRange> ranges) {
     _recordPrinted(view, ranges);
@@ -603,6 +599,11 @@ final class _Walk {
 }
 
 // MARK: - Doc view
+
+/// The view of each doc by index and DocPath, built on first use: an index is
+/// one read snapshot, so every walk of one run reads a doc's link columns and
+/// section extents once. A run ends with its index.
+final _viewsOf = Expando<Map<String, _DocView>>();
 
 /// One doc as the walk reads it: its stored content, its held sections as
 /// [classifyLink] reads them, and its links in line order.

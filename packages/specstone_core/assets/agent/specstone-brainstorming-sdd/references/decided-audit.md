@@ -4,13 +4,15 @@ fix; ask the Owner nothing.
 ## Decided audit
 
 `job: decided-audit` takes the change note whose decided lines, its `D<n> (decided): <text>` decisions, the drafts
-carry; each sync engineer report of a plan's last sync; and the drafts, their draft lists joined. It reads the drafts
+carry; the decided engineer's report of a plan's last sync; and the drafts, their draft lists joined. It reads the drafts
 of a Decided change once its work is built, in 1 pass, and reports only `Contradiction`, `Stale reader`, and
 `Not carried` items. Run no `check`, no `check --repeats`, and no lens walk; no fix loop and no re-review follow it.
 
-1. **Hashes and ground**: run steps 1 and 2 of `audit.md`'s **Builder check** on the drafts, a check of drafts.
-2. **Read**: the change note's decided lines, each sync engineer report's `Decision:`, `Not landed:`, and `Readers:`
-   lines, and the review read-first file by its read plan. Besides step 1's calls and step 4's one `grep -n -E` over
+1. **Hashes and ground**: run steps 1 and 2 of `audit.md`'s **Builder check** on the drafts, a check of drafts; its ground
+   call names each draft and each doc a `Decision:` line names as carrying.
+2. **Read**: the change note's decided lines, the decided engineer report's `Decision:`, `Not landed:`, and
+   `Readers:` lines, each carrying section a `Decision:` line names in the read-first file, and the rest of the
+   review read-first file by its read plan. Besides step 1's calls and step 4's one `grep -n -E` over
    the refs file, run no other doc read, `search`, `refs`, or `context` call.
 3. **Judge**: report each point of these three labels of `audit.md`'s **Judge** step.
    - `Contradiction`: two docs contradict once the drafts land, a decided line or a draft that works against any

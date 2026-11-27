@@ -53,6 +53,22 @@ Map<String, String> get _noCodeRoots => {
       '- snake_case file names\n',
 };
 
+/// A config that lists [prefix] as a number label prefix.
+String _prefixConfig(String prefix) =>
+    '${shippedPinsConfig()}number_label_prefixes: [$prefix]\n';
+
+/// Sets the mtime of each code file of [project] an hour back, so none lies in
+/// the racy window and the cache stores it.
+void _ageCodeFiles(Directory project) {
+  final then = DateTime.now().subtract(const Duration(hours: 1));
+  final prefix = '${project.path}/';
+  for (final file in project.listSync(recursive: true).whereType<File>()) {
+    final path = file.path.substring(prefix.length);
+    if (path.startsWith('docs/') || path.startsWith('.specstone/')) continue;
+    file.setLastModifiedSync(then);
+  }
+}
+
 void main() {
   group('docNamesInCode', () {
     test('a file an implements entry, a code link, and the scan all read is '
@@ -94,6 +110,24 @@ void main() {
       expect(finding.toJson()['path'], 'app/lib/auth.dart');
       expect(finding.toJson().containsKey('name'), isFalse);
     });
+
+    // D14
+    test(
+      'a comment naming a doc in an ignored file gives no finding',
+      () async {
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {
+              '.gitignore': 'app/lib/gen/\n*.g.dart\n',
+              'app/lib/gen/a.dart': '// Implements `$_fr`.\n',
+              'app/lib/b.g.dart': '// Implements `$_fr`.\n',
+              'app/lib/auth.dart': '// Implements `$_fr`.\n',
+            },
+          ),
+        );
+        expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
+      },
+    );
 
     test('a path read from the docs root or the project root names a doc, '
         'one read from the own folder names none', () async {
@@ -463,6 +497,96 @@ void main() {
       final report = await checkOf(project);
       expect(_cited(report), isEmpty);
       expect(report.warnings, isEmpty);
+    });
+
+    // D8
+    test('a comment line holding a number label gives doc_cited_in_code at '
+        'its line', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': _prefixConfig('NFR-'),
+            'app/lib/a.dart': '// see FR-03\n// see NFR-01\n',
+          },
+        ),
+      );
+      expect(_cited(report), [
+        'app/lib/a.dart:1 FR-03',
+        'app/lib/a.dart:2 NFR-01',
+      ]);
+    });
+
+    // D8
+    test('a number label in a string literal, an end-of-line comment, a '
+        'markdown code span, or an unlisted prefix gives nothing', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': _prefixConfig('NFR-'),
+            'app/lib/a.dart':
+                "const cite = '// see FR-03';\n"
+                'final n = 1; // see FR-04\n'
+                '// see QA-01\n',
+            'app/lib/notes.md': 'See `FR-05` and `NFR-02`.\n',
+          },
+        ),
+      );
+      expect(_cited(report), isEmpty);
+    });
+
+    // D8
+    test('a cached file is read again once its stored label takes a listed '
+        'prefix', () async {
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': _prefixConfig('NFR-'),
+          'app/lib/a.dart': '// see QA-01\n',
+        },
+      );
+      _ageCodeFiles(project);
+      expect(_cited(await checkOf(project)), isEmpty);
+
+      File('${project.path}/.specstone/config.yaml')
+          .writeAsStringSync(_prefixConfig('QA-'));
+
+      expect(_cited(await checkOf(project)), ['app/lib/a.dart:1 QA-01']);
+    });
+
+    // D8
+    test('a markdown code file with frontmatter gives a number label in its '
+        'prose at its exact file line', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {'app/lib/guide.md': '---\ntitle: Guide\n---\n\nSee FR-03.\n'},
+        ),
+      );
+      expect(_cited(report), ['app/lib/guide.md:5 FR-03']);
+    });
+
+    // D8
+    test('a number label in a fenced block, a mermaid block included, gives '
+        'nothing', () async {
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            'app/lib/README.md':
+                '```mermaid\nflowchart LR\n  A[FR-01 login]\n```\n\n'
+                '```text\nFR-02\n```\n',
+          },
+        ),
+      );
+      expect(_cited(report), isEmpty);
+    });
+
+    // D8
+    test('a cached file holding a built-in number label gives its finding on '
+        'the first and the second run', () async {
+      final project = await writeCheckProject(
+        extra: {'app/lib/a.dart': '// see FR-03\n'},
+      );
+      _ageCodeFiles(project);
+      expect(_cited(await checkOf(project)), ['app/lib/a.dart:1 FR-03']);
+      expect(_cited(await checkOf(project)), ['app/lib/a.dart:1 FR-03']);
     });
   });
 

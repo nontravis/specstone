@@ -1,8 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
-import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show holdsLinkSyntax, parseMarkdownTreeByBlock;
+    show holdsLinkSyntax;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/models/doc_anchors.dart';
@@ -16,6 +15,7 @@ import 'package:specstone_core/src/doc_model/number_label.dart'
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/bare_item_id.dart';
 import 'package:specstone_core/src/index_query/models/cite_candidate.dart';
@@ -74,24 +74,25 @@ List<String> lfLinesOf(String lfText) {
   return lines;
 }
 
-/// Computes the facts of [lfText], its [doc] at [docPath], and the
-/// [sectionCounts] of each section of [doc].
+/// Computes the facts of [parse], the file at [docPath], and the
+/// [sectionCounts] of each section of its doc.
 ///
-/// [lfText] is the file text with LF line ends; every line number comes from
-/// it, while `lineCount` and `charCount` measure [countedText].
-/// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
-/// frontmatter. [bodyTbrMarkers] are the TBR markers of the body, by 0-based
-/// body line; [citeCandidates], [bareItemIds], and [mermaidBlocks] are those
-/// of a typed doc, none for an untyped one. A body whose parse fails has no
-/// links and an unknown anchor set; [markdownUnparsedWarning] joins
+/// [parse] is of the file text with LF line ends; every line number comes
+/// from it, while `lineCount` and `charCount` measure [countedText], and
+/// `approvalMarkChars` comes from [counted], the parse whose frontmatter
+/// [countedText] holds. [frontmatterErrorLine] is `FrontmatterYaml.errorLine`
+/// of its frontmatter. [bodyTbrMarkers] are the TBR markers of the body, by
+/// 0-based body line; [citeCandidates], [bareItemIds], and [mermaidBlocks] are
+/// those of a typed doc, none for an untyped one. A body whose parse fails has
+/// no links and an unknown anchor set; [markdownUnparsedWarning] joins
 /// [warnings] only when the body holds link syntax, as at base — a body with
 /// no link syntax is never parsed for links, so it never warns.
 /// [linkWarningOf] gives the warning.
 LineFacts lineFactsOf({
-  required String lfText,
+  required DocParse parse,
+  required DocParse counted,
   required String countedText,
   required String docPath,
-  required Doc doc,
   required List<SectionCounts> sectionCounts,
   required int? frontmatterErrorLine,
   required List<TbrMarkerLine> bodyTbrMarkers,
@@ -100,13 +101,14 @@ LineFacts lineFactsOf({
   required List<MermaidBlock> mermaidBlocks,
   required List<String> warnings,
 }) {
-  final bodyStart = linesBeforeBodyOf(doc, lfText);
+  final doc = parse.doc;
+  final bodyStart = parse.bodyFirstLine - 1;
   final whole = scanText(countedText);
   final body = doc.afterFrontmatter;
   // One parse per doc, failed or not, shared by the anchors and the links:
   // the inline pass runs only on the blocks that can hold either. A body
   // with no link syntax is never read for links, so it never warns.
-  final tree = parseMarkdownTreeByBlock(body);
+  final tree = parse.tree;
   final links = !holdsLinkSyntax(body)
       ? noLinks
       : tree == null
@@ -114,15 +116,16 @@ LineFacts lineFactsOf({
       : linkPlacesOf(
           body,
           docPath: docPath,
-          firstLine: bodyStart + 1,
+          firstLine: parse.bodyFirstLine,
           tree: tree,
+          linkSources: parse.linkSources,
         );
   if (linkWarningOf(docPath, links) case final warning?) {
     warnings.add(warning);
   }
   final anchors = tree == null ? null : anchorsOf(tree.nodes);
   final fenced = _fencedRanges(doc.afterFrontmatter, bodyStart);
-  final labels = labelLinesInMarkdown(body);
+  final labels = labelLinesInMarkdown(body, blocks: parse.lineBlocks);
   return LineFacts(
     links: links?.docLinks ?? const [],
     fileLinks: links?.fileLinks ?? const [],
@@ -157,19 +160,20 @@ LineFacts lineFactsOf({
     fenced: fenced,
     lineCount: _lineCount(countedText, fromLine: bodyStart + 1),
     charCount: countedText.length - whole.pairs,
-    approvalMarkChars: _approvalMarkCharsOf(countedText, whole.pairs),
+    approvalMarkChars: counted.approvalMarkChars,
     frontmatterErrorLine: frontmatterErrorLine,
   );
 }
 
-/// Computes the section lines and fenced lines of [lfText], whose [doc] is
-/// parsed, for a reader of item IDs and blocks that reads nothing else.
+/// Computes the section lines and fenced lines of [parse], for a reader of
+/// item IDs and blocks that reads nothing else.
 ///
 /// No markdown parse runs: links are empty, anchors unknown, and section
 /// counts empty, so only `sectionLines`, `fenced`, and the counts of lines
 /// and characters hold.
-LineFacts lineStructureOf({required String lfText, required Doc doc}) {
-  final bodyStart = linesBeforeBodyOf(doc, lfText);
+LineFacts lineStructureOf(DocParse parse) {
+  final DocParse(:lfText, :doc) = parse;
+  final bodyStart = parse.bodyFirstLine - 1;
   final whole = scanText(lfText);
   return LineFacts(
     links: const [],
@@ -191,7 +195,7 @@ LineFacts lineStructureOf({required String lfText, required Doc doc}) {
     fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
     lineCount: _lineCount(lfText, fromLine: bodyStart + 1),
     charCount: lfText.length - whole.pairs,
-    approvalMarkChars: _approvalMarkCharsOf(lfText, whole.pairs),
+    approvalMarkChars: parse.approvalMarkChars,
     frontmatterErrorLine: null,
   );
 }
@@ -261,21 +265,6 @@ LineFacts lineFactsFromJson(
     approvalMarkChars: json['approval_mark_chars']! as int,
     frontmatterErrorLine: json['yaml_error'] as int?,
   );
-}
-
-/// Returns the code points [text] holds in its `draft` and `approved` key
-/// blocks; [textPairs] is `scanText(text).pairs`.
-///
-/// Skips the two reparses when neither key name occurs, since no block can
-/// then hold either.
-int _approvalMarkCharsOf(String text, int textPairs) {
-  if (!text.contains('draft') && !text.contains('approved')) return 0;
-  final bare = withKeyBlock(
-    withKeyBlock(text, 'draft', null),
-    'approved',
-    null,
-  );
-  return (text.length - textPairs) - (bare.length - scanText(bare).pairs);
 }
 
 /// Returns the mentions of [body], whose lines start at file line

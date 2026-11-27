@@ -159,6 +159,53 @@ void main() {
     );
   });
 
+  // D18
+  test('the ci core suite runs one leg per CORE_SHARDS shard', () {
+    final shards = int.parse('${(ci['env'] as YamlMap)['CORE_SHARDS']}');
+    final legs =
+        (((_job(ci, 'test')['strategy'] as YamlMap)['matrix'] as YamlMap)['leg']
+                as YamlList)
+            .where((leg) => (leg as YamlMap)['suite'] == 'core');
+    expect(
+      legs.map((leg) => (leg as YamlMap)['shard']),
+      List.generate(shards, (i) => i),
+    );
+    final coreSteps = _steps(_job(ci, 'test'))
+        .where((s) => '${s['if']}'.contains("matrix.leg.suite == 'core'"));
+    final coreTests = coreSteps.where((s) => s.containsKey('run')).toList();
+    expect(coreTests, hasLength(2));
+    for (final s in coreTests) {
+      final run = '${s['run']}';
+      expect(run, contains(r'--total-shards=${{ env.CORE_SHARDS }}'));
+      expect(run, contains(r'--shard-index=${{ matrix.leg.shard }}'));
+    }
+    final upload = coreSteps.singleWhere(
+      (s) => '${s['uses']}'.startsWith('actions/upload-'),
+    );
+    final name = '${(upload['with'] as YamlMap)['name']}';
+    expect(name, startsWith('core-coverage-shard-'));
+    expect(name, contains('matrix.leg.shard'));
+    expect(
+      '${(upload['with'] as YamlMap)['path']}',
+      endsWith('/coverage.json'),
+    );
+  });
+
+  // D18
+  test('the core-coverage job merges every core shard against the floor', () {
+    final job = _job(ci, 'core-coverage');
+    expect(job['needs'], 'test');
+    final download = _steps(job)
+        .singleWhere((s) => '${s['uses']}'.startsWith('actions/download-'));
+    expect((download['with'] as YamlMap)['pattern'], 'core-coverage-shard-*');
+    final check = _run(job, 'Check the merged core coverage');
+    final countLine = check
+        .split('\n')
+        .singleWhere((line) => line.contains('coverage.json'));
+    expect(countLine, contains(r'-eq ${{ env.CORE_SHARDS }}'));
+    expect(check, contains('--fail-under=80'));
+  });
+
   test('the timing gate runs in its own job on the three runners', () {
     final timing = _job(ci, 'timing');
     final matrix = (timing['strategy'] as YamlMap)['matrix'] as YamlMap;

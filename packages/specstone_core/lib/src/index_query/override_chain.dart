@@ -3,6 +3,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/models/cited_section.dart';
+import 'package:specstone_core/src/index_query/models/line_facts.dart';
 import 'package:specstone_core/src/index_query/models/link_cite.dart';
 import 'package:specstone_core/src/index_query/models/link_text.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -88,8 +89,11 @@ int overrideTextStart(String raw) {
 }
 
 /// Returns the link of [content] that opens at [column] of [line], or null.
-LinkText? overrideLinkAt(DocContent content, int line, int column) => content
-    .lineFacts
+LinkText? overrideLinkAt(DocContent content, int line, int column) =>
+    overrideLinkIn(content.lineFacts, line, column);
+
+/// Returns the link of [facts] that opens at [column] of [line], or null.
+LinkText? overrideLinkIn(LineFacts facts, int line, int column) => facts
     .linkTexts
     .where((link) => link.line == line && link.column == column)
     .firstOrNull;
@@ -121,14 +125,52 @@ final class OverrideLinkRead {
 OverrideLinkRead? readOverrideLink(DocIndex index, LinkText link) {
   final target = index.at(link.target);
   if (target == null) return null;
-  final content = index.contentOf(target);
+  final read = readOverrideLinkIn(
+    link,
+    facts: index.contentOf(target).lineFacts,
+    content: index.contentOf(target),
+    type: index.typeOf(target),
+  );
+  return OverrideLinkRead(
+    target: target,
+    cite: read.cite,
+    anchorTarget: read.anchorTarget,
+    sections: read.sections,
+  );
+}
+
+/// What an override line's link names in the content of the doc it reaches.
+final class OverrideCiteRead {
+  const new({
+    required this.cite,
+    required this.anchorTarget,
+    required this.sections,
+  });
+
+  /// How the link reads against the doc.
+  final LinkCite cite;
+
+  /// The part of the doc the link's anchor names; null for no anchor.
+  final AnchorTarget? anchorTarget;
+
+  /// The held sections of the doc, as [classifyLink] reads them.
+  final List<CitedSection> sections;
+}
+
+/// Reads [link], the first link of an override line, against the [content] of
+/// the doc of [type] it reaches, whose anchors [facts] holds.
+OverrideCiteRead readOverrideLinkIn(
+  LinkText link, {
+  required LineFacts facts,
+  required DocContent content,
+  required MergedDocType? type,
+}) {
   final anchor = link.anchor;
   final anchorTarget = anchor == null || anchor.isEmpty
       ? null
-      : anchorTargetOf(content.lineFacts, anchor);
-  final sections = citedSectionsOf(content, index.typeOf(target));
-  return OverrideLinkRead(
-    target: target,
+      : anchorTargetOf(facts, anchor);
+  final sections = citedSectionsOf(content, type);
+  return OverrideCiteRead(
     cite: classifyLink(
       link,
       target: anchorTarget,

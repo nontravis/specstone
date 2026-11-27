@@ -12,6 +12,7 @@ import 'package:specstone_core/src/shipped_generators.dart'
     show shippedGenerators;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -702,13 +703,16 @@ void main() {
           ...codexFiles,
           '.specstone/config.yaml':
               '${shippedPinsConfig(shippedPinsDefaultPacks, listed)}'
-              'agent_files_version: 99.0.0\n',
+              'agent_files_version: ${versionAbove(specstoneVersion)}\n',
         },
       );
 
       expect(
         found.single.message,
-        _newer('the codex_agents agent files are not offered yet', '99.0.0'),
+        _newer(
+          'the codex_agents agent files are not offered yet',
+          versionAbove(specstoneVersion),
+        ),
       );
     });
   });
@@ -940,14 +944,17 @@ void main() {
         'AGENTS.md': staleBlock,
         codexToml: 'hand edit\n',
         settingsFilePath: '{}',
-      }, version: '99.0.0');
+      }, version: versionAbove(specstoneVersion));
 
       expect(
         {for (final f in found) f.path: f.message},
         {
-          'AGENTS.md': _newer(blockLead, '99.0.0'),
-          codexToml: _newer(skillLead, '99.0.0'),
-          settingsFilePath: _newer(settingsLead, '99.0.0'),
+          'AGENTS.md': _newer(blockLead, versionAbove(specstoneVersion)),
+          codexToml: _newer(skillLead, versionAbove(specstoneVersion)),
+          settingsFilePath: _newer(
+            settingsLead,
+            versionAbove(specstoneVersion),
+          ),
         },
       );
       expect(found.map((f) => f.waitsFor), everyElement(WaitsFor.owner));
@@ -958,18 +965,18 @@ void main() {
         settingsFilePath: null,
         _agentMd: null,
         'CLAUDE.md': 'x\n${_imports()}',
-      }, version: '99.0.0');
+      }, version: versionAbove(specstoneVersion));
 
       expect(
         {for (final f in missing) f.path: f.message},
         {
           settingsFilePath: _newer(
             '.claude/settings.json is missing',
-            '99.0.0',
+            versionAbove(specstoneVersion),
           ),
           'CLAUDE.md': _newer(
             'the block imports $_agentMd, which is missing',
-            '99.0.0',
+            versionAbove(specstoneVersion),
           ),
         },
       );
@@ -978,7 +985,7 @@ void main() {
     test('the hand-fix messages keep their text and wait for the '
         'Agent', () async {
       for (final version in <String?>[
-        '99.0.0',
+        versionAbove(specstoneVersion),
         null,
         '0.0.1',
         specstoneVersion,
@@ -1003,7 +1010,10 @@ void main() {
 
     test('a stamp above the running Version over matching files has no '
         'finding', () async {
-      expect(await findingsOf({}, version: '99.0.0'), isEmpty);
+      expect(
+        await findingsOf({}, version: versionAbove(specstoneVersion)),
+        isEmpty,
+      );
     });
   });
 }

@@ -762,7 +762,7 @@ void main() {
         final lines = const LineSplitter().convert(index);
         expect(lines[0], startsWith('==> bundle: 2 docs, 7 tokens, 4 lines'));
         expect(lines[1], 'read whole, in 1 read: lines 1-4');
-        expect('read whole'.allMatches(index), hasLength(1));
+        expect('read whole'.allMatches(index), hasLength(2));
       }
       final refsHeader = bundleIndex(
         _splitOf(2, 2, mode: BundleMode.design),
@@ -780,21 +780,73 @@ void main() {
     });
     test('an index past the line bound lists docs only and keeps the read plan line', () {
       final kept = bundleIndex(
-        _splitOf(198, 1, mode: BundleMode.implement),
+        _splitOf(196, 1, mode: BundleMode.implement),
         '/p/b.txt',
         refsPath: '/p/b.refs.txt',
       );
       expect(const LineSplitter().convert(kept), hasLength(201));
-      expect(kept, contains('- d197 (fr) · 395-395 · statement 395\n'));
+      expect(kept, contains('- d195 (fr) · 391-391 · statement 391\n'));
       final dropped = bundleIndex(
-        _splitOf(199, 1, mode: BundleMode.implement),
+        _splitOf(197, 1, mode: BundleMode.implement),
         '/p/b.txt',
         refsPath: '/p/b.refs.txt',
       );
       final lines = const LineSplitter().convert(dropped);
-      expect(lines[1], 'read whole, in 1 read: lines 1-398');
+      expect(lines[1], 'read whole, in 1 read: lines 1-394');
       expect(dropped, isNot(contains('statement')));
-      expect(lines, contains('- d198 (fr) · 397-397'));
+      expect(lines, contains('- d196 (fr) · 393-393'));
+    });
+    // D3
+    test('the last two index lines repeat the read-first header and the read plan line in implement, design, and review', () {
+      for (final mode in [
+        BundleMode.implement,
+        BundleMode.design,
+        BundleMode.review,
+      ]) {
+        final lines = const LineSplitter().convert(
+          bundleIndex(
+            _splitOf(2, 2, mode: mode),
+            '/p/b.txt',
+            refsPath: '/p/b.refs.txt',
+          ),
+        );
+        expect(lines[0], startsWith('==> bundle: 2 docs, 7 tokens, 4 lines'));
+        expect(lines[lines.length - 2], lines[0], reason: mode.wire);
+        expect(lines.last, lines[1], reason: mode.wire);
+        expect(lines[1], startsWith('read whole'), reason: mode.wire);
+      }
+    });
+    // D3
+    test('an index at the 200-line cap before the repeated pair drops its sections and still ends with that pair', () {
+      final answer = _splitOf(198, 1, mode: BundleMode.implement);
+      final counted = countedBundleIndex(
+        answer,
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(const LineSplitter().convert(counted), hasLength(202));
+      expect(fitsIndexBound(counted), isFalse);
+      final lines = const LineSplitter().convert(
+        bundleIndex(answer, '/p/b.txt', refsPath: '/p/b.refs.txt'),
+      );
+      expect(lines, contains('- d197 (fr) · 395-395'));
+      expect(lines.join('\n'), isNot(contains('statement')));
+      expect(lines[lines.length - 2], lines[0]);
+      expect(lines.last, 'read whole, in 1 read: lines 1-396');
+    });
+    // D3
+    test('a query index repeats no header or plan line at its end', () {
+      final query = ContextAnswer(
+        text: 'x\n',
+        json: {'for': BundleMode.query.wire},
+        entries: [_entryOf('d0', 1, 1)],
+        tokens: 1,
+      );
+      final lines = const LineSplitter().convert(
+        bundleIndex(query, '/p/b.txt'),
+      );
+      expect(lines, hasLength(2));
+      expect(lines.last, '- d0 (fr) · 1-1');
     });
   });
 
@@ -845,7 +897,9 @@ void main() {
         'read whole, in 1 read: lines 1-8\n'
         '- login (fr) · 1-2 · statement 1\n'
         '- auth (feature pattern) · 4-5\n'
-        '- story (fr) · 7-8 · statement 7\n',
+        '- story (fr) · 7-8 · statement 7\n'
+        '==> bundle: 2 docs, 9 tokens, 8 lines · /p/b.txt <==\n'
+        'read whole, in 1 read: lines 1-8\n',
       );
     });
     test(
@@ -2070,8 +2124,8 @@ void main() {
           isBare: false,
         );
         final headers = headersOf(reply.text);
-        expect(headers, hasLength(2), reason: mode.wire);
-        for (final header in headers) {
+        expect(headers, hasLength(3), reason: mode.wire);
+        for (final header in headers.take(2)) {
           final text = File(header.group(4)!).readAsStringSync();
           final tokens = header.group(2);
           expect(tokens, '${tokenSizeOf(text)}', reason: header.group(0));
@@ -2225,7 +2279,9 @@ void main() {
         'read whole, in 1 read: lines 1-4\n'
         '- d0 (fr) · 1-1 · statement 1\n'
         '- d1 (fr) · 3-3 · statement 3\n'
-        '==> bundle: 3 docs, 7 tokens, 6 lines · /p/b.refs.txt <==\n',
+        '==> bundle: 3 docs, 7 tokens, 6 lines · /p/b.refs.txt <==\n'
+        '==> bundle: 2 docs, 7 tokens, 4 lines · /p/b.txt <==\n'
+        'read whole, in 1 read: lines 1-4\n',
       );
     });
 
@@ -2284,12 +2340,19 @@ void main() {
 
     test('the implement cap counts the read-first index alone', () {
       final fits = bundleIndex(
-        _splitOf(198, 150, mode: BundleMode.implement),
+        _splitOf(196, 150, mode: BundleMode.implement),
         '/p/b.txt',
         refsPath: '/p/b.refs.txt',
       );
-      expect(fits, contains('- d197 (fr) · 395-395 · statement 395\n'));
-      expect(fits, endsWith('.refs.txt <==\n'));
+      expect(fits, contains('- d195 (fr) · 391-391 · statement 391\n'));
+      expect(
+        fits,
+        endsWith(
+          '.refs.txt <==\n'
+          '==> bundle: 196 docs, 7 tokens, 392 lines · /p/b.txt <==\n'
+          'read whole, in 1 read: lines 1-392\n',
+        ),
+      );
       final past = bundleIndex(
         _splitOf(199, 1, mode: BundleMode.implement),
         '/p/b.txt',
@@ -2362,10 +2425,13 @@ void main() {
         );
         final refs = File('${project.path}/out/b.refs.txt');
         expect(refs.readAsStringSync(), empty);
+        final lines = const LineSplitter().convert(reply.text);
         expect(
-          reply.text,
-          endsWith('1 lines · ${refs.resolveSymbolicLinksSync()} <==\n'),
+          lines[lines.length - 3],
+          endsWith('1 lines · ${refs.resolveSymbolicLinksSync()} <=='),
         );
+        expect(lines[lines.length - 2], lines.first);
+        expect(lines.last, lines[1]);
       },
     );
   });
@@ -2491,7 +2557,9 @@ void main() {
           refsPath: '/p/b.refs.txt',
         ),
         endsWith(
-          '==> bundle: 3 docs, 7 tokens, 6 lines · 2 moved · /p/b.refs.txt <==\n',
+          '==> bundle: 3 docs, 7 tokens, 6 lines · 2 moved · /p/b.refs.txt <==\n'
+          '==> bundle: 2 docs, 7 tokens, 4 lines · /p/b.txt <==\n'
+          'read whole, in 1 read: lines 1-4\n',
         ),
       );
       expect(

@@ -8,6 +8,31 @@ MergedField _field(FieldType type, [PointerKind? pointer]) =>
     MergedField(id: 'f', type: type, list: true, pointer: pointer);
 
 void main() {
+  // D10
+  test('CodePointer reads a path and a tail, and faults an empty path or an '
+      'empty tail', () {
+    final plain = CodePointer('lib/a.dart');
+    expect(plain.path, 'lib/a.dart');
+    expect(plain.tail, isNull);
+    expect(plain.fault, isNull);
+    expect(plain.text, 'lib/a.dart');
+
+    final tailed = CodePointer('lib/a.dart:x:y');
+    expect(tailed.path, 'lib/a.dart');
+    expect(tailed.tail, 'x:y');
+    expect(tailed.fault, isNull);
+    expect(tailed.text, 'lib/a.dart:x:y');
+
+    for (final text in ['::x', ':x']) {
+      expect(CodePointer(text).fault, CodePointerFault.emptyPath, reason: text);
+      expect(CodePointer(text).text, text);
+    }
+    final emptyTail = CodePointer('lib/a.dart:');
+    expect(emptyTail.tail, '');
+    expect(emptyTail.fault, CodePointerFault.emptyTail);
+    expect(emptyTail.text, 'lib/a.dart:');
+  });
+
   group('CodeLinkEntry', () {
     test('reads the fingerprint after an item_exact line', () {
       const entry = CodeLinkEntry(

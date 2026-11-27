@@ -1326,8 +1326,11 @@ lint:
         '{id: a, pattern: x, message: m, per_subsection: true}, '
         '{id: b, pattern: y, message: m} ]}',
       ).requiredPatterns;
-      final items = (write! as PlainList<PatternEntry>).items;
-      expect(items.map((e) => e.perSubsection), [true, false]);
+      final items = (write! as PlainList<LayerPattern>).items;
+      expect(items.whereType<OwnPattern>().map((e) => e.entry.perSubsection), [
+        true,
+        false,
+      ]);
     });
 
     test('a required_patterns per_subsection that is no boolean is '

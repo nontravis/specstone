@@ -56,8 +56,8 @@ specstone get <type>:<name> --json
 ```
 
 - **A section:** the first prints its text, with the base hash on the naming line (`· base <hash>`). Key unknown? The
-  second lists each section key under `bases.sections`.
-- **A field:** the second; the base is `bases.fields.<id>`.
+  second lists each section key under `docs[0].bases.sections`.
+- **A field:** the second; the base is `docs[0].bases.fields.<id>`.
 
 The text between the title and the first `##` section is `#_lead`.
 

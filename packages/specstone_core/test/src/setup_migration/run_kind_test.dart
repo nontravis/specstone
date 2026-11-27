@@ -12,6 +12,7 @@ import 'package:specstone_core/src/shipped_generators.dart'
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/record_fixture.dart' show oneTargetConfig, twinConfig;
@@ -43,7 +44,7 @@ Matcher _pinNewer() => throwsA(
       .having((f) => f.key, 'key', 'packs.prd-core'),
 );
 
-Matcher _agentFilesNewer({String stamp = '99.0.0'}) => throwsA(
+Matcher _agentFilesNewer({String? stamp}) => throwsA(
   isA<MigrateFault>()
       .having((f) => f.code, 'code', MigrateFaultCode.agentFilesNewer)
       .having((f) => f.exitStatus, 'exit status', 78)
@@ -52,7 +53,8 @@ Matcher _agentFilesNewer({String stamp = '99.0.0'}) => throwsA(
       .having(
         (f) => f.message,
         'message',
-        'the agent files were written by Specstone $stamp, and this '
+        'the agent files were written by Specstone '
+            '${stamp ?? versionAbove(specstoneVersion)}, and this '
             'Specstone is $specstoneVersion; run specstone upgrade, then run '
             'specstone migrate again',
       ),
@@ -174,9 +176,9 @@ void main() {
   });
 
   group('an agent_files_version above the running Version', () {
-    String config({String pins = '', String stamp = '99.0.0'}) =>
+    String config({String pins = '', String? stamp}) =>
         '${pins.isEmpty ? shippedPinsConfig() : pins}'
-        'agent_files_version: $stamp\n';
+        'agent_files_version: ${stamp ?? versionAbove(specstoneVersion)}\n';
 
     test('refuses agent_files_newer with every pin equal', () async {
       final root = await writeTree({'.specstone/config.yaml': config()});
@@ -270,7 +272,8 @@ void main() {
     test('a newer pin still refuses first', () async {
       final root = await writeTree({
         '.specstone/config.yaml':
-            'packs:\n  prd-core: 9.0.0\nagent_files_version: 99.0.0\n',
+            'packs:\n  prd-core: 9.0.0\n'
+            'agent_files_version: ${versionAbove(specstoneVersion)}\n',
       });
 
       expect(() => _choose(root), _pinNewer());

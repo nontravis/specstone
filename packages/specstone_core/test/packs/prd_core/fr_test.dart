@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' as check;
@@ -101,6 +104,35 @@ void main() {
       expect(template, contains('| Field | Notes |\n'));
       expect(template, isNot(contains('| Type |')));
     });
+  });
+
+  test('the input_output description gives the line for an FR no operation '
+      'traces, in product words', () {
+    // D6
+    final description = sectionOf(fr, 'input_output').description!;
+    const line =
+        'With no operation tracing the FR, the row holds each name, type, and '
+        'range a caller relies on.';
+    final specIds = _specDocTypeIds();
+
+    expect(description, contains(line));
+    expect(specIds, isNotEmpty);
+    for (final id in specIds) {
+      // `_` reads as a space too, so `tech_stack` catches "tech stack".
+      final name = RegExp(
+        '\\b${RegExp.escape(id).replaceAll('_', '[ _]')}\\b',
+        caseSensitive: false,
+      );
+      expect(line, isNot(matches(name)), reason: id);
+    }
+  });
+
+  test('the verification description holds no exit-status clause', () {
+    // D6
+    expect(
+      sectionOf(fr, 'verification').description,
+      isNot(contains('exit status')),
+    );
   });
 
   test('the edge cases template shows the several-trigger shape and the'
@@ -231,12 +263,51 @@ void main() {
         expect(await flagged(mention), isEmpty, reason: mention);
       }
       expect(await flagged(crash.replaceFirst('exit', 'Exit')), hasLength(1));
+      // D6
       expect(
         await flagged(
           '1. E01 — An empty password → refused.',
           rationale: 'The run ends with exit status 2.',
         ),
+        ['The run ends with exit status 2.'],
+      );
+    });
+
+    test('exit status in a Behavior section or an Input / Output row gives '
+        'exit_status', () async {
+      // D6
+      Future<List<String>> flagged(String heading, String body) => bannedLines(
+        check.edit(check.loginFr, [
+          ('## Edge cases', '## $heading\n\n$body\n\n## Edge cases'),
+        ]),
+        check.loginFr,
+        'exit_status',
+      );
+
+      const step = 'A crash ends the run with exit status 2.';
+      // A fenced diagram is searched by no pattern; the step beside it is.
+      expect(
+        await flagged(
+          'Behavior',
+          '$step\n\n```mermaid\nflowchart TD\n  A[Sign in] --> B[Done]\n```',
+        ),
+        [step],
+      );
+      // D6: fenced text is exempt, as for every banned pattern.
+      expect(
+        await flagged(
+          'Behavior',
+          '```text\nA crash ends the run with exit status 2.\n```',
+        ),
         isEmpty,
+      );
+      const row = '| result | A crash ends the run with exit status 2. |';
+      expect(
+        await flagged(
+          'Input / Output',
+          '**Output**\n| Field | Notes |\n| --- | --- |\n$row',
+        ),
+        [row],
       );
     });
 
@@ -354,3 +425,13 @@ const _exitStatusMentions = <String>[
 ];
 
 const _maxSectionDescriptionLines = 5;
+
+final _docTypeId = RegExp(r'^id: (\S+)\s*$', multiLine: true);
+
+/// Returns the id of every doc type of every shipped pack but `prd-core`, the
+/// PRD pack, whatever its doc path.
+List<String> _specDocTypeIds() => [
+  for (final MapEntry(:key, :value) in shippedPackFiles.entries)
+    if (!key.startsWith('prd-core/'))
+      ?_docTypeId.firstMatch(utf8.decode(value))?.group(1),
+];

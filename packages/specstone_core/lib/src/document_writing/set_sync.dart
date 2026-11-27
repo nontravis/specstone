@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ownerTargetOf;
 import 'package:specstone_core/src/consistency_check/contract_block.dart';
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
@@ -85,6 +86,9 @@ final class _SyncRun {
   final _docs = <String, IndexedDoc>{};
   final _judges = <String, CodeJudge>{};
 
+  /// The resolver of every entry the run judges, so each folder is listed once.
+  final _paths = ExactCasePaths();
+
   /// The stories and FRs of each record's feature, by the record's DocPath.
   final _items = <String, Map<String, IndexedDoc>>{};
 
@@ -140,6 +144,7 @@ final class _SyncRun {
   }
 
   void _apply(SyncLine line) {
+    _requireWholePointer(line);
     switch (line) {
       case UnjudgedLine():
         throw _Refused(
@@ -153,12 +158,16 @@ final class _SyncRun {
       case final RepointLine repoint:
         _repoint(repoint);
       case final TestsLine tests:
-        _applyToRecord(
-          tests,
-          tests.record,
-          tests.item,
-          (text) => applyTestsLine(text.text, text.docType, tests),
-        );
+        _applyToRecord(tests, tests.record, tests.item, (text) {
+          if (tests.adds) {
+            _requireTestPath(
+              tests,
+              text.doc,
+              splitPathTail(tests.testFile).path,
+            );
+          }
+          return applyTestsLine(text.text, text.docType, tests);
+        });
       case final RowLine row:
         _applyToRecord(
           row,
@@ -176,6 +185,68 @@ final class _SyncRun {
       case final RemoveTaskLine removal:
         _remove(removal);
     }
+  }
+
+  /// Refuses `argument_invalid` when the entry [line] names is a code link
+  /// whose pointer holds an empty path or an empty tail after `:`.
+  ///
+  /// A `repoint` line is read at its new path, and an entry the file repoints
+  /// is judged at that path, so neither is refused for the old pointer.
+  void _requireWholePointer(SyncLine line) {
+    final (address, entry) = switch (line) {
+      UnjudgedLine() || RepointLine() || RowLine() || TestsLine() => ('', ''),
+      VerdictLine(:final doc, :final entry) => (doc, entry),
+      RemoveTaskLine(:final doc, :final entry) => (doc, entry),
+    };
+    if (address.isEmpty) return;
+    final doc = _docOf(line, address);
+    final key = _key(doc, entry);
+    if (_movedTo.containsKey(key) || _movedFrom.containsKey(key)) return;
+    for (final field in _linkFieldsOf(_texts.of(doc))) {
+      for (final value in field.entries) {
+        if (value is! String || _pointerOf(field, value) != entry) continue;
+        _requireWhole(line, field, entry);
+      }
+    }
+  }
+
+  /// Refuses `argument_invalid` when the code part of [pointer], an entry of
+  /// [field], holds an empty path or an empty tail after `:`.
+  void _requireWhole(SyncLine line, StampField field, String pointer) {
+    final code = field.field.pointer == PointerKind.prefix
+        ? pointer
+        : field.codeOf(pointer);
+    final fault = CodePointer(code).fault;
+    if (fault == null) return;
+    throw _Refused(
+      SyncRefusal.invalid(
+        line.lineNumber,
+        '$pointer holds ${fault.description}',
+      ),
+    );
+  }
+
+  /// Refuses `stamp_entry_unresolved` when [path], the test file of [line]
+  /// without its `:<test name>`, reads as a path `check` never resolves: one
+  /// holding a `..`, a name no OS shares, or a letter case other than the
+  /// disk's. A file the disk lacks is written and left to `check`.
+  void _requireTestPath(SyncLine line, IndexedDoc record, String path) {
+    final target = ownerTargetOf(record, _session.project.targets);
+    if (target == null) return;
+    final verdict = _paths.resolve(_session.project.codeRootOf(target), path);
+    const refused = {
+      CodePathKind.notPortable,
+      CodePathKind.parentSegment,
+      CodePathKind.wrongCase,
+    };
+    if (!refused.contains(verdict.kind)) return;
+    throw _Refused(
+      _refusal(
+        line,
+        WriteFaultCode.stampEntryUnresolved,
+        '$path does not resolve: ${FindingKind.testsUnresolved.wire}',
+      ),
+    );
   }
 
   /// Refuses `stamp_entry_unknown` when the doc of [line] holds its entry as
@@ -340,6 +411,10 @@ final class _SyncRun {
         final pointer = _pointerOf(field, value);
         isHeld = isHeld || pointer == moved || pointer == line.entry;
         if (pointer != line.entry) continue;
+        _requireWhole(line, field, moved);
+        if (field.field.pointer == PointerKind.itemTest) {
+          _requireTestPath(line, doc, recordTestLineOf(moved)?.path ?? moved);
+        }
         final fingerprint = pointer == value
             ? null
             : CodeLinkEntry(value).fingerprint;
@@ -539,7 +614,11 @@ final class _SyncRun {
 
   CodeJudge _judgeOf(IndexedDoc doc) => _judges.putIfAbsent(
     doc.docPath,
-    () => CodeJudge(_session, ownerTargetOf(doc, _session.project.targets)),
+    () => CodeJudge(
+      _session,
+      ownerTargetOf(doc, _session.project.targets),
+      _paths,
+    ),
   );
 
   SyncRefusal _unknown(SyncLine line, IndexedDoc doc, String entry) => _refusal(
@@ -567,9 +646,10 @@ String _movedPointer(String pointer, String newPath, MergedDocType docType) {
   final holdsItems =
       recordCodeFieldOf(docType) != null || recordTestFieldOf(docType) != null;
   final line = holdsItems ? recordCodeLineOf(pointer) : null;
-  if (line == null) return newPath;
-  final next = splitPathTail(newPath);
-  final tail = next.tail ?? splitPathTail(line.code).tail;
+  final next = CodePointer(newPath);
+  if (line == null) return next.text;
+  final oldTail = CodePointer(line.code).tail;
+  final tail = next.tail ?? (oldTail == '' ? null : oldTail);
   return '${line.item}:${next.path}${tail == null ? '' : ':$tail'}';
 }
 

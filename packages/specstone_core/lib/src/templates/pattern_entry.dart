@@ -9,8 +9,9 @@ import 'package:yaml/yaml.dart';
 /// [path] is the dotted doc-type format path of the pattern list the entry
 /// sits in; the keys it holds are the keys of that path.
 /// Throws `unknown_value` for a `pattern` or `except` entry that does not
-/// compile, so no later reader meets a `FormatException`.
-PatternEntry parsePatternEntry(
+/// compile, so no later reader meets a `FormatException`, and
+/// `pattern_ref_invalid` for an entry that holds `pattern` and `pattern_ref`.
+LayerPattern parsePatternEntry(
   YamlMap map, {
   required String file,
   required String key,
@@ -25,6 +26,55 @@ PatternEntry parsePatternEntry(
     prefix: prefix,
   );
   final id = requireValue<String>(map, 'id', file: file, prefix: prefix);
+  final ref = optionalPatternRef(map, file: file, prefix: prefix);
+  if (ref != null) {
+    return _parseRef(map, id: id, ref: ref, file: file, key: key);
+  }
+  return _parseOwn(map, id: id, file: file, prefix: prefix);
+}
+
+RefPattern _parseRef(
+  YamlMap map, {
+  required String id,
+  required String ref,
+  required String file,
+  required String key,
+}) {
+  final prefix = '$key.';
+  final message = requireValue<String>(
+    map,
+    'message',
+    file: file,
+    prefix: prefix,
+  );
+  final except = stringList(map, 'except', file: file, prefix: prefix);
+  checkPatternSources(null, except, file: file, prefix: prefix);
+  return RefPattern(
+    id: id,
+    ref: ref,
+    message: message,
+    key: key,
+    scope:
+        optionalPatternScope(map, file: file, prefix: prefix) ??
+        PatternScope.text,
+    except: List.unmodifiable(except),
+    perSubsection:
+        optionalValue<bool>(
+          map,
+          'per_subsection',
+          file: file,
+          prefix: prefix,
+        ) ??
+        false,
+  );
+}
+
+OwnPattern _parseOwn(
+  YamlMap map, {
+  required String id,
+  required String file,
+  required String prefix,
+}) {
   final pattern = requireValue<String>(
     map,
     'pattern',
@@ -45,18 +95,44 @@ PatternEntry parsePatternEntry(
       optionalValue<bool>(map, 'per_subsection', file: file, prefix: prefix) ??
       false;
   try {
-    return PatternEntry(
-      id: id,
-      pattern: pattern,
-      message: message,
-      scope: scope,
-      except: List.unmodifiable(except),
-      perSubsection: perSubsection,
+    return OwnPattern(
+      PatternEntry(
+        id: id,
+        pattern: pattern,
+        message: message,
+        scope: scope,
+        except: List.unmodifiable(except),
+        perSubsection: perSubsection,
+      ),
     );
   } on FormatException {
     checkPatternSources(pattern, except, file: file, prefix: prefix);
     rethrow;
   }
+}
+
+/// Returns the `pattern_ref` id [map] writes, or null when absent.
+///
+/// Throws `pattern_ref_invalid` at `<prefix>pattern_ref` when [map] also
+/// writes `pattern`.
+String? optionalPatternRef(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final ref = optionalValue<String>(
+    map,
+    'pattern_ref',
+    file: file,
+    prefix: prefix,
+  );
+  if (ref == null || map['pattern'] == null) return ref;
+  throw TemplateFault(
+    FaultCode.patternRefInvalid,
+    'an entry holds pattern or pattern_ref, not both',
+    file: file,
+    key: '${prefix}pattern_ref',
+  );
 }
 
 /// Throws `unknown_value` at `<prefix>pattern` or `<prefix>except` for the

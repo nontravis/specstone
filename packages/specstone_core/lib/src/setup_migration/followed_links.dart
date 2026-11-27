@@ -39,8 +39,8 @@ final class _Fate {
 }
 
 /// Returns [lf], the doc at [docPath] after the run's steps, with each link
-/// set where [anchors] puts its target, and each typed link text naming a
-/// doc of [folds] set to the `to` doc's typed name.
+/// set where [anchors] puts its target, and each typed link text [folds]
+/// retypes set to its last typed name and key.
 ///
 /// A link that would reach the doc holding it with no anchor, or reach an
 /// anchor of it a drop took, becomes its text.
@@ -58,11 +58,15 @@ FollowedLinks followLinks(
   final edited = withLinkPlaces(
     body,
     (href) => _noted(fateOf(href), changes)?.place,
-    textOf: folds.mayNameFolded(body)
+    textOf: folds.mayRetype(body)
         ? (_, text) {
-            final named = folds.textOf(text);
-            if (named != null) changes.add(LinkChange.merged);
-            return named;
+            final retyped = folds.textOf(text);
+            if (retyped != null) {
+              changes.add(
+                retyped.isFolded ? LinkChange.merged : LinkChange.renamed,
+              );
+            }
+            return retyped?.text;
           }
         : null,
     unwraps: anchors.follows(docPath)

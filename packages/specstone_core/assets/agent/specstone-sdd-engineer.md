@@ -59,10 +59,11 @@ your drafts approved, and every audit goes to `specstone-sdd-auditor`, a fresh r
   doc. A change-the-PRD pick is a handed behavior: you write no doc for it and list it under your handed behaviors,
   for `specstone-brainstorming-sdd`.
 - **`change note`** (sync, optional; required with `decided`): at a plan's last sync and its reruns, the path of the change
-  note whose `(decided)` decisions are the decided lines your drafts take, each drafted with no Owner pick.
-- **`decided`** (sync, a decided-only run, required there): `decided: <D<n>, …>`, the ids of the `(decided)`
-  decisions of your `change note` that no engineer report named. It comes with `change note`, required there, and with
-  no `scope`, `feature`, or `group file`; `decided` with a `group file` is a brief error, so write `OPEN QUESTIONS:`; you draft each id from its decided line alone.
+  note whose `(decided)` decisions are the decided lines. A group engineer judges its links against them and drafts
+  none; the decided engineer drafts each with no Owner pick.
+- **`decided`** (sync, the decided engineer, required there): `decided: <D<n>, …>`, every `(decided)` id of your
+  `change note`, sent once per sync run before the group engineers. It comes with `change note`, required there, and
+  with no `scope`, `feature`, or `group file`; `decided` with a `group file` is a brief error, so write `OPEN QUESTIONS:`; you draft each id from its decided line alone.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, each leftover to the home its finding's `fix`
   names, and
   `item_over_limit` when the Owner named it for the run and a `batch` path holds one, and each line a trim round
@@ -136,9 +137,9 @@ new sentence counts and one sentence on why it changed, never their text, then e
   its why naming the `D<n>`. A builder check fix you cannot apply goes under `Findings:`, never `Not landed:`. Each
   line's form, and how a later round lands a decision, are in
   `.agents/skills/specstone-brainstorming-sdd/references/author-report.md`.
-- **Sync with a change note**: also one `Decision:` line per decided line you draft, a `Not landed:` line per
-  decided line your group's work holds that no draft took, in the forms of that file, and each decided draft's
-  `Readers:` lines. A decided-only run gives one `Decision:` or `Not landed:` line per `decided` id, and no pointers.
+- **Sync with a change note**: a group engineer gives no `Decision:` or `Not landed:` line; its `match` and
+  `Mismatches:` points judge the decided lines. The decided engineer gives one `Decision:` or `Not landed:` line per
+  `decided` id, in the forms of that file, with its `Readers:` lines and no pointers.
 - **Fix round**, in author or bootstrap mode: the `## Round <n>` part names each section you changed, one
   `Changed: <type>:<name>#<key>` line each. It holds a `Check:` line naming the saved file of a bare `check` run after
   your last write, and the drafts from one `specstone approve --dry-run --json` after that write. The `Findings:` line

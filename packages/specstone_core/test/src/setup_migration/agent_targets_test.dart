@@ -18,6 +18,7 @@ import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart'
@@ -189,7 +190,7 @@ void main() {
     test('a stamp above the running Version is kept', () async {
       final base = await _base(settled({}));
       final inputs = _inputs(base);
-      final higher = ReleaseVersion.tryParse('9.0.0');
+      final higher = ReleaseVersion.tryParse(versionAbove(specstoneVersion));
 
       expect(
         agentFilesStampAfter(
@@ -204,7 +205,9 @@ void main() {
     test('a dev stamp above the running Version is kept', () async {
       final base = await _base(settled({}));
       final inputs = _inputs(base);
-      final dev = ReleaseVersion.tryParse('99.0.0-dev.39');
+      final dev = ReleaseVersion.tryParse(
+        '${versionAbove(specstoneVersion)}-dev.39',
+      );
 
       expect(
         agentFilesStampAfter(
@@ -2845,14 +2848,18 @@ void main() {
 
     test('a dev stamp above the running Version picks upgrade', () {
       expect(
-        agentFixDirectionOf(ReleaseVersion.tryParse('99.0.0-dev.39')),
+        agentFixDirectionOf(
+          ReleaseVersion.tryParse('${versionAbove(specstoneVersion)}-dev.39'),
+        ),
         AgentFixDirection.upgrade,
       );
     });
 
     test('a stamp above the running Version picks upgrade', () {
       expect(
-        agentFixDirectionOf(ReleaseVersion.tryParse('99.0.0')),
+        agentFixDirectionOf(
+          ReleaseVersion.tryParse(versionAbove(specstoneVersion)),
+        ),
         AgentFixDirection.upgrade,
       );
     });

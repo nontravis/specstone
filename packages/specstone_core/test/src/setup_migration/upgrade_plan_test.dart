@@ -49,6 +49,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/git_repo.dart' show commitAll, git, hasGit;
@@ -803,6 +804,35 @@ sections:
       contains('  prds/notes.md: links to renamed sections\n'),
     );
   });
+
+  // D11
+  test(
+    'a typed link text naming a renamed section takes the new key',
+    () async {
+      final plan = _plan(
+        await _fixture(
+          docs: const {
+            'prds/runbooks/deploy/RUNBOOK.md':
+                '# Deploy\n\n## Steps\n\nRun it; see [s](#steps).\n',
+            'prds/notes.md':
+                '# Notes\n\n'
+                '[runbook:deploy#steps](runbooks/deploy/RUNBOOK.md#steps)\n',
+          },
+          overrides: const {},
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/prds/notes.md').text,
+        '# Notes\n\n'
+        '[runbook:deploy#procedure](runbooks/deploy/RUNBOOK.md#procedure)\n',
+      );
+      expect(
+        plan.toText(),
+        contains('  prds/notes.md: links to renamed sections\n'),
+      );
+    },
+  );
 
   test('the upgrade plan', () async {
     final plan = _plan(await _fixture());
@@ -2298,12 +2328,16 @@ void _agentFilesTests() {
 
     test('a stamp above the running Version stays as it is', () async {
       final project = await writeTree({
-        '.specstone/config.yaml': '${_oldPins}agent_files_version: 9.0.0\n',
+        '.specstone/config.yaml':
+            '${_oldPins}agent_files_version: ${versionAbove(specstoneVersion)}\n',
       });
 
       final text = _stampRewrites(_planAt(project)).single;
 
-      expect(text, endsWith('agent_files_version: 9.0.0\n'));
+      expect(
+        text,
+        endsWith('agent_files_version: ${versionAbove(specstoneVersion)}\n'),
+      );
     });
 
     test('a refused AGENT.md write leaves the stamp as it was', () async {
@@ -4619,6 +4653,37 @@ sections:
   - {id: steps, header: Steps}
 ''';
 
+/// A pack whose first entry folds `playbook` into `runbook`'s `steps` and
+/// whose second renames `runbook`'s `steps` to `procedure`.
+const _foldThenRenamePackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - merge_doc:
+          from: {id: playbook, path: "prds/runbooks/{slug}/PLAYBOOK.md"}
+          to: runbook
+          sections:
+            - from: {id: moves, header: Moves}
+              to: steps
+  - from: 1.1.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+''';
+
+/// [_mergeType] keeping the `steps` section a fold maps to, so the pack loads.
+const _foldThenRenameType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: goals, header: Goals}
+  - {id: steps, header: Steps}
+  - {id: procedure, header: Procedure}
+''';
+
 /// [_mergePackYaml] with a `relink_merged_docs` entry after its fold.
 const _relinkPackYaml =
     '''
@@ -4753,6 +4818,50 @@ Future<_MergeFixture> _mergeFixture({
     overrides: overrides,
   );
   return _MergeFixture(fixture.project, fixture.home);
+}
+
+const _guidePath = 'prds/runbooks/deploy/GUIDE.md';
+
+/// A fixture where pack `acme` folds `playbook` into `guide` and pack `zeta`,
+/// after [zetaSteps], folds `guide` into `runbook`.
+Future<_MergeFixture> _crossPackFold({
+  Map<String, String> docs = const {
+    _mergeToPath: _mergeToDoc,
+    _mergeFromPath: _mergeFromDoc,
+  },
+  String zetaSteps = '',
+}) async {
+  final home = await writeTree({
+    '.specstone/packs/acme/pack.yaml':
+        'name: acme\nversion: 1.2.0\nextends: software-tech\n'
+        'migrations:\n  - from: 1.0.0\n    steps:\n'
+        '      - merge_doc:\n'
+        '          from: {id: playbook, path: '
+        '"prds/runbooks/{slug}/PLAYBOOK.md"}\n'
+        '          to: guide\n'
+        '          sections:\n'
+        '            - from: {id: moves, header: Moves}\n'
+        '              to: steps\n',
+    '.specstone/packs/acme/runbook.yaml': _mergeType,
+    '.specstone/packs/acme/guide.yaml': _guideType,
+    '.specstone/packs/zeta/pack.yaml':
+        'name: zeta\nversion: 1.1.0\nextends: acme\n'
+        'migrations:\n  - from: 1.0.0\n    steps:\n'
+        '$zetaSteps'
+        '      - merge_doc:\n'
+        '          from: {id: guide, path: '
+        '"prds/runbooks/{slug}/GUIDE.md"}\n'
+        '          to: runbook\n'
+        '          sections:\n'
+        '            - from: {id: steps, header: Steps}\n'
+        '              to: procedure\n',
+  });
+  final project = await writeTree({
+    '.specstone/config.yaml':
+        '${shippedPinsConfig()}  acme: 1.0.0\n  zeta: 1.0.0\n',
+    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+  });
+  return _MergeFixture(project, home);
 }
 
 RunPlan _planMerge(_MergeFixture fixture) => planUpgradeRun(
@@ -4937,8 +5046,68 @@ void _mergeDocTests() {
       ]);
     });
 
-    test('a doc a step of one pack creates is no from doc of a fold in '
-        'another pack, which plans with no throw', () async {
+    // D11
+    test('a typed link text through two chained folds names the last to doc '
+        'and its key', () async {
+      final fixture = await _mergeFixture(
+        packYaml: _chainPackYaml,
+        runbookType: '$_mergeType---\n$_guideType',
+        docs: const {
+          _mergeToPath: _mergeToDoc,
+          _mergeFromPath: _mergeFromDoc,
+          'prds/notes.md':
+              '# Notes\n\n[playbook:deploy](runbooks/deploy/PLAYBOOK.md)\n\n'
+              '[playbook:deploy#moves](runbooks/deploy/PLAYBOOK.md#moves)\n',
+        },
+      );
+      File('${fixture.home.path}/.specstone/packs/acme/frozen/guide.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_guideType);
+
+      final notes = _rewriteAt(_planMerge(fixture), 'docs/prds/notes.md').text;
+
+      expect(notes, contains('[runbook:deploy](runbooks/deploy/RUNBOOK.md)'));
+      expect(
+        notes,
+        contains(
+          '[runbook:deploy#procedure](runbooks/deploy/RUNBOOK.md#procedure)',
+        ),
+      );
+      expect(notes, isNot(contains('guide:')));
+    });
+
+    // D11
+    test('a key a fold maps and a later rename renames ends at the last '
+        'key', () async {
+      final plan = _planMerge(
+        await _mergeFixture(
+          packYaml: _foldThenRenamePackYaml,
+          runbookType: _foldThenRenameType,
+          docs: const {
+            _mergeToPath: _mergeToDoc,
+            _mergeFromPath: _mergeFromDoc,
+            'prds/notes.md':
+                '# Notes\n\n'
+                '[playbook:deploy#moves](runbooks/deploy/PLAYBOOK.md#moves)\n',
+          },
+        ),
+      );
+
+      expect(
+        _rewriteAt(plan, 'docs/prds/notes.md').text,
+        contains(
+          '[runbook:deploy#procedure](runbooks/deploy/RUNBOOK.md#procedure)',
+        ),
+      );
+      expect(
+        _rewriteAt(plan, 'docs/$_mergeToPath').text,
+        contains('## Procedure\n\nRun it.\n'),
+      );
+    });
+
+    // D11
+    test("a doc one pack's fold creates folds into the to doc of a later "
+        "pack's fold", () async {
       final home = await writeTree({
         '.specstone/packs/acme/pack.yaml':
             'name: acme\nversion: 1.2.0\nextends: software-tech\n'
@@ -4968,6 +5137,8 @@ void _mergeDocTests() {
             '${shippedPinsConfig()}  acme: 1.0.0\n  zeta: 1.0.0\n',
         'docs/$_mergeToPath': _mergeToDoc,
         'docs/$_mergeFromPath': _mergeFromDoc,
+        'docs/prds/notes.md':
+            '# Notes\n\nSee [playbook:deploy](runbooks/deploy/PLAYBOOK.md).\n',
       });
 
       final plan = planUpgradeRun(
@@ -4978,10 +5149,59 @@ void _mergeDocTests() {
       );
 
       expect(
-        plan.creates
-            .singleWhere((create) => create.path.endsWith('GUIDE.md'))
-            .text,
-        contains('## Steps\n\nRun it.\n'),
+        plan.creates.where((create) => create.path.endsWith('GUIDE.md')),
+        isEmpty,
+      );
+      expect(
+        _rewriteAt(plan, 'docs/$_mergeToPath').text,
+        contains('## Procedure\n\nRun it.\n'),
+      );
+      expect(plan.trashedDocs, ['docs/$_mergeFromPath']);
+      expect(
+        _rewriteAt(plan, 'docs/prds/notes.md').text,
+        contains('[runbook:deploy](runbooks/deploy/RUNBOOK.md)'),
+      );
+    });
+
+    // D11
+    test("a doc on disk one pack's fold adds to folds with those sections "
+        "into the to doc of a later pack's fold", () async {
+      final plan = _planMerge(
+        await _crossPackFold(
+          docs: const {
+            _mergeToPath: _mergeToDoc,
+            _mergeFromPath: _mergeFromDoc,
+            _guidePath: '# Deploy guide\n\n## Intro\n\nHi.\n',
+          },
+        ),
+      );
+
+      final runbook = _rewriteAt(plan, 'docs/$_mergeToPath').text;
+      expect(runbook, contains('## Intro\n\nHi.\n'));
+      expect(runbook, contains('## Procedure\n\nRun it.\n'));
+      expect(
+        plan.trashedDocs,
+        unorderedEquals(['docs/$_guidePath', 'docs/$_mergeFromPath']),
+      );
+    });
+
+    // D11
+    test("a doc one pack's fold creates takes a later pack's step before "
+        "that pack's fold", () async {
+      final fixture = await _crossPackFold(
+        zetaSteps:
+            '      - bullet_lines: {doc_type: guide, section: steps, '
+            'prefixes: [Run]}\n',
+      );
+      File('${fixture.home.path}/.specstone/packs/zeta/frozen/guide.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(_guideType);
+
+      final plan = _planMerge(fixture);
+
+      expect(
+        _rewriteAt(plan, 'docs/$_mergeToPath').text,
+        contains('## Procedure\n\n- Run it.\n'),
       );
       expect(plan.trashedDocs, ['docs/$_mergeFromPath']);
     });
@@ -5059,7 +5279,8 @@ void _mergeDocTests() {
       ]);
     });
 
-    test('a from doc takes no earlier step of another pack, so a fold of '
+    // D11
+    test('a from doc takes an earlier step of another pack, so a fold of '
         'a type another pack steps plans with no frozen copy', () async {
       final home = await writeTree({
         '.specstone/packs/acme/pack.yaml':
@@ -5102,7 +5323,7 @@ void _mergeDocTests() {
               (create) => create.path == 'docs/prds/guides/deploy/GUIDE.md',
             )
             .text,
-        contains('## Steps\n\nA step.\n'),
+        contains('## Steps\n\n- A step.\n'),
       );
       expect(
         plan.lists.toJson()['steps'],
@@ -5110,7 +5331,7 @@ void _mergeDocTests() {
           equals({
             'from': '1.0.0',
             'step': 'bullet_lines runbook procedure',
-            'paths': <String>[],
+            'paths': [_mergeToPath],
           }),
         ),
       );

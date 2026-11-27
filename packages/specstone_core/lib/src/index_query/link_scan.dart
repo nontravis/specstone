@@ -9,6 +9,7 @@ import 'package:markdown/markdown.dart'
 import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart';
+import 'package:specstone_core/src/index_query/models/leaf_text.dart';
 import 'package:specstone_core/src/index_query/models/link_scan.dart';
 import 'package:specstone_core/src/index_query/models/link_source.dart';
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
@@ -44,8 +45,15 @@ import 'package:specstone_core/src/index_query/models/written_destination.dart';
 /// reference link shares its definition's string, and the destinations of
 /// distinct links are disjoint. The one chain left is a title after an open
 /// paren, which takes no more steps than `markdown`'s own walk.
-List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
-  final leaf = leafTextOf(lfBody);
+List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) =>
+    linkSourcesOfLeaf(lfBody, leafTextOf(lfBody), firstLine: firstLine);
+
+/// Returns [linkSourcesOf] of [lfBody], whose [leafTextOf] is [leaf].
+List<LinkSource> linkSourcesOfLeaf(
+  String lfBody,
+  LeafText leaf, {
+  required int firstLine,
+}) {
   final reader = _Reader(leaf.text, leaf.definitions, leaf.footnoteLabels)
     ..readAll(leaf.leaves);
   return _sourcesOf(lfBody, reader, firstLine);

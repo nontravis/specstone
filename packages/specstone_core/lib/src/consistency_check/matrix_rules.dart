@@ -1,7 +1,9 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/code_rules.dart'
+    show CodePathField, codePathMessageOf, readPathOf;
 import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/literal_scan.dart';
 import 'package:specstone_core/src/consistency_check/matrix_form.dart';
 import 'package:specstone_core/src/consistency_check/models/doc_lines.dart';
@@ -275,14 +277,21 @@ final class _MatrixWalk {
     }
     final found = <Set<String>>[];
     for (final path in paths) {
-      // A path naming no file is the `tests` line rule's.
-      if (!ImplementsEntry(path).namesFileFrom(_context.codeRootOf(target))) {
-        continue;
+      final verdict = _context.exactPaths.resolve(
+        _context.codeRootOf(target),
+        path,
+      );
+      if (verdict.kind == CodePathKind.parentSegment) {
+        yield* _outsideLiterals(row, path, verdict);
+        return;
       }
-      final text = testFileTextOf(_context, target, path);
+      // Any other path naming no file is the `tests` line rule's.
+      if (verdict.kind != CodePathKind.file) continue;
+      final readPath = readPathOf(path, verdict.diskPath!);
+      final text = testFileTextOf(_context, target, readPath);
       // An unreadable file is warned about once; its names are not checked.
       if (text == null) return;
-      found.add(_rowLiteralsIn(_context, target, path, text));
+      found.add(_rowLiteralsIn(_context, target, readPath, text));
     }
     for (final literal in row.literals) {
       if (found.any((literals) => literals.contains(literal))) continue;
@@ -291,6 +300,17 @@ final class _MatrixWalk {
         literal,
         '$literal occurs in no test file of ${row.item}',
       );
+    }
+  }
+
+  Iterable<Finding> _outsideLiterals(
+    TestRow row,
+    String path,
+    CodePathVerdict verdict,
+  ) sync* {
+    final reason = codePathMessageOf(CodePathField.implements, path, verdict);
+    for (final literal in row.literals) {
+      yield _unresolvedLiteral(row, literal, '$literal is not read: $reason');
     }
   }
 

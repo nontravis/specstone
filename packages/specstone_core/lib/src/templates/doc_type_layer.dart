@@ -138,10 +138,10 @@ final class SectionLint {
   final String? linePrefix;
 
   /// The section's own banned patterns, merged for this section by `id`.
-  final ListWrite<PatternEntry>? bannedPatterns;
+  final ListWrite<LayerPattern>? bannedPatterns;
 
   /// The section's own required patterns, merged for this section by `id`.
-  final ListWrite<PatternEntry>? requiredPatterns;
+  final ListWrite<LayerPattern>? requiredPatterns;
 
   /// The section's floor of non-blank lines, when written.
   final int? minLines;
@@ -281,7 +281,7 @@ final class LintLayer {
   final ListWrite<String>? allowedWords;
 
   /// The banned pattern list, plain or as changes, when written.
-  final ListWrite<PatternEntry>? bannedPatterns;
+  final ListWrite<LayerPattern>? bannedPatterns;
 
   /// The field groups of which a doc must carry at least one field each, when
   /// written; an upper layer's value replaces the lower one.
@@ -1382,13 +1382,13 @@ List<List<String>>? _fieldGroups(YamlMap map, {required String file}) {
 ///
 /// A `remove` list names entry ids. [path] is the dotted format path of the
 /// key.
-ListWrite<PatternEntry>? _patternWrite(
+ListWrite<LayerPattern>? _patternWrite(
   YamlMap map,
   String key, {
   required String file,
   required String prefix,
   required String path,
-}) => _entryWrite<PatternEntry>(
+}) => _entryWrite<LayerPattern>(
   map,
   key,
   file: file,

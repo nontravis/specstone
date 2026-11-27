@@ -290,16 +290,7 @@ ContextAnswer _answerContext(
       : null;
   final docPrints = [
     for (final doc in ordered)
-      _docBlock(
-        index,
-        doc,
-        bundle.mode,
-        summary: inSummary(doc),
-        imported: bundle.isImported(doc),
-        citedBy: citedBy,
-        isTarget: bundle.targetPaths.contains(doc.docPath),
-        matrixCut: _matrixCutOf(index, doc, bundle.mode, wholePaths),
-      ),
+      _docPrintOf(index, bundle, doc, wholePaths, citedBy: citedBy),
   ];
   final docBlocks = [for (final print in docPrints) print.text];
   final patternParts = featurePatternParts(index, bundle, ordered);
@@ -326,20 +317,12 @@ ContextAnswer _answerContext(
       kept: _Kept.all,
       printOf: (doc, part) => part == _MatrixPart.whole
           ? docPrints[doc]
-          : _docBlock(
+          : _docPrintOf(
               index,
+              bundle,
               ordered[doc],
-              bundle.mode,
-              summary: false,
-              imported: false,
+              wholePaths,
               citedBy: null,
-              isTarget: bundle.targetPaths.contains(ordered[doc].docPath),
-              matrixCut: _matrixCutOf(
-                index,
-                ordered[doc],
-                bundle.mode,
-                wholePaths,
-              ),
               part: part,
             ),
     ),
@@ -461,7 +444,7 @@ ContextAnswer _answerContext(
   );
 }
 
-/// The read-first block of each doc by index, built on first use: an index is
+/// The print of each doc by index, built on first use: an index is
 /// one read snapshot, so a feature or spec doc that many bundles of one run
 /// print renders once. It holds a block for each doc, summary, and mode a run
 /// asks for; a record's matrix cut is part of the key, since two bundles of one
@@ -469,8 +452,51 @@ ContextAnswer _answerContext(
 /// holds, whole or without or only its matrix section, is part of the key too;
 /// so is whether the bundle marks the doc imported, since one index serves
 /// bundles with and without an imported set. A `check` run ends with its index.
-final _readFirstBlocksOf =
-    Expando<Map<(String, BundleMode, bool, bool, bool, String), String>>();
+final _docPrintsOf =
+    Expando<Map<(String, BundleMode, bool, bool, bool, String), DocPrint>>();
+
+/// Returns the print of [doc] in [bundle]; one with no [citedBy] is built once
+/// per index, whichever bundle of the run asks, since [_docBlock] reads
+/// nothing else of the bundle.
+DocPrint _docPrintOf(
+  DocIndex index,
+  Bundle bundle,
+  IndexedDoc doc,
+  Set<String> wholePaths, {
+  required CitedByIndex? citedBy,
+  _MatrixPart part = _MatrixPart.whole,
+}) {
+  final summary = bundle.summaryOnly.contains(doc.docPath);
+  final imported = bundle.isImported(doc);
+  final isTarget = bundle.targetPaths.contains(doc.docPath);
+  final matrixCut = _matrixCutOf(index, doc, bundle.mode, wholePaths);
+  DocPrint build() => _docBlock(
+    index,
+    doc,
+    bundle.mode,
+    summary: summary,
+    imported: imported,
+    citedBy: citedBy,
+    isTarget: isTarget,
+    matrixCut: matrixCut,
+    part: part,
+  );
+  if (citedBy != null) return build();
+  return (_docPrintsOf[index] ??= {})[(
+        doc.docPath,
+        bundle.mode,
+        summary,
+        imported,
+        isTarget,
+        '${part.name}:${_cutKeyOf(matrixCut)}',
+      )] ??=
+      build();
+}
+
+/// Returns the store key of [cut]: its sorted lines joined, one constant for
+/// the empty cut a doc with no matrix rows out of scope holds.
+String _cutKeyOf(Set<int> cut) =>
+    cut.isEmpty ? '' : (cut.toList()..sort()).join(',');
 
 /// Returns the est. tokens of the read-first file `answerContext` gives
 /// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
@@ -505,6 +531,33 @@ int? readFirstOverLimitOf(DocIndex index, Bundle bundle) {
     mode: bundle.mode,
   );
   return tokens > readRangeTokenLimit ? tokens : null;
+}
+
+/// Returns the runes each doc prints in the split answer of [bundle], by
+/// DocPath, with no answer built: the runes of each doc block the answer holds
+/// in its read-first or refs text, a doc printed in two parts, such as a record
+/// and its matrix section, summing both.
+///
+/// It places the blocks as `answerContext` does with `split`, no code target
+/// line, and no read-first end. No appended part, cited-by part, or JSON is
+/// built, since none holds a doc block.
+Map<String, int> printedDocRunesOf(DocIndex index, Bundle bundle) {
+  final runes = <String, int>{};
+  final pieces = _filledPieces(
+    _readFirstPieces(index, bundle, kept: _Kept.all),
+    codeTargetLine: '',
+  );
+  for (final piece in pieces) {
+    final doc = piece.doc;
+    if (doc == null || piece.kind != BundleEntryKind.doc) continue;
+    final blockRunes = runeCountOf(piece.block);
+    runes.update(
+      doc.docPath,
+      (sum) => sum + blockRunes,
+      ifAbsent: () => blockRunes,
+    );
+  }
+  return runes;
 }
 
 /// The runes of each block string an index sized, by block identity: a doc
@@ -549,9 +602,7 @@ List<_Piece> _readFirstPieces(
   required _Kept kept,
 }) {
   final ordered = bundle.printOrder(index);
-  final summaryOnly = bundle.summaryOnly;
   final wholePaths = _wholePathsOf(ordered, bundle);
-  final blocks = _readFirstBlocksOf[index] ??= {};
   final patternParts = featurePatternParts(index, bundle, ordered);
   return [
     ..._docSidePieces(
@@ -571,31 +622,15 @@ List<_Piece> _readFirstPieces(
       splits: true,
       kept: kept,
       printOf: (doc, part) {
-        final picked = ordered[doc];
-        final summary = summaryOnly.contains(picked.docPath);
-        final isTarget = bundle.targetPaths.contains(picked.docPath);
-        final imported = bundle.isImported(picked);
-        final matrixCut = _matrixCutOf(index, picked, bundle.mode, wholePaths);
-        final block =
-            blocks[(
-              picked.docPath,
-              bundle.mode,
-              summary,
-              imported,
-              isTarget,
-              '${part.name}:${(matrixCut.toList()..sort()).join(',')}',
-            )] ??= _docBlock(
-              index,
-              picked,
-              bundle.mode,
-              summary: summary,
-              imported: imported,
-              citedBy: null,
-              isTarget: isTarget,
-              matrixCut: matrixCut,
-              part: part,
-            ).text;
-        return DocPrint(text: block, cited: const [], sections: const []);
+        final print = _docPrintOf(
+          index,
+          bundle,
+          ordered[doc],
+          wholePaths,
+          citedBy: null,
+          part: part,
+        );
+        return DocPrint(text: print.text, cited: const [], sections: const []);
       },
     ),
     ..._listPieces(index, bundle, splits: true),

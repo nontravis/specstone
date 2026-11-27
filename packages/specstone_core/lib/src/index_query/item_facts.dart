@@ -12,6 +12,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/doc_model/trace_notes.dart';
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show DocContent, IndexedSection, indexedSectionsOf;
@@ -34,45 +35,43 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _noReadability = ReadabilityFacts(cells: [], notes: []);
 
-/// Returns the items of [doc], the file's parse, in the text its counts cover.
+/// Returns the items of the doc of [parse], the file's parse, in the text its
+/// counts cover.
 ///
-/// [lineFacts] are those of [lfText]. The counts cover [laid]'s text when
-/// [laid] is not null, else [lfText]; each section of [doc] takes the items of
-/// its twin there, which [Formatted.twinOf] names. A doc of a [type] holds the
-/// readability facts of its items, read against [idPrefixes], the item ID
-/// prefixes of the merged doc type set, and of each prose field whose value in
-/// [frontmatter] is a string.
+/// [lineFacts] are those of [parse]. The counts cover [counted], the parse of
+/// [laid]'s text when [laid] is not null, else [parse]; each section of the
+/// file takes the items of its twin there, which [Formatted.twinOf] names. A
+/// doc of a [type] holds the readability facts of its items, read against
+/// [idPrefixes], the item ID prefixes of the merged doc type set, and of each
+/// prose field whose value in [frontmatter] is a string.
 ItemFacts itemFactsOf({
-  required Doc doc,
-  required String lfText,
+  required DocParse parse,
+  required DocParse counted,
   required LineFacts lineFacts,
   required Formatted? laid,
   required MergedDocType? type,
   Set<String> idPrefixes = const {},
   Map<String, Object?> frontmatter = const {},
 }) {
-  final counted = laid?.doc ?? doc;
-  final countedText = laid?.text ?? lfText;
-  final lines = countedText == lfText
+  final doc = parse.doc;
+  final DocParse(doc: countedDoc, lfText: countedText) = counted;
+  final lines = countedText == parse.lfText
       ? lineFacts
-      : lineStructureOf(lfText: countedText, doc: counted);
+      : lineStructureOf(counted);
   final reads = _Reads(
     isTyped: type != null,
     idPrefixes: idPrefixes,
-    hidden: HiddenText.of(
-      counted.afterFrontmatter,
-      firstLine: linesBeforeBodyOf(counted, countedText) + 1,
-    ),
+    hidden: HiddenText.ofParse(counted),
   );
-  final held = indexedSectionsOf(counted, type);
+  final held = indexedSectionsOf(countedDoc, type);
   final templates = heldTemplatesOf(held, type);
   final isGenerated = generatedLineTest(
-    counted,
+    countedDoc,
     countedText,
     type?.listedGenerators.toSet() ?? const {},
   );
   final _Lead(:counts, :items) = _leadOf(
-    counted,
+    countedDoc,
     countedText,
     lines,
     isGenerated,

@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/number_label.dart'
     show builtInLabelPrefixes;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/label_place.dart';
+import 'package:specstone_core/src/index_query/models/prefixed_label_place.dart';
 
 /// The most labels one run of a number label finding holds.
 const _maxRunLabels = 3;
@@ -16,19 +17,38 @@ const _maxRunLabels = 3;
 /// `mermaid` blocks are read, other fenced code is not. The labels are
 /// the ones the index found when it parsed the doc, so no text is read here.
 ///
-/// A label is a built-in form or a part with a prefix the config lists. Each
-/// stretch of such parts that holds a listed one is cut into runs of up to
-/// three labels, one finding each; it owns the built-in labels it spans, so
-/// none of them is reported again. A part with an unlisted prefix ends a
-/// stretch and is no label.
+/// One finding per run of [numberLabelRunsOf].
 Iterable<Finding> checkNumberLabels(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
   final lines = context.linesOf(doc);
-  final listed = context.numberLabelPrefixes.toSet();
+  final runs = numberLabelRunsOf(
+    numberLabels: lines.numberLabels,
+    prefixedLabels: lines.prefixedLabels,
+    listed: context.numberLabelPrefixes.toSet(),
+  );
+  for (final LabelPlace(:line, :written) in runs) {
+    yield _finding(context, doc, line, written);
+  }
+}
+
+/// Returns the number label runs of a text, in order, each with its 1-based
+/// line and the run as written.
+///
+/// A label is a built-in form or a part with a prefix in [listed]. Each
+/// stretch of such parts that holds a listed one is cut into runs of up to
+/// three labels; it owns the built-in labels it spans, so none of them is
+/// reported again. A part with an unlisted prefix ends a stretch and is no
+/// label. Both rules that report number labels pick their set here.
+List<LabelPlace> numberLabelRunsOf({
+  required List<LabelPlace> numberLabels,
+  required List<PrefixedLabelPlace> prefixedLabels,
+  required Set<String> listed,
+}) {
+  final runs = <LabelPlace>[];
   final owned = <LabelPlace, int>{};
-  for (final chain in lines.prefixedLabels) {
+  for (final chain in prefixedLabels) {
     for (final stretch in _stretchesOf(chain.parts, listed)) {
       if (!stretch.any((part) => listed.contains(part.prefix))) continue;
       final owners = {
@@ -40,23 +60,24 @@ Iterable<Finding> checkNumberLabels(
       }
       for (var from = 0; from < stretch.length; from += _maxRunLabels) {
         final run = stretch.skip(from).take(_maxRunLabels);
-        yield _finding(
-          context,
-          doc,
-          chain.line,
-          [for (final part in run) part.written].join(' '),
+        runs.add(
+          LabelPlace(
+            line: chain.line,
+            written: [for (final part in run) part.written].join(' '),
+          ),
         );
       }
     }
   }
-  for (final label in lines.numberLabels) {
+  for (final label in numberLabels) {
     final dropped = owned[label] ?? 0;
     if (dropped > 0) {
       owned[label] = dropped - 1;
       continue;
     }
-    yield _finding(context, doc, label.line, label.written);
+    runs.add(label);
   }
+  return runs;
 }
 
 /// Returns the runs of adjacent parts of [parts] that are a built-in label or

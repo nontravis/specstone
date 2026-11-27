@@ -2,8 +2,6 @@ import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
-import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 
 /// The est. tokens one work group holds, one agent's work, bar a lone work
 /// unit past it.
@@ -53,14 +51,17 @@ final class WorkGroup {
 /// The work groups of one `--groups` call, with the bundle of every target
 /// they were sized from, so the call picks it once.
 final class WorkGroupPick {
-  const new({
+  new({
+    required this.index,
     required this.groups,
     required this.targets,
     required this.bundle,
-    required this.answer,
     required this.noProject,
     required this.importedPaths,
   });
+
+  /// The index [answer] and each group's bundle read.
+  final DocIndex index;
 
   /// The groups, numbered from 1 in docs-tree order.
   final List<WorkGroup> groups;
@@ -71,8 +72,14 @@ final class WorkGroupPick {
   /// The bundle of every target, each picked as its work unit.
   final Bundle bundle;
 
-  /// [bundle]'s split answer: what the call writes when it gives one group.
-  final ContextAnswer answer;
+  /// [bundle]'s split answer: what the call writes when it gives one group,
+  /// rendered when first read.
+  late final ContextAnswer answer = answerContext(
+    index,
+    bundle,
+    targets: targets,
+    split: true,
+  );
 
   /// Whether the call passed `--no-project`.
   final bool noProject;
@@ -116,14 +123,13 @@ WorkGroupPick pickWorkGroups(
     importedPaths: importedPaths,
     picksWorkUnits: true,
   );
-  final answer = answerContext(index, bundle, targets: targets, split: true);
-  final printed = _printedRunesOf([answer.readFirst, ?answer.refs]);
+  final printed = printedDocRunesOf(index, bundle);
   final units = _unitsOf(index, bundle);
   return WorkGroupPick(
+    index: index,
     groups: _filledGroups(index, units, targets, printed),
     targets: targets,
     bundle: bundle,
-    answer: answer,
     noProject: noProject,
     importedPaths: importedPaths,
   );
@@ -158,25 +164,6 @@ final class _Unit {
     docPaths: docPaths,
     tokens: tokensOf(printed),
   );
-}
-
-/// Returns the runes each doc prints in [texts], by DocPath; a doc printed in
-/// two parts, such as a record and its matrix section, sums both.
-Map<String, int> _printedRunesOf(List<BundleText> texts) {
-  final runes = <String, int>{};
-  for (final text in texts) {
-    final lines = text.text.split('\n');
-    for (final entry in text.entries) {
-      if (entry.kind != BundleEntryKind.doc) continue;
-      final block = lines.sublist(entry.first - 1, entry.last).join('\n');
-      runes.update(
-        entry.doc.docPath,
-        (sum) => sum + runeCountOf(block),
-        ifAbsent: () => runeCountOf(block),
-      );
-    }
-  }
-  return runes;
 }
 
 int _runesOf(Iterable<String> paths, Map<String, int> printed) =>

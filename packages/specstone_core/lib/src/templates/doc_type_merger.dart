@@ -54,9 +54,48 @@ List<T>? mergeList<T>(
   }
 }
 
+/// The entry each [RefPattern] of one resolve becomes, by the identity of the
+/// ref.
+final class PatternRefs {
+  const new(this._entries);
+
+  /// No refs: layers that write only their own patterns.
+  static const PatternRefs none = PatternRefs({});
+
+  final Map<RefPattern, PatternEntry> _entries;
+
+  /// Returns [write] with each ref replaced by its resolved entry.
+  ///
+  /// Throws a [StateError] for a ref the resolve did not resolve; the
+  /// resolver resolves every ref of its layers before any merge.
+  ListWrite<PatternEntry>? resolve(ListWrite<LayerPattern>? write) =>
+      switch (write) {
+        null => null,
+        PlainList<LayerPattern>(:final items) => PlainList<PatternEntry>([
+          for (final item in items) _entryOf(item),
+        ]),
+        ListChange<LayerPattern>(:final add, :final remove) =>
+          ListChange<PatternEntry>([
+            for (final item in add) _entryOf(item),
+          ], remove),
+      };
+
+  PatternEntry _entryOf(LayerPattern pattern) => switch (pattern) {
+    OwnPattern(:final entry) => entry,
+    RefPattern() =>
+      _entries[pattern] ??
+          (throw StateError('pattern_ref is not resolved: ${pattern.key}')),
+  };
+}
+
 /// Folds sparse doc-type layers onto a base, matching entries by id.
+///
+/// [patternRefs] resolves the `pattern_ref` entries the layers write; the
+/// default holds none.
 final class DocTypeMerger {
-  const new();
+  const new({this.patternRefs = PatternRefs.none});
+
+  final PatternRefs patternRefs;
 
   /// Returns the empty doc type [id] holding only the built-in fields.
   MergedDocType builtInBase(String id) => MergedDocType(
@@ -183,7 +222,7 @@ final class DocTypeMerger {
       ),
       bannedPatterns: _mergePatterns(
         base.bannedPatterns,
-        lint.bannedPatterns,
+        patternRefs.resolve(lint.bannedPatterns),
         file: layer.file,
         key: 'lint.banned_patterns',
       ),
@@ -632,13 +671,13 @@ final class DocTypeMerger {
 
   List<PatternEntry>? _mergeSectionPatterns(
     List<PatternEntry>? base,
-    ListWrite<PatternEntry>? write,
+    ListWrite<LayerPattern>? write,
     DocTypeLayer layer,
     String sectionId,
     String name,
   ) => _mergePatterns(
     base,
-    write,
+    patternRefs.resolve(write),
     file: layer.file,
     key: 'sections.$sectionId.lint.$name',
   );

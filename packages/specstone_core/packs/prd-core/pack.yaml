@@ -1,5 +1,5 @@
 name: prd-core
-version: 1.32.0
+version: 1.33.0
 shared_lines:
   - id: present_truth
     text: State the present truth; git holds history.
@@ -64,6 +64,14 @@ shared_banned_patterns:
     in: all
     for_doc_types: [gnfr]
     sections: [performance, security, reliability, maintainability, environment, safety, operability]
+  - id: scenario_trace
+    # A scenario ID, a "traces Scenario" or "Traces from [Scenario" phrase, "Scenario N of [story]", or a scenario link.
+    pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b[Tt]races? (?:from \[?)?Scenarios?\b|\bScenarios? [0-9]+(?:[ ,]+(?:and |or )?[0-9]+)* of \[|\[Scenarios? [0-9]+[^\]]*\]|#scenario-[0-9]'
+    message: source of the scenario-trace regex that fr's Statement, Edge cases, and Rationale entries take by pattern_ref
+  - id: trace_without_standard
+    # A scenario ID or an NFR or PG ID; the guide line asks the Statement to name a standard.
+    pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b'
+    message: source of the no-standard trace regex that gnfr's interface and design_standards Statement entries take by pattern_ref
 shared_required_patterns:
   - id: by_line
     pattern: '^- \*\*By:\*\*'

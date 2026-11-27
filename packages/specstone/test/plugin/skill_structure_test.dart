@@ -1,6 +1,7 @@
 // Test names stay one literal so `specstone check` finds them by exact text.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
@@ -14,6 +15,7 @@ import 'package:yaml/yaml.dart';
 
 import '../helpers/package_root.dart';
 import '../helpers/plugin_content.dart';
+import '../helpers/read_fixture.dart';
 import '../helpers/temp_tree.dart';
 import '../helpers/write_runner.dart';
 
@@ -40,6 +42,7 @@ void main() {
   group('sync procedure', _syncProcedureTests);
   group('sync engineer', _syncEngineerTests);
   group('bootstrap routing', _bootstrapRoutingTests);
+  group('json paths', _jsonPathsTests);
 }
 
 // MARK: - Fixtures and readers
@@ -64,7 +67,8 @@ const _agentNames = [
   'sdd-reader',
 ];
 
-const _procedures = <String>[
+/// The reference files the shipped skills name, each of which must exist.
+const _requiredReferences = <String>[
   'specstone-sync-sdd/references/procedure.md',
   'specstone-sync-sdd/references/routes.md',
   'specstone-sync-sdd/references/task-refs.md',
@@ -521,8 +525,31 @@ void _syncRouteTests() {
     expect(_pluginText(_syncSkill), isNot(contains('`last`')));
   });
 
-  test('an empty work list goes on only for a decided decision no report '
-      'names', () {
+  // D1
+  test(
+    'at a last sync the decided engineer runs before every engineer group',
+    () {
+      final routes = _pluginText(_syncRoutes);
+      expect(
+        _hasSentenceWith(_sectionOf(routes, '## Order'), [
+          'decided engineer',
+          'before',
+        ]),
+        isTrue,
+      );
+      final small = _sectionOf(routes, '## Small group');
+      final decidedLine = _sentencesOf(small)
+          .where((sentence) => sentence.contains('decided behavior'));
+      expect(decidedLine, isNotEmpty);
+      for (final sentence in decidedLine) {
+        expect(sentence, isNot(contains('drafts')));
+      }
+    },
+  );
+
+  // D1
+  test('an empty work list stops unless a change note sent the decided '
+      'engineer', () {
     final skill = _pluginText(_syncSkill);
     final first = _sectionOf(skill, _syncFirstStep);
     expect(
@@ -531,48 +558,50 @@ void _syncRouteTests() {
         'stop',
         'no dispatch',
         'unless',
+        '`change note`',
       ]),
       isTrue,
     );
-    expect(_hasSentenceWith(first, ['(decided)', 'specstone folder']), isTrue);
     final noSubagent = skill
         .split('\n')
         .singleWhere((line) => line.startsWith('- No subagent:'));
     expect(
       noSubagent,
       allOf(
-        contains('Decided-only run'),
         contains('`change note`'),
-        contains("main's own"),
+        contains('Decided-only run'),
+        isNot(contains("main's own")),
       ),
     );
   });
 
-  test('after the last group report one engineer takes each decided decision '
-      'no report names', () {
-    final after = _sectionOf(_pluginText(_syncSkill), '## 3. After the report');
-    expect(
-      _hasSentenceWith(after, ['rerun', '`report:` file', '`Decision: D`']),
-      isTrue,
+  // D1
+  test('one decided engineer takes every decided decision before the group '
+      'wave', () {
+    final skill = _pluginText(_syncSkill);
+    final first = _sectionOf(skill, _syncFirstStep);
+    final dispatch = _sentencesOf(first).where(
+      (sentence) => [
+        '`decided:`',
+        '`change note:`',
+        'every',
+        '(decided)',
+      ].every(sentence.contains),
     );
-    expect(after, isNot(contains('*.sync.*.md')));
-    expect(_hasSentenceWith(after, ['`decided:`', '`change note:`']), isTrue);
-    expect(
-      _hasSentenceWith(after, ['`specstone-sdd-auditor`', 'decided-only']),
-      isTrue,
-    );
-    expect(
-      _sentencesOf(after)
-          .where((sentence) => sentence.contains('`decided:`'))
-          .any((sentence) => sentence.contains('`scope: feature:<name>`')),
-      isFalse,
-    );
+    expect(dispatch, hasLength(1));
+    expect(dispatch.single, isNot(contains('`scope: feature:<name>`')));
+    expect(_hasSentenceWith(first, ['report', '`engineer`', 'once']), isTrue);
+    final after = _sectionOf(skill, '## 3. After the report');
+    expect(after, isNot(contains('`decided:`')));
+    expect(after, isNot(contains('Not landed: D')));
   });
 
   test('no later sync step runs a second context --for sync call', () {
     final files = [
       _syncSkill,
-      ..._procedures.where((file) => file.startsWith('specstone-sync-sdd/')),
+      ..._requiredReferences.where(
+        (file) => file.startsWith('specstone-sync-sdd/'),
+      ),
     ];
     final syncCalls = [
       for (final file in files)
@@ -693,7 +722,9 @@ void _syncProcedureTests() {
   test('no sync file names uncovered code, its scope, or a helper test', () {
     final files = [
       _syncSkill,
-      ..._procedures.where((file) => file.startsWith('specstone-sync-sdd/')),
+      ..._requiredReferences.where(
+        (file) => file.startsWith('specstone-sync-sdd/'),
+      ),
       _syncEntry,
       _engineer,
     ];
@@ -716,7 +747,9 @@ void _syncProcedureTests() {
   test('no sync file runs a set --remove-task left waiting for main', () {
     final files = [
       _syncSkill,
-      ..._procedures.where((file) => file.startsWith('specstone-sync-sdd/')),
+      ..._requiredReferences.where(
+        (file) => file.startsWith('specstone-sync-sdd/'),
+      ),
     ];
     for (final file in files) {
       expect(_pluginText(file), isNot(contains('--remove-task')), reason: file);
@@ -810,8 +843,66 @@ void _syncEngineerTests() {
     final groupFile = bullets.singleWhere(
       (bullet) => bullet.contains('**`group file`**'),
     );
-    expect(decided, allOf(contains('`change note`'), contains('`group file`')));
+    // D1
+    expect(
+      decided,
+      allOf(
+        contains('`change note`'),
+        contains('`group file`'),
+        contains('every'),
+        contains('before'),
+      ),
+    );
     expect(groupFile, contains('`decided`'));
+  });
+
+  test('a group sync engineer judges its links against the decided lines and '
+      'drafts none', () {
+    // D1
+    final section = _sectionOf(
+      _pluginText(_syncDecided),
+      '## 1. Judge against the decided lines',
+    );
+    expect(section, allOf(contains('match'), contains('Mismatches:')));
+    for (final word in [
+      'specstone set',
+      'specstone new',
+      'Decision:',
+      'Not landed:',
+    ]) {
+      expect(section, isNot(contains(word)), reason: word);
+    }
+    final outputFormat = _sectionOf(_pluginText(_engineer), '## Output Format');
+    final bullet = outputFormat
+        .split(RegExp(r'(?= - \*\*)'))
+        .singleWhere((b) => b.contains('**Sync with a change note**'));
+    expect(bullet, isNot(contains("group's work holds")));
+    final report = _sectionOf(_pluginText(_syncEntry), '## Report')
+        .split(RegExp('(?= - )'))
+        .singleWhere(
+          (b) => b.contains('A group engineer with a `change note`'),
+        );
+    expect(report, allOf(contains('decided engineer'), contains('decided.md')));
+  });
+
+  test('the decided engineer drafts or names the carrying section of every '
+      'decided id', () {
+    // D1
+    final text = _pluginText(_syncDecided);
+    final section = _sectionOf(text, '## Decided-only run');
+    expect(
+      section,
+      allOf(
+        contains('## 2. Find the readers'),
+        contains('--for design'),
+        contains('Decision:'),
+        contains('carr'),
+        contains('Not landed:'),
+      ),
+    );
+    final lines = text.split('\n');
+    expect(lines, isNot(contains('## 2. Find the readers')));
+    expect(lines, isNot(contains('## 3. Draft')));
   });
 
   test('a decided-only sync engineer drafts and writes no pointer or '
@@ -1014,10 +1105,10 @@ void _referencesResolveTests() {
     );
   });
 
-  for (final procedure in _procedures) {
-    test('$procedure exists', () {
-      final file = File.fromUri(agentAssetsRoot().uri.resolve(procedure));
-      expect(file.existsSync(), isTrue, reason: '$procedure is missing');
+  for (final reference in _requiredReferences) {
+    test('$reference exists', () {
+      final file = File.fromUri(agentAssetsRoot().uri.resolve(reference));
+      expect(file.existsSync(), isTrue, reason: '$reference is missing');
     });
   }
 
@@ -1323,7 +1414,11 @@ void _referencesResolveTests() {
 void _packDocTypeTests() {
   Future<List<String>> namesIn(String text) async {
     final root = await writeTree({'specstone-x/SKILL.md': text});
-    return packDocTypeNames(contentFilesOf(root), PackDocTypes.shipped());
+    return packDocTypeNames(
+      contentFilesOf(root),
+      PackDocTypes.shipped(),
+      cliWords: cliWordsOf(SpecstoneCommandRunner(console: FakeConsole())),
+    );
   }
 
   test(
@@ -1369,6 +1464,31 @@ void _packDocTypeTests() {
     );
   });
 
+  // D4
+  test('a code span naming a pack type id or a section key only such a type '
+      'defines fails naming the type', () {
+    expect(
+      namesIn('Read `api` and `fr_trace` first.'),
+      completion([
+        'specstone-x/SKILL.md: api',
+        'specstone-x/SKILL.md: fr_trace of api, project_api',
+      ]),
+    );
+  });
+
+  // D4
+  test('a fenced line, prose, and a span that is a CLI command or flag '
+      'pass', () {
+    expect(
+      namesIn(
+        '```\n`api`\n```\n'
+        'The api and fr_trace words are prose.\n'
+        'Run `context`, `audit`, and `plan`.\n',
+      ),
+      completion(isEmpty),
+    );
+  });
+
   test('a prd-core address such as fr:login/x passes', () {
     expect(
       namesIn('Open fr:login/x and user_story:login.'),
@@ -1380,7 +1500,14 @@ void _packDocTypeTests() {
       'type', () {
     final files = contentFiles();
     expect(files, isNotEmpty);
-    expect(packDocTypeNames(files, PackDocTypes.shipped()), isEmpty);
+    expect(
+      packDocTypeNames(
+        files,
+        PackDocTypes.shipped(),
+        cliWords: cliWordsOf(SpecstoneCommandRunner(console: FakeConsole())),
+      ),
+      isEmpty,
+    );
   });
 
   test('merge-untyped.md and trim.md name no pack type id, no pack type doc, '
@@ -2202,6 +2329,49 @@ void _approveStepTests() {
     );
   });
 
+  test('a Decided approval takes the decided engineer report as its one '
+      'author', () {
+    // D1
+    final approve = _approveText();
+    expect(approve, isNot(contains('once per sync engineer report')));
+    expect(approve, contains("the decided engineer's report"));
+    expect(
+      approve,
+      matches(RegExp("decided engineer's report[^;]*`--author <path>`")),
+    );
+    final audit = _oneLine(_pluginText(_decidedAuditReference));
+    expect(audit, isNot(contains('each sync engineer report')));
+    final ground = audit.substring(audit.indexOf('1. **Hashes and ground**'));
+    expect(
+      ground.substring(0, ground.indexOf('2. **Read**')),
+      allOf(contains('`Decision:`'), contains('carr')),
+    );
+  });
+
+  test('a sync approves every draft it wrote in one step after its last '
+      'rerun', () {
+    // D2
+    final sentences = _sentencesOf(
+      _sectionOf(_pluginText(_syncSkill), '## 3. After the report'),
+    );
+    final pointers = [
+      for (final (index, sentence) in sentences.indexed)
+        if (sentence.contains(_approvePath)) index,
+    ];
+    expect(pointers, hasLength(1));
+    final specFix = sentences.indexWhere((s) => s.contains('A spec fix'));
+    expect(specFix, isNonNegative);
+    expect(pointers.single, greaterThan(specFix));
+    expect(
+      sentences[pointers.single],
+      allOf(contains('--audit'), contains('--no-audit')),
+    );
+    expect(
+      _hasSentenceWith(sentences.join(' '), ['decided-audit', 'every draft']),
+      isTrue,
+    );
+  });
+
   test('expert-sdd sends behavior no PRD doc states to the Owner, never to a spec draft', () {
     final text = _pluginText(_expertSdd);
     final flat = _oneLine(text);
@@ -2872,16 +3042,14 @@ void _reReviewTests() {
   });
 
   test('the auditor names a Notes section for each of its five jobs', () {
-    final text = _pluginText(_auditor);
-    for (final lead in [
-      '- **Builder check**',
-      '- **Re-review**',
-      '- **Trim audit**',
-      '- **Decided audit**',
-      '- **Plan check**',
+    for (final file in [
+      _auditReference,
+      _reReviewReference,
+      _trimAuditReference,
+      _decidedAuditReference,
+      _planCheck,
     ]) {
-      final bullet = _bulletOf(text, lead);
-      expect(bullet, contains('`Notes:`'), reason: lead);
+      expect(_oneLine(_pluginText(file)), contains('`Notes:`'), reason: file);
     }
   });
 
@@ -2892,9 +3060,33 @@ void _reReviewTests() {
     expect(lead, contains('plan check'));
     expect(lead, contains('after any label'));
     expect(lead, contains('`, `'));
-    final trim = _bulletOf(text, '- **Trim audit**');
-    expect(trim, contains('**Lead names**'));
+    final trim = _bulletOf(
+      _pluginText(_trimAuditReference),
+      '- Each item under `Outside the drafts:`',
+    );
+    expect(trim, contains('every doc its fix lies in'));
+    expect(trim, contains('never a draft of the round'));
     expect(trim, isNot(contains('the doc where its fix lies')));
+  });
+
+  // D16
+  test("the auditor links each job's report shape and restates none", () {
+    final text = _pluginText(_auditor);
+    final from = text.indexOf('\n## Output Format\n');
+    final output = text.substring(from, text.indexOf('\n## ', from + 4));
+    final lines = output.split('\n');
+    for (final lead in [
+      '- **Builder check**',
+      '- **Re-review**',
+      '- **Trim audit**',
+      '- **Decided audit**',
+      '- **Plan check**',
+    ]) {
+      expect(lines.any((line) => line.startsWith(lead)), isFalse, reason: lead);
+    }
+    final shape = _bulletOf(output, '- **Report shape**');
+    expect(shape, contains('On-Demand'));
+    expect(shape, contains('`## 6. Report`'));
   });
 
   test('the auditor takes findings, and no sections or citers', () {
@@ -2937,7 +3129,10 @@ void _reReviewTests() {
     ]) {
       expect(head, contains(job), reason: job);
     }
-    final decided = _bulletOf(text, '- **Decided audit**');
+    final decided = _sectionOf(
+      _pluginText(_decidedAuditReference),
+      '## Decided audit',
+    );
     for (final words in [
       '`Contradiction`, `Stale reader`, and `Not carried`',
       '`Fix:` lines',
@@ -2945,7 +3140,10 @@ void _reReviewTests() {
     ]) {
       expect(decided, contains(words), reason: words);
     }
-    final report = _bulletOf(text, '- **Re-review**');
+    final report = _sectionOf(
+      _pluginText(_reReviewReference),
+      _reReviewHeading,
+    );
     for (final line in [
       '`Findings:`',
       '`Verdicts:`',
@@ -2954,7 +3152,10 @@ void _reReviewTests() {
     ]) {
       expect(report, contains(line), reason: line);
     }
-    expect(_bulletOf(text, '- **Builder check**'), contains('`Fix:` lines'));
+    expect(
+      _sectionOf(_pluginText(_auditReference), _builderCheckHeading),
+      contains('`Fix:` lines'),
+    );
     for (final file in [
       _auditor,
       _auditReference,
@@ -3739,5 +3940,65 @@ void _bootstrapRoutingTests() {
         .singleWhere((bullet) => bullet.contains('**`picks`**'));
     expect(picks, contains('sync'));
     expect(picks, isNot(contains('bootstrap')));
+  });
+}
+
+// MARK: - json paths
+
+/// The fixture docs whose `get --json` reply a span may resolve in: the
+/// architecture doc holds `tasks` and `overrides`, the FR doc `confirmed`.
+const _jsonPathDocs = [
+  'specs/f01_login/ARCHITECTURE.md',
+  'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md',
+];
+
+final _jsonPathStep = RegExp(r'^([^\[\]]+)(?:\[(\d+)\])?$');
+
+/// Whether the dotted [path] resolves in [json]; a `<placeholder>` step
+/// matches any key of the object it meets.
+bool _resolvesIn(Object? json, String path) =>
+    _resolvesSteps(json, path.split('.'));
+
+bool _resolvesSteps(Object? node, List<String> steps) {
+  if (steps.isEmpty) return true;
+  final match = _jsonPathStep.firstMatch(steps.first);
+  if (match == null || node is! Map<String, Object?>) return false;
+  final key = match.group(1)!;
+  final isPlaceholder = key.startsWith('<') && key.endsWith('>');
+  final values = isPlaceholder
+      ? node.values
+      : [if (node.containsKey(key)) node[key]];
+  final index = match.group(2);
+  final rest = steps.sublist(1);
+  return values.any((value) {
+    if (index == null) return _resolvesSteps(value, rest);
+    final at = int.parse(index);
+    return value is List<Object?> &&
+        at < value.length &&
+        _resolvesSteps(value[at], rest);
+  });
+}
+
+void _jsonPathsTests() {
+  // D17: a skill names the JSON path under `docs[<i>]`, never a bare `bases.`.
+  test('each code span starting with docs[ or bases. in an agent source file resolves in the get --json reply', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    final replies = <Object?>[];
+    for (final doc in _jsonPathDocs) {
+      out.clear();
+      expect(await runner.run(['get', doc, '--json']), 0, reason: '$err');
+      replies.add(jsonDecode(out.toString()));
+    }
+    final problems = <String>[];
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
+      final text = file.readAsStringSync().replaceAll('\r\n', '\n');
+      for (final span in _inlineSpans(text)) {
+        if (!span.startsWith('docs[') && !span.startsWith('bases.')) continue;
+        if (!replies.any((reply) => _resolvesIn(reply, span))) {
+          problems.add('${shippedPathOf(file)}: $span');
+        }
+      }
+    }
+    expect(problems, isEmpty);
   });
 }

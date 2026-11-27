@@ -204,6 +204,7 @@ final class TemplateResolver {
             in pack.parseFrozenDocTypes().entries)
           id: [PackLayer(pack: pack, layer: layer)],
     };
+    _refuseFrozenPatternRefs(layerLists);
     const merger = DocTypeMerger();
     final loadIndex = loadIndexOf([
       for (final layers in layerLists.values) layers.single.layer,
@@ -436,7 +437,6 @@ final class TemplateResolver {
     List<String> targetNames = const [],
     MatrixMode matrixMode = MatrixMode.off,
   }) {
-    const merger = DocTypeMerger();
     final dropped = _droppedDocTypes(packs);
     final leftBehind = _leftBehindIds(folded, dropped);
     final orphaned = _orphanedIds(packs, allProjectLayers);
@@ -478,16 +478,16 @@ final class TemplateResolver {
           pack.manifest.name: layers.keys.toSet(),
       },
       mergedDocTypeIds: layerLists.keys.toSet(),
+      bannedRefIds: _namedPatternRefIds(layerLists, SharedPatternKind.banned),
+      requiredRefIds: _namedPatternRefIds(
+        layerLists,
+        SharedPatternKind.required,
+      ),
     );
     final reach = _SharedReach(shared, [
       for (final ParsedPack(:pack) in packs) pack,
     ]);
-    final docTypes = _resolveInDependencyOrder(
-      layerLists,
-      merger,
-      loadIndex,
-      reach,
-    );
+    final docTypes = _resolveInDependencyOrder(layerLists, loadIndex, reach);
     checkMergedSet(
       docTypes.values.toList(),
       layerLists,
@@ -513,6 +513,22 @@ final class TemplateResolver {
               entry,
       ],
     );
+  }
+
+  /// Throws `pattern_ref_invalid` at the first `pattern_ref` of a frozen doc
+  /// type.
+  ///
+  /// A frozen file holds its patterns whole, as the last version shipped
+  /// them, and meets no shared list to resolve a ref against.
+  void _refuseFrozenPatternRefs(Map<String, DocTypeLayers> layerLists) {
+    _eachPatternRef(layerLists, (layer, _, ref) {
+      throw TemplateFault(
+        FaultCode.patternRefInvalid,
+        'a frozen doc type holds each pattern whole and takes no pattern_ref',
+        file: layer.file,
+        key: '${ref.key}.pattern_ref',
+      );
+    });
   }
 
   /// Throws `unknown_value` for the first `merge_doc` step whose `to` names no
@@ -633,16 +649,19 @@ final class TemplateResolver {
   }
 
   /// Merges every doc type, extending ones after their targets, once every
-  /// shared pattern's `sections` match a section where it lands.
+  /// shared pattern's `sections` match a section where it lands and every
+  /// layer `pattern_ref` resolves.
   Map<String, MergedDocType> _resolveInDependencyOrder(
     Map<String, DocTypeLayers> layerLists,
-    DocTypeMerger merger,
     LoadIndex loadIndex,
     _SharedReach reach,
   ) {
     final docTypes = <String, MergedDocType>{};
     final order = _dependencyOrder(layerLists, loadIndex);
     reach.checkPatternSections(layerLists);
+    final merger = DocTypeMerger(
+      patternRefs: reach.resolvePatternRefs(layerLists),
+    );
     for (final id in order) {
       docTypes[id] = _mergeOne(id, layerLists[id]!, merger, docTypes, reach);
     }
@@ -1025,6 +1044,48 @@ final class _ParsedPacks {
   final List<_ParsedPatterns> patterns;
 }
 
+/// Calls [visit] for each `pattern_ref` entry of the layers of [layerLists],
+/// with its layer and the shared list it names an id of.
+void _eachPatternRef(
+  Map<String, DocTypeLayers> layerLists,
+  void Function(DocTypeLayer layer, SharedPatternKind kind, RefPattern ref)
+  visit,
+) {
+  for (final layers in layerLists.values) {
+    for (final PackLayer(:layer) in layers) {
+      void visitWrite(SharedPatternKind kind, ListWrite<LayerPattern>? write) {
+        final entries = switch (write) {
+          null => const <LayerPattern>[],
+          PlainList<LayerPattern>(:final items) => items,
+          ListChange<LayerPattern>(:final add) => add,
+        };
+        for (final entry in entries) {
+          if (entry is RefPattern) visit(layer, kind, entry);
+        }
+      }
+
+      visitWrite(SharedPatternKind.banned, layer.lint?.bannedPatterns);
+      for (final section in layer.sections) {
+        visitWrite(SharedPatternKind.banned, section.lint?.bannedPatterns);
+        visitWrite(SharedPatternKind.required, section.lint?.requiredPatterns);
+      }
+    }
+  }
+}
+
+/// Returns the ids the layers' `pattern_ref` entries name in the shared list
+/// of [kind].
+Set<String> _namedPatternRefIds(
+  Map<String, DocTypeLayers> layerLists,
+  SharedPatternKind kind,
+) {
+  final ids = <String>{};
+  _eachPatternRef(layerLists, (_, refKind, ref) {
+    if (refKind == kind) ids.add(ref.ref);
+  });
+  return ids;
+}
+
 /// Decides where the shared entries of one resolve land in each doc type.
 final class _SharedReach {
   new(this._shared, List<LoadedPack> packs)
@@ -1113,6 +1174,30 @@ final class _SharedReach {
       });
       if (!lands) throw _sectionsMatchNone(pattern, sections);
     }
+  }
+
+  /// Resolves every `pattern_ref` of the layers of [layerLists] to the
+  /// pattern of the shared entry it names.
+  ///
+  /// Throws `pattern_ref_invalid` at the `pattern_ref` of the first entry
+  /// that names no shared entry of its own kind, a disabled one included.
+  PatternRefs resolvePatternRefs(Map<String, DocTypeLayers> layerLists) {
+    final resolved = <RefPattern, PatternEntry>{};
+    _eachPatternRef(layerLists, (layer, kind, ref) {
+      final named = _shared.patterns.where(
+        (pattern) => pattern.kind == kind && pattern.id == ref.ref,
+      );
+      if (named.isEmpty) {
+        throw TemplateFault(
+          FaultCode.patternRefInvalid,
+          'pattern_ref names no shared ${kind.name} pattern: ${ref.ref}',
+          file: layer.file,
+          key: '${ref.key}.pattern_ref',
+        );
+      }
+      resolved[ref] = ref.resolve(named.single.entry.pattern);
+    });
+    return PatternRefs(resolved);
   }
 
   /// The section ids a doc type holds after [layers] up to [index], its
@@ -1224,11 +1309,11 @@ final class _SharedReach {
 
   /// The key of the `id` of [write]'s entry [id] at the list key [listKey],
   /// or null when [write] holds none.
-  String? _entryKey(ListWrite<PatternEntry>? write, String id, String listKey) {
+  String? _entryKey(ListWrite<LayerPattern>? write, String id, String listKey) {
     final (entries, at) = switch (write) {
-      null => (const <PatternEntry>[], listKey),
-      PlainList<PatternEntry>(:final items) => (items, listKey),
-      ListChange<PatternEntry>(:final add) => (add, '$listKey.add'),
+      null => (const <LayerPattern>[], listKey),
+      PlainList<LayerPattern>(:final items) => (items, listKey),
+      ListChange<LayerPattern>(:final add) => (add, '$listKey.add'),
     };
     final index = entries.indexWhere((entry) => entry.id == id);
     return index == -1 ? null : '$at[$index].id';

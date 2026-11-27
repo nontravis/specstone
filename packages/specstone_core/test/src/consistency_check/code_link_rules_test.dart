@@ -10,6 +10,8 @@ import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart'
+    show coveringDocsOf;
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
 
@@ -554,6 +556,29 @@ void main() {
 
         expect(_suspects(report), hasLength(1), reason: name);
       }
+    });
+
+    // D14
+    test('a folder covers entry fingerprints no ignored file, so its '
+        'fingerprint changes once', () async {
+      final recorded = _folderFingerprintOf({
+        'app/lib/b.dart': 'b\n',
+        _login: _loginText,
+      });
+      final project = await writeCheckProject(
+        extra: {
+          ..._covering('  - app/lib/ $recorded\n'),
+          'app/lib/b.dart': 'b\n',
+        },
+        unfingerprinted: {loginRecord},
+      );
+      expect(_suspects(await _run(project)), isEmpty);
+
+      File('${project.path}/app/lib/.gitignore').writeAsStringSync('b.dart\n');
+      final suspects = _suspects(await _run(project));
+
+      expect(suspects, hasLength(1));
+      expect(suspects.single.keys['fingerprint'], folderFingerprint);
     });
 
     test('reads a file that is not UTF-8 over its raw bytes', () async {
@@ -1216,5 +1241,115 @@ void main() {
         ]),
       );
     });
+  });
+
+  // D9
+  group('a covers entry written in NFC over an NFD file', () {
+    const written = 'app/lib/caf\u{E9}.dart';
+    const onDisk = 'app/lib/cafe\u{301}.dart';
+
+    Future<Directory> project() => writeCheckProject(
+      extra: {
+        ...doc(loginRecord, '  - app/lib/\n', '  - $written\n'),
+        onDisk: 'class Cafe {}\n',
+      },
+    );
+
+    CodeLink linkOf(Directory root) {
+      final session = openSession(root);
+      addTearDown(session.close);
+      final context = CheckContext(session);
+      final doc = session.index.at(loginRecord)!;
+      return codeLinksOf(
+        context.index.statusTree,
+        ImplementedWork(context, context.targets),
+        doc,
+        type: context.typeOf(doc)!,
+        projectRoot: context.projectRoot,
+        codeRootOf: context.codeRootOf,
+        linesOf: () => context.linesOf(doc),
+        exactPaths: context.exactPaths,
+      ).singleWhere((link) => link.path == written);
+    }
+
+    test('keeps the written path and reads the disk spelling', () async {
+      final link = linkOf(await project());
+
+      expect(link.path, written);
+      expect(link.diskPath, onDisk);
+      expect(link.readPath, onDisk);
+    });
+
+    test('is covered by its own doc, and its finding shows the written '
+        'path', () async {
+      final root = await project();
+      final link = linkOf(root);
+      final session = openSession(root);
+      addTearDown(session.close);
+
+      expect(
+        coveringDocsOf(session.index, link).map((d) => d.docPath),
+        contains(loginRecord),
+      );
+      final unconfirmed = _unconfirmed(await _run(root));
+      expect(unconfirmed.map((f) => f.keys['codePath']), contains(written));
+    });
+  });
+
+  // D9
+  group('a covers folder written in NFC over an NFD folder', () {
+    const written = 'app/lib/caf\u{E9}/';
+    const onDiskFile = 'app/lib/cafe\u{301}/menu.dart';
+    const text = 'class Menu {}\n';
+
+    test('is fingerprinted by the disk spelling', () async {
+      final recorded = _folderFingerprintOf({onDiskFile: text});
+      final report = await _run(
+        await writeCheckProject(
+          extra: {
+            ...doc(loginRecord, '  - app/lib/\n', '  - $written $recorded\n'),
+            onDiskFile: text,
+          },
+        ),
+      );
+
+      expect(
+        [
+          ..._suspects(report),
+          ..._unconfirmed(report),
+        ].where((f) => f.keys['codePath'] == written),
+        isEmpty,
+      );
+      expect(report.warnings, isEmpty);
+    });
+  });
+
+  // D9
+  group('an unreadable NFD file named in NFC', () {
+    const written = 'app/lib/caf\u{E9}.dart';
+    const onDisk = 'app/lib/cafe\u{301}.dart';
+
+    Future<CheckReport> runUnreadable(Directory project) async {
+      final path = '${project.path}/$onDisk';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+      return _run(project);
+    }
+
+    test(
+      'has its implements Symbol read by the disk spelling',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final report = await runUnreadable(
+          await _project(
+            _record(code: ['$_fr:$written:Cafe']),
+            extra: {onDisk: 'class Cafe {}\n'},
+          ),
+        );
+
+        expect(report.warnings, contains('$onDisk: $_unreadable'));
+        expect(report.warnings.where((w) => w.contains(written)), isEmpty);
+      },
+    );
   });
 }

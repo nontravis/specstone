@@ -9,7 +9,8 @@ Rule 4 and rule 7 of `specstone-expert-sdd`. Save each `check` here to its own f
   `specstone check <target> --out "<folder>/reports/check.<role>.<XXXXXX>.txt"` to save each traced link's upstream
   block and fingerprint.
 - Read the block, then write the `confirmed` entries with `specstone set <target> --field confirmed --base <hash>`.
-- Take `<hash>` from `bases.fields.confirmed` of `specstone get <target> --json`, never from a `check` fingerprint.
+- Take `<hash>` from `docs[0].bases.fields.confirmed` of `specstone get <target> --json`, never from a `check`
+  fingerprint.
 - A `suspect` link: re-read its upstream block and confirm again the same way.
 - Say in the approval request what changed upstream; under `auto`, the approved list names it.
 
@@ -17,7 +18,7 @@ Rule 4 and rule 7 of `specstone-expert-sdd`. Save each `check` here to its own f
 
 - Record one `overrides` entry per item each `Overrides:` line overrides: `<doc type>:<name>#<ID> <fingerprint>`.
 - Run the same `check --out` for each fingerprint, then write
-  `specstone set <target> --field overrides --base <hash>`, `<hash>` from `bases.fields.overrides` of
+  `specstone set <target> --field overrides --base <hash>`, `<hash>` from `docs[0].bases.fields.overrides` of
   `specstone get <target> --json`.
 - Until the entry matches, `check` reports the line `unconfirmed`; in a draft it stays `unconfirmed` and waits for the
   Owner's approval.

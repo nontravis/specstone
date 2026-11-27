@@ -4,16 +4,26 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/label_rules.dart'
+    show numberLabelRunsOf;
 import 'package:specstone_core/src/consistency_check/models/yaml_entry.dart';
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/models/doc_address.dart';
-import 'package:specstone_core/src/doc_model/models/name_mention.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/doc_model/number_label.dart'
+    show
+        MarkdownLabelLines,
+        builtInLabelPrefixes,
+        labelLinesInFile,
+        numberLabelsIn;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/label_place.dart';
+import 'package:specstone_core/src/index_query/models/prefixed_label_place.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show isSingularLayoutPath, singularLayoutPathsOf;
@@ -23,18 +33,20 @@ const _codeField = 'code';
 const _separator = '/';
 const _byteOrderMark = '﻿';
 
-/// Returns a `doc_cited_in_code` finding for each mention of a doc in the
-/// code files of the targets of [work].
+/// Returns a `doc_cited_in_code` finding for each mention of a doc and each
+/// number label run in the code files of the targets of [work].
 ///
 /// A code file is each file under the `code:` roots of a target's docs; a
 /// target with no `code:` entry lists its whole code root but the docs root,
 /// hidden folders, and nested checkouts. An agent file is never read, and a
 /// file with no comment mark or markdown extension is not read at all. A
 /// mention counts only when it resolves to a doc in the index, so a layout
-/// template, an item ID, or a number label never does; a one-slug span and
-/// the layout path of a singular doc type are no mention. A file that is not
-/// UTF-8 or cannot be read is a warning, not a finding. A file unchanged since
-/// an earlier run, whose stored mention texts name no doc now, is not read.
+/// template or an item ID never does; a one-slug span and the layout path of a
+/// singular doc type are no mention. A number label run is the set
+/// `numberLabelRunsOf` gives, read in the same text, after the file's
+/// mentions. A file that is not UTF-8 or cannot be read is a warning, not a
+/// finding. A file unchanged since an earlier run, whose stored texts name no
+/// doc and read as no label now, is not read.
 Iterable<Finding> docNamesInCode(
   CheckContext context,
   ImplementedWork work,
@@ -109,21 +121,72 @@ final class _DocMentionReader {
     if (projectPath == null || isAgentFile(projectPath)) return;
     final root = _context.codeRootOf(target);
     final cache = _context.codeFiles;
-    // A file whose stored texts name no doc holds no finding: it is not read.
+    final listed = _context.numberLabelPrefixes.toSet();
+    // A file whose stored texts name no doc and read as no label holds no
+    // finding: it is not read.
     if (cache.mentionTextsOf(root, codePath) case final texts?) {
-      if (!texts.any((text) => _isCited(text, readDocAddress(text)))) return;
+      if (!texts.any(
+        (text) =>
+            _isCited(text, readDocAddress(text)) || _readsAsLabel(text, listed),
+      )) {
+        return;
+      }
     }
     final text = _readText(target, codePath, projectPath);
     if (text == null) return;
-    final mentions = nameMentionsInFile(toLf(text), extension);
+    final lf = toLf(text);
+    final parsed = extension == markdownExtension ? Doc.parse(lf) : null;
+    final mentions = nameMentionsInFile(lf, extension, parsed: parsed);
+    final labels = labelLinesInFile(lf, extension, parsed: parsed);
     cache.putMentionTexts(root, codePath, [
-      ...{for (final mention in mentions) mention.text},
+      ...{
+        for (final mention in mentions) mention.text,
+        ..._labelTextsOf(labels),
+      },
     ]);
     for (final mention in mentions) {
       if (_isCited(mention.text, mention.address)) {
-        yield _finding(projectPath, mention);
+        yield _finding(projectPath, mention.line, mention.text);
       }
     }
+    for (final LabelPlace(:line, :written) in _runsOf(labels, listed)) {
+      yield _finding(projectPath, line, written);
+    }
+  }
+
+  /// The number label runs of [labels], at their 1-based lines.
+  List<LabelPlace> _runsOf(MarkdownLabelLines labels, Set<String> listed) =>
+      numberLabelRunsOf(
+        numberLabels: [
+          for (final label in labels.numbers)
+            LabelPlace(line: label.line + 1, written: label.written),
+        ],
+        prefixedLabels: [
+          for (final chain in labels.prefixed)
+            PrefixedLabelPlace(line: chain.line + 1, parts: chain.parts),
+        ],
+        listed: listed,
+      );
+
+  /// The written text of each label candidate of [labels], whatever the config
+  /// lists.
+  Iterable<String> _labelTextsOf(MarkdownLabelLines labels) => [
+    for (final label in labels.numbers) label.written,
+    for (final chain in labels.prefixed)
+      for (final part in chain.parts) part.written,
+  ];
+
+  /// Whether a stored [text] is a built-in label or a part with a prefix of
+  /// [listed].
+  bool _readsAsLabel(String text, Set<String> listed) {
+    final dash = text.indexOf('-');
+    if (dash > 0) {
+      final prefix = text.substring(0, dash + 1);
+      if (builtInLabelPrefixes.contains(prefix) || listed.contains(prefix)) {
+        return true;
+      }
+    }
+    return numberLabelsIn(text).any((label) => label.written == text);
   }
 
   String? _projectPathOf(CodeTarget target, String codePath) {
@@ -172,13 +235,11 @@ final class _DocMentionReader {
         : null;
   }
 
-  Finding _finding(String projectPath, NameMention mention) => Finding(
+  Finding _finding(String projectPath, int line, String mention) => Finding(
     kind: FindingKind.docCitedInCode,
     path: projectPath,
-    line: mention.line,
-    message:
-        '${mention.text} names a doc; the doc names the code, never the '
-        'reverse',
-    keys: {'mention': mention.text},
+    line: line,
+    message: '$mention names a doc; the doc names the code, never the reverse',
+    keys: {'mention': mention},
   );
 }

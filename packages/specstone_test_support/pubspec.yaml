@@ -1,0 +1,12 @@
+name: specstone_test_support
+description: Test helpers shared by the Specstone packages; never published.
+publish_to: none
+
+environment:
+  sdk: ^3.13.5
+
+resolution: workspace
+
+dependencies:
+  ffi: ^2.2.0
+  test: ^1.33.0

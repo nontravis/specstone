@@ -25,7 +25,7 @@ Run one reader step per decision before your first write:
 - Each doc you change: the `Inbound` lines of one `specstone refs` call on it. A reader the step changes gets no
   `refs` call: one hop, no recursion.
 - Each feature you touch, and each of its ancestors: its summary sections: `benefit_hypothesis`,
-  `flow`, and `out_of_scope`, and its spec docs' architecture `components` and api `fr_trace`.
+  `flow`, and `out_of_scope`, and each spec doc section that lists the feature's parts or traces its FRs.
 - A reader stating a changed rule is changed, or its copy gives way to a link to the owner's item; no copy stays
   beside the link. A `--repeats` check is no part of this step.
 

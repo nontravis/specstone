@@ -14,5 +14,6 @@ sections:
     required: true
     description: |-
       Write one table: a row per token, a column per theme, each cell the value that theme gives the token.
+      With a Source of truth section in the tokens doc, write each cell as the source symbol in a code span, not the value; with none, write the value.
 lint:
   title_no_number: true

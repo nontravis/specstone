@@ -5,8 +5,8 @@ Rules 2 and 3 of `specstone-expert-sdd`.
 ## Writes (rule 2)
 
 - Each write leaves a draft, a pointer write (`implements`, `covers`) excepted; never remove `draft: true`.
-- Take bases from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`,
-  `bases.fields.<id>`); each write prints the new one.
+- Take bases from `specstone get <type>:<name> --json` (`docs[0].bases.title`, `docs[0].bases.sections.<key>`,
+  `docs[0].bases.fields.<id>`); each write prints the new one.
 - Pipe text to `specstone set <type>:<name>#<key> --base <hash>`, with `--field <id>` or `--title` for `#<key>`.
 - A passage: `--replace` with `==> old <==`, the passage, `==> new <==`, the new one.
 - Omit a section body's `## ` line; give a list field its whole list; empty text drops the section or key.

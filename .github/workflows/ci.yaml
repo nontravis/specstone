@@ -124,7 +124,7 @@ jobs:
         with:
           sdk: 3.13.5
       - run: dart pub get --enforce-lockfile
-      - name: Timing gate (NFR-P01, NFR-P02)
+      - name: Timing gate
         working-directory: packages/specstone
         run: dart test --tags timing test/nfr_timing_test.dart
 

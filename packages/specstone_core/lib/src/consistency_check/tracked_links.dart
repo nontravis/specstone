@@ -15,7 +15,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show itemKeyOfHead;
+    show itemKeyOfHead, sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
@@ -25,7 +25,7 @@ import 'package:specstone_core/src/index_query/record_entries.dart'
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
-    show verificationMatrixKey;
+    show MergedDocType, verificationMatrixKey;
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 
 const _frType = 'fr';
@@ -192,23 +192,39 @@ String? trackedBlockTextOf(
       context.heldSection(doc, _statementSection)?.body ?? '',
     TrackedBlockKind.nfrStatement => context.nfrStatements()[block.key]?.text,
     TrackedBlockKind.frContract => contractBlockOf(context, doc)?.text,
-    TrackedBlockKind.item => _itemTextOf(context, doc, block),
+    TrackedBlockKind.item => switch (block.section) {
+      final sectionKey? => itemTextIn(
+        context.contentOf(doc),
+        context.typeOf(doc),
+        sectionKey: sectionKey,
+        itemId: block.key,
+      ),
+      null => null,
+    },
   };
 }
 
-String? _itemTextOf(CheckContext context, IndexedDoc doc, TrackedBlock block) {
-  final sections = citedSectionsOf(context.contentOf(doc), context.typeOf(doc));
-  final at = sections.indexWhere((section) => section.key == block.section);
+/// Returns the own text of the first item of [content], a doc of [type],
+/// keyed [itemId] in its first held section keyed [sectionKey], nested items
+/// aside; null when it holds none.
+String? itemTextIn(
+  DocContent content,
+  MergedDocType? type, {
+  required String sectionKey,
+  required String itemId,
+}) {
+  final sections = citedSectionsOf(content, type);
+  final at = sections.indexWhere((section) => section.key == sectionKey);
   if (at < 0) return null;
   final section = sections[at];
-  for (final item in context.itemsIn(doc, at)) {
+  for (final item in sectionItemsAt(content, at, type)) {
     final key = itemKeyOfHead(
       item.head,
       isHeading: item.kind == SectionItemKind.heading,
       prefixId: section.prefixId,
       isAcceptanceCriteria: section.isAcceptanceCriteria,
     );
-    if (key == block.key) return item.text;
+    if (key == itemId) return item.text;
   }
   return null;
 }

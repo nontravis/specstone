@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
@@ -273,23 +272,6 @@ void main() {
     );
 
     expect(recordEntriesOf(doc, _recordType), isEmpty);
-  });
-
-  group('ImplementsEntry.testName', () {
-    test('a name keeps its colons and spaces whole, the path stops at the '
-        'first colon', () {
-      const entry = ImplementsEntry(
-        'test/auth_test.dart:rejects: a wrong password #2',
-      );
-
-      expect(entry.path, 'test/auth_test.dart');
-      expect(entry.testName, 'rejects: a wrong password #2');
-    });
-
-    test('a line with no name has none, and an empty name stays empty', () {
-      expect(const ImplementsEntry('test/auth_test.dart').testName, isNull);
-      expect(const ImplementsEntry('test/auth_test.dart:').testName, '');
-    });
   });
 
   test('a record with no fields written holds no entries', () {

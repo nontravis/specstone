@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show maxMarkdownDepth, parseMarkdownTree;
 import 'package:specstone_core/src/doc_model/models/destination_kind.dart';
@@ -11,6 +9,7 @@ import 'package:specstone_core/src/index_query/models/href_destinations.dart';
 import 'package:specstone_core/src/index_query/models/link_place.dart';
 import 'package:specstone_core/src/index_query/models/scanned_destination.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -1367,63 +1366,4 @@ void main() {
       );
     });
   });
-}
-
-/// Expects [scan] to take time linear in the length of the body it reads.
-///
-/// A fixed time budget fails on a slow or busy runner, and under coverage,
-/// whatever the scan does. This times [scan] on the bodies [bodyOf] builds for
-/// a twentieth of [n] and for [n], in turns, and keeps the fastest of three
-/// runs of each. A linear scan's time grows as much as the body, a quadratic
-/// one's as the body's square; the time of one scan must grow less than the
-/// body's growth to the power 1.5, halfway between the two on a log scale.
-/// Each run repeats the scan until it takes 20 ms, so both sizes are timed
-/// over as long a stretch and a busy runner slows them alike.
-void expectLinearTime(
-  String Function(int n) bodyOf,
-  int n,
-  void Function(String body) scan,
-) {
-  final small = bodyOf(n ~/ 20);
-  final large = bodyOf(n);
-  final smallRepeats = _repeatsFor(scan, small);
-  final largeRepeats = _repeatsFor(scan, large);
-  var smallTime = double.infinity;
-  var largeTime = double.infinity;
-  for (var round = 0; round < 3; round++) {
-    smallTime = min(smallTime, _scanTime(scan, small, smallRepeats));
-    largeTime = min(largeTime, _scanTime(scan, large, largeRepeats));
-  }
-  final bodyGrowth = large.length / small.length;
-  final timeGrowth = largeTime / smallTime;
-
-  expect(
-    timeGrowth,
-    lessThan(pow(bodyGrowth, 1.5)),
-    reason:
-        'the body grew ${bodyGrowth.toStringAsFixed(1)} times and the time '
-        'of one scan ${timeGrowth.toStringAsFixed(1)} times '
-        '(${smallTime.round()} µs to ${largeTime.round()} µs)',
-  );
-}
-
-/// Returns how many scans of [body] in a row take at least 20 ms.
-int _repeatsFor(void Function(String body) scan, String body) {
-  var repeats = 1;
-  while (_microsecondsOf(scan, body, repeats) < 20000) {
-    repeats *= 2;
-  }
-  return repeats;
-}
-
-/// Returns the microseconds one scan of [body] takes, over [repeats] scans.
-double _scanTime(void Function(String body) scan, String body, int repeats) =>
-    _microsecondsOf(scan, body, repeats) / repeats;
-
-int _microsecondsOf(void Function(String body) scan, String body, int repeats) {
-  final watch = Stopwatch()..start();
-  for (var i = 0; i < repeats; i++) {
-    scan(body);
-  }
-  return watch.elapsedMicroseconds;
 }

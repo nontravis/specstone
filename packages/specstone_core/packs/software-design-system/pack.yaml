@@ -1,5 +1,5 @@
 name: software-design-system
-version: 1.6.0
+version: 1.7.0
 extends: software-tech
 migrations:
   - from: 1.5.0
@@ -25,3 +25,7 @@ shared_banned_patterns:
     in: all
     for_doc_types: [color, elevation, motion, shape, spacing, typography]
     sections: [color_roles, type_scale, spacing_scale, elevation_levels, shapes, durations, easings]
+  - id: link_item
+    # A list item that does not open with a link; a wrapped, blank, table, or header line is no item.
+    pattern: '^(?:[-*+]|\d+[.)]) (?!\[)'
+    message: source of the link_item regex that the reading_order and components_used entries take by pattern_ref

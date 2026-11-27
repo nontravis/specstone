@@ -196,6 +196,33 @@ void main() {
     expect(finding.keys, {'item': _fr, 'test': 'refuses a blank password'});
   });
 
+  // D9: a .. in a tests path gives each literal of the row its own finding.
+  test('a row whose tests path holds .. gives matrix_test_unresolved for each '
+      'literal, naming the segment', () async {
+    final record = _record(
+      tests: ['$_fr:app/test/../test/login_test.dart'],
+      rows: [
+        '- $_fr E01: `refuses an empty password`',
+        '- $_fr E01: `refuses a wrong password`',
+      ],
+    );
+
+    final report = await _run(await _project(record));
+
+    expect(_matrix(report).map((f) => f.kind), [
+      FindingKind.matrixTestUnresolved,
+      FindingKind.matrixTestUnresolved,
+    ]);
+    expect(_matrix(report).map((f) => f.line), [
+      _rowLine(record, 0),
+      _rowLine(record, 1),
+    ]);
+    for (final finding in _matrix(report)) {
+      expect(finding.message, contains('app/test/../test/login_test.dart'));
+      expect(finding.message, contains('..'));
+    }
+  });
+
   test('a malformed line is reported with the whole line', () async {
     final rows = [
       'A paragraph in the section.',
@@ -349,6 +376,30 @@ void main() {
     expect(_matrix(report), isEmpty);
     expect(report.warnings, [
       '$_testFile: cannot read the file; tests names in it are not checked',
+    ]);
+  }, skip: unreadablePathSkipReason());
+
+  // D9
+  test('an unreadable NFD test file named in NFC is read by the disk '
+      'spelling, on a disk that normalizes Unicode and on one that does '
+      'not', () async {
+    const written = 'app/test/caf\u{E9}_test.dart';
+    const onDisk = 'app/test/cafe\u{301}_test.dart';
+    final project = await _project(
+      _record(
+        tests: ['$_fr:$written'],
+        rows: ['- $_fr E01: `refuses an empty password`'],
+      ),
+      extra: {onDisk: _testBody},
+    );
+    final path = '${project.path}/$onDisk';
+    Process.runSync('chmod', ['000', path]);
+    addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+    final report = await _run(project);
+
+    expect(report.warnings, [
+      '$onDisk: cannot read the file; tests names in it are not checked',
     ]);
   }, skip: unreadablePathSkipReason());
 

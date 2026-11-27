@@ -94,6 +94,7 @@ final class SharedPattern {
     required this.id,
     required this.kind,
     this.pattern,
+    this.patternRef,
     this.message,
     this.scope,
     this.except,
@@ -113,6 +114,10 @@ final class SharedPattern {
 
   /// The regular expression source, when written.
   final String? pattern;
+
+  /// The id of the shared pattern of the same list whose regex the entry
+  /// takes, when written; never beside [pattern].
+  final String? patternRef;
 
   /// What a finding says when the entry fires, when written.
   final String? message;
@@ -288,6 +293,7 @@ SharedPattern _parsePattern(
     prefix: prefix,
   );
   _claimId(seen, id, file: file, key: '${prefix}id');
+  final patternRef = optionalPatternRef(entry, file: file, prefix: prefix);
   final pattern = optionalValue<String>(
     entry,
     'pattern',
@@ -300,6 +306,7 @@ SharedPattern _parsePattern(
     id: id,
     kind: kind,
     pattern: pattern,
+    patternRef: patternRef,
     message: optionalValue<String>(
       entry,
       'message',

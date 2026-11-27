@@ -5,6 +5,8 @@ import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/models/file_fingerprint.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show filesUnderCodeRoot;
 import 'package:specstone_core/src/index_query/sync_diff_base.dart';
 import 'package:test/test.dart';
 
@@ -372,6 +374,37 @@ void main() {
       expect(diff, contains('+a2'));
       expect(diff, isNot(contains('h2')));
       expect(diff, isNot(contains('n2')));
+    });
+
+    // D14
+    test('of a folder holding a tracked file .gitignore ignores finds the '
+        'base the code root lister fingerprints and leaves the file out', () {
+      write('.gitignore', '*.g.dart\n');
+      write('lib/a.dart', 'a1\n');
+      write('lib/gen/out.g.dart', 'g1\n');
+      expect(git(repo, ['add', '-A']).exitCode, 0);
+      expect(git(repo, ['add', '-f', 'lib/gen/out.g.dart']).exitCode, 0);
+      expect(git(repo, ['commit', '-q', '-m', 'first']).exitCode, 0);
+      final tracked = head();
+      final recorded = folderCodeFingerprint([
+        for (final path in filesUnderCodeRoot(repo, 'lib'))
+          FileFingerprint(
+            path: path,
+            fingerprint: _fileFingerprint(
+              File('${repo.path}/$path').readAsStringSync(),
+              path,
+            ),
+          ),
+      ]);
+      write('lib/a.dart', 'a2\n');
+      write('lib/gen/out.g.dart', 'g2\n');
+
+      final base = diffBaseOf(_link(repo, 'lib', recorded));
+
+      expect(base?.commit, tracked);
+      final diff = diffSince(base!);
+      expect(diff, contains('+a2'));
+      expect(diff, isNot(contains('g2')));
     });
   });
 

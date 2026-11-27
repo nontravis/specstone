@@ -31,7 +31,7 @@ const _guideTokenRows = <String, int>{
   'prd-core/competitor': 758,
   'prd-core/feature': 1487,
   'prd-core/features': 559,
-  'prd-core/fr': 1816,
+  'prd-core/fr': 1834,
   'prd-core/glossary': 302,
   'prd-core/gnfr': 2666,
   'prd-core/goal': 644,
@@ -58,8 +58,8 @@ const _guideTokenRows = <String, int>{
   'software-design-system/setup': 312,
   'software-design-system/shape': 305,
   'software-design-system/spacing': 303,
-  'software-design-system/theme': 311,
-  'software-design-system/tokens': 285,
+  'software-design-system/theme': 348,
+  'software-design-system/tokens': 338,
   'software-design-system/typography': 302,
   'software-design-system/ui_pattern': 338,
   'software-tech/api': 1946,
@@ -73,6 +73,12 @@ const _guideTokenRows = <String, int>{
   'software-tech/security': 836,
   'software-tech/tech_stack': 751,
 };
+
+/// The est. tokens every shipped guide may print together.
+///
+/// Recorded by hand with the rows; a guide line added pays for itself by a
+/// cut (D5).
+const _guideTokenSum = 38492;
 
 const _yamlExtension = '.yaml';
 
@@ -135,6 +141,15 @@ void main() {
           "'$key': $value, // row $row",
     ];
     expect(grown, isEmpty, reason: grown.join('\n'));
+  });
+
+  test('the shipped guides sum to no more than the recorded sum', () {
+    final sum = counts.values.fold(0, (total, count) => total + count);
+    expect(
+      sum,
+      lessThanOrEqualTo(_guideTokenSum),
+      reason: 'measured sum $sum is above _guideTokenSum $_guideTokenSum',
+    );
   });
 
   test('every shipped doc type has a recorded token count', () {

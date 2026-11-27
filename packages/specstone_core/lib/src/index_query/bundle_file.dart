@@ -508,15 +508,16 @@ List<String> _readFirstOverBudgetWarnings(ContextAnswer answer) {
 /// read-first file's first, a header line and one line per doc, appended
 /// part, cited-by part, names block, and feature pattern part with its line
 /// range in that file. The read-first header is followed by the read plan line
-/// of an `implement` or `design` answer. An `implement` answer prints the refs
-/// file's header line alone, its index heading the refs file. Each line lists
-/// its sections' first lines while the counted index stays within 200 lines and
-/// 8 KiB, header lines, the read plan line, and the code target line counted
-/// with it, both files' for `design` and the read-first file's for
-/// `implement` and `review`; past either bound no line lists a section, and
-/// every doc still prints. A `review` answer prints its refs file's header line
-/// alone, as `implement` does. A given [withSections] replaces that bound, for
-/// a writer that counts several indexes together.
+/// of an `implement`, `design`, or `review` answer, and the index ends with
+/// both lines again. An `implement` answer prints the refs file's header line
+/// alone, its index heading the refs file. Each line lists its sections' first
+/// lines while the counted index stays within 200 lines and 8 KiB, header
+/// lines, the read plan line, and the code target line counted with it, both
+/// files' for `design` and the read-first file's for `implement` and `review`;
+/// past either bound no line lists a section, and every doc still prints. A
+/// `review` answer prints its refs file's header line alone, as `implement`
+/// does. A given [withSections] replaces that bound, for a writer that counts
+/// several indexes together.
 String bundleIndex(
   ContextAnswer answer,
   String shownPath, {
@@ -567,8 +568,12 @@ String _indexText(
   final files = _filesOf(answer, shownPath, refsPath);
   final isHeaderOnly =
       answer.json['for'] == BundleMode.implement.wire || _isReview(answer);
-  final planLine = _hasReadPlan(answer)
+  final hasReadPlan = _hasReadPlan(answer);
+  final planLine = hasReadPlan
       ? '${_readPlanLine(readPlanOf(answer.readFirst))}\n'
+      : '';
+  final ending = hasReadPlan
+      ? _fileHeader(files.first.file, files.first.path) + planLine
       : '';
   return [
     codeTargetLine(answer.codeTarget),
@@ -582,6 +587,7 @@ String _indexText(
         )
       else if (!forCap)
         _fileHeader(saved.file, saved.path, countsMoved: true),
+    ending,
   ].join();
 }
 

@@ -59,4 +59,5 @@ Notes:
 - With no fault, `Findings:` reads `nothing important left`.
 - State a fix as a `Fix:` line in plain words, never as a doc edit; the planner applies it.
 - Put each observation that is no fault under `Notes:`; write no `Notes:` heading when there is none.
+- Write no `Audited:` line.
 - The job writes no plan and no doc, only the file named by `report:`.

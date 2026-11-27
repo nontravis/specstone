@@ -1,15 +1,12 @@
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show holdsLinkSyntax, parseMarkdownTreeByBlock;
+    show holdsLinkSyntax;
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
-import 'package:specstone_core/src/index_query/link_blocks.dart'
-    show leafTextOf;
+import 'package:specstone_core/src/index_query/doc_parse.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show parserReadSourcesOf;
-import 'package:specstone_core/src/index_query/link_scan.dart'
-    show linkSourcesOf;
 import 'package:specstone_core/src/index_query/models/link_source.dart';
 
 /// The text of a body a reader never sees: the markup of each inline link,
@@ -21,27 +18,24 @@ import 'package:specstone_core/src/index_query/models/link_source.dart';
 final class HiddenText {
   const new _(this._text, this._firstLine, this._lineStarts, this._ranges);
 
-  /// Reads what [lfBody], a doc text with LF line ends whose first line is file
-  /// line [firstLine], hides.
+  /// Reads what the body of [parse], the text after its frontmatter, hides.
   ///
   /// A body the parser fails on, or that holds no link syntax, hides nothing.
   /// The scan places the parser's links, as `linkPlacesOf` does, so a link the
   /// parser reads and the scan cannot place hides nothing.
-  factory of(String lfBody, {required int firstLine}) {
+  factory ofParse(DocParse parse) {
+    final lfBody = parse.doc.afterFrontmatter;
     if (!holdsLinkSyntax(lfBody)) return none;
-    final tree = parseMarkdownTreeByBlock(lfBody);
+    final tree = parse.tree;
     if (tree == null) return none;
-    final sources = parserReadSourcesOf(
-      linkSourcesOf(lfBody, firstLine: firstLine),
-      tree,
-    );
     final ranges = [
-      for (final source in sources) ..._markupOf(lfBody, source),
-      ...leafTextOf(lfBody).definitionSpans,
+      for (final source in parserReadSourcesOf(parse.linkSources, tree))
+        ..._markupOf(lfBody, source),
+      ...parse.leafText.definitionSpans,
     ];
     return HiddenText._(
       lfBody,
-      firstLine,
+      parse.bodyFirstLine,
       _lineStartsOf(lfBody),
       _merged(ranges),
     );

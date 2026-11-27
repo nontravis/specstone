@@ -4,6 +4,7 @@ import 'package:specstone_core/src/setup_migration/stale_project.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show agentFileGroupNames;
 import 'package:specstone_core/src/version.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/shipped_pins.dart';
@@ -16,8 +17,8 @@ const _older =
 const _differ =
     '$_lead differ from what specstone $specstoneVersion writes; run '
     'specstone migrate';
-const _above = '99.0.0';
-const _newer =
+final String _above = versionAbove(specstoneVersion);
+final _newer =
     '$_lead come from specstone $_above, newer than this specstone '
     '$specstoneVersion; run specstone upgrade';
 const _staleAgentMd = {'.specstone/AGENT.md': 'old\n'};

@@ -1,11 +1,14 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
-    show blockScan, fenceScan, mermaidInfoWord;
+    show Doc, blockScan, fenceScan, mermaidInfoWord;
+import 'package:specstone_core/src/doc_model/models/block_scan.dart';
 import 'package:specstone_core/src/doc_model/models/code_span.dart';
 import 'package:specstone_core/src/doc_model/models/label_part.dart';
 import 'package:specstone_core/src/doc_model/models/number_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/prefixed_label_line.dart';
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show isCommentLine, lineCommentMarkOf, markdownExtension;
 
 /// How a number label names its doc.
 enum LabelShape {
@@ -104,19 +107,90 @@ final class MarkdownLabelLines {
 /// that begins where [numberLabelsIn] lets a label begin. The project's config
 /// says which prefixes count, so each chain keeps every part with the built-in
 /// label it lies in. The text read is the text [numberLabelsInMarkdown] reads.
-MarkdownLabelLines labelLinesInMarkdown(String lfText) {
+/// [blocks] is the [blockScan] of `lfText.split('\n')` a caller already holds.
+/// With [readsMermaid] false, every fenced line is skipped, `mermaid` blocks
+/// included.
+MarkdownLabelLines labelLinesInMarkdown(
+  String lfText, {
+  BlockScan? blocks,
+  bool readsMermaid = true,
+}) {
   final numbers = <NumberLabelLine>[];
   final prefixed = <PrefixedLabelLine>[];
-  for (final text in _readableTextsOf(lfText)) {
-    final labels = _labelsOutsideLinks(text.text, 0);
-    numbers.addAll([
-      for (final label in labels)
-        NumberLabelLine(line: text.index, written: label.written),
-    ]);
-    prefixed.addAll(_prefixedChainsIn(text.text, text.index, labels));
+  for (final text in _readableTextsOf(
+    lfText,
+    blocks: blocks,
+    readsMermaid: readsMermaid,
+  )) {
+    _addLabelsOf(text.text, text.index, numbers, prefixed);
   }
   return MarkdownLabelLines(numbers: numbers, prefixed: prefixed);
 }
+
+void _addLabelsOf(
+  String text,
+  int index,
+  List<NumberLabelLine> numbers,
+  List<PrefixedLabelLine> prefixed,
+) {
+  final labels = _labelsOutsideLinks(text, 0);
+  numbers.addAll([
+    for (final label in labels)
+      NumberLabelLine(line: index, written: label.written),
+  ]);
+  prefixed.addAll(_prefixedChainsIn(text, index, labels));
+}
+
+/// Returns the labels of [lf], a code file of [extension], each at its 0-based
+/// line of the file.
+///
+/// Markdown is read after its frontmatter and outside fenced code, as
+/// [labelLinesInMarkdown] reads a body; any other file by its comment lines,
+/// each read after its mark, with its code spans and link destinations
+/// skipped. [parsed] is the [Doc.parse] of [lf] a caller already holds.
+MarkdownLabelLines labelLinesInFile(
+  String lf,
+  String extension, {
+  Doc? parsed,
+}) {
+  if (extension == markdownExtension) {
+    final body = (parsed ?? Doc.parse(lf)).afterFrontmatter;
+    final bodyStart = '\n'.allMatches(lf.substring(0, lf.length - body.length));
+    return _shiftedLines(
+      labelLinesInMarkdown(body, readsMermaid: false),
+      bodyStart.length,
+    );
+  }
+  final mark = lineCommentMarkOf(extension);
+  final numbers = <NumberLabelLine>[];
+  final prefixed = <PrefixedLabelLine>[];
+  if (mark != null) {
+    final lines = lf.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (!isCommentLine(lines[i], extension)) continue;
+      final text = lines[i].trimLeft().substring(mark.length);
+      _addLabelsOf(
+        _outsideCodeSpans([text], const [false], {}, 0),
+        i,
+        numbers,
+        prefixed,
+      );
+    }
+  }
+  return MarkdownLabelLines(numbers: numbers, prefixed: prefixed);
+}
+
+MarkdownLabelLines _shiftedLines(MarkdownLabelLines labels, int offset) =>
+    MarkdownLabelLines(
+      numbers: [
+        for (final NumberLabelLine(:line, :written) in labels.numbers)
+          NumberLabelLine(line: line + offset, written: written),
+      ],
+      prefixed: [
+        for (final PrefixedLabelLine(:line, :parts) in labels.prefixed)
+          PrefixedLabelLine(line: line + offset, parts: parts),
+      ],
+    );
 
 const _spaceUnit = 0x20;
 
@@ -140,11 +214,17 @@ final class _ReadableText {
   final int start;
 }
 
-List<_ReadableText> _readableTextsOf(String lfText) {
+List<_ReadableText> _readableTextsOf(
+  String lfText, {
+  BlockScan? blocks,
+  bool readsMermaid = true,
+}) {
   final lines = lfText.split('\n');
-  final readable = _readableLines(lines);
-  final blocks = blockScan(lines);
-  final continues = blocks.continuesParagraph;
+  final scan = blocks ?? blockScan(lines);
+  final readable = readsMermaid
+      ? _readableLines(lines)
+      : [for (final isFenced in scan.fenced) !isFenced];
+  final continues = scan.continuesParagraph;
   final spansOfGroup = <int, List<CodeSpan>>{};
   final texts = <_ReadableText>[];
   var lineStart = 0;
@@ -154,7 +234,7 @@ List<_ReadableText> _readableTextsOf(String lfText) {
         _ReadableText(
           index: i,
           // A `mermaid` block is fenced: its backticks are no code spans.
-          text: blocks.fenced[i]
+          text: scan.fenced[i]
               ? lines[i]
               : _outsideCodeSpans(lines, continues, spansOfGroup, i),
           start: lineStart,

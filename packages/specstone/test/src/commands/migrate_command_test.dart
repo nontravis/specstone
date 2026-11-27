@@ -6,6 +6,7 @@ import 'package:specstone_core/src/templates/pack_floors.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -289,7 +290,8 @@ void main() {
   });
 
   group('an agent_files_version above the running Version', () {
-    final config = '${shippedPinsConfig()}agent_files_version: 99.0.0\n';
+    final above = versionAbove(specstoneVersion);
+    final config = '${shippedPinsConfig()}agent_files_version: $above\n';
 
     for (final flags in [
       ['migrate', '--dry-run'],
@@ -310,7 +312,7 @@ void main() {
           err.toString(),
           allOf(
             contains('.specstone/config.yaml: agent_files_version: '),
-            contains('written by Specstone 99.0.0'),
+            contains('written by Specstone $above'),
             contains('run specstone upgrade'),
           ),
         );
@@ -321,7 +323,7 @@ void main() {
     test('with a newer pin too, the pin refuses first', () async {
       final root = await writeTree({
         '.specstone/config.yaml':
-            'packs:\n  prd-core: 99.0.0\nagent_files_version: 99.0.0\n',
+            'packs:\n  prd-core: 99.0.0\nagent_files_version: $above\n',
       });
       final (:runner, :out, :err) = writeRunner(root);
 

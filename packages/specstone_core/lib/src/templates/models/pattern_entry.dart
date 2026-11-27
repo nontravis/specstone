@@ -69,5 +69,64 @@ final class PatternEntry {
   };
 }
 
+/// One `banned_patterns` or `required_patterns` entry as a layer writes it:
+/// its own regex, or a ref to a shared one that resolves at load.
+sealed class LayerPattern {
+  const new(this.id);
+
+  /// The entry id; the merge key.
+  final String id;
+}
+
+/// A layer entry that holds its own `pattern`.
+final class OwnPattern extends LayerPattern {
+  new(this.entry) : super(entry.id);
+
+  /// The entry, compiled.
+  final PatternEntry entry;
+}
+
+/// A layer entry that holds `pattern_ref` in place of `pattern`.
+final class RefPattern extends LayerPattern {
+  new({
+    required String id,
+    required this.ref,
+    required this.message,
+    required this.key,
+    this.scope = PatternScope.text,
+    this.except = const [],
+    this.perSubsection = false,
+  }) : super(id);
+
+  /// The id of the shared pattern whose regex the entry takes.
+  final String ref;
+
+  /// What a finding says when the entry fires.
+  final String message;
+
+  /// The fault key of the entry in its layer file.
+  final String key;
+
+  /// Where the entry looks, the prose when the `in` key is absent.
+  final PatternScope scope;
+
+  /// Matched texts the entry lets pass; each is a full-match expression.
+  final List<String> except;
+
+  /// Whether each `###` subsection of the section must match; a
+  /// `required_patterns` entry only.
+  final bool perSubsection;
+
+  /// Returns the entry with the shared [pattern] as its regex.
+  PatternEntry resolve(String pattern) => PatternEntry(
+    id: id,
+    pattern: pattern,
+    message: message,
+    scope: scope,
+    except: except,
+    perSubsection: perSubsection,
+  );
+}
+
 /// Returns the expression that matches [source] against a whole text.
 String _fullMatch(String source) => '^(?:$source)\$';

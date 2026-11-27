@@ -247,6 +247,126 @@ void main() {
     }
   });
 
+  // D9
+  group('an entry the resolver refuses names the code check gives it', () {
+    final cases = {
+      'an implements entry holding a .. segment': (
+        covers: [_login],
+        code: ['email_login:app/lib/nope/../login.dart:SignInPage'],
+        address: _recordAddress,
+        entry: 'email_login:app/lib/nope/../login.dart:SignInPage',
+        finding: 'implements_path_unresolved',
+      ),
+      'a covers entry outside the code root': (
+        covers: ['../outside.dart'],
+        code: _defaultCode,
+        address: _archAddress,
+        entry: '../outside.dart',
+        finding: 'covers_path_outside',
+      ),
+      'a covers entry folding to the code root': (
+        covers: ['app/lib/..'],
+        code: _defaultCode,
+        address: _archAddress,
+        entry: 'app/lib/..',
+        finding: 'covers_path_outside',
+      ),
+    };
+    for (final MapEntry(:key, :value) in cases.entries) {
+      test(key, () async {
+        final root = await _project(covers: value.covers, code: value.code);
+        final docPath = value.address == _archAddress
+            ? _coversDoc
+            : loginRecord;
+        final before = readDoc(root, docPath);
+
+        final fault = _refused(root, value.address, ['${value.entry}=$_old']);
+
+        expect(fault.exitStatus, 64);
+        expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+        expect(
+          fault.refusals.single.message,
+          '${value.entry} does not resolve: ${value.finding}',
+        );
+        expect(readDoc(root, docPath), before);
+      });
+    }
+  });
+
+  // D10
+  test(
+    'an implements entry whose Symbol after : is empty refuses with the code '
+    'check reports for it',
+    () async {
+      const entry = 'email_login:$_login:';
+      final root = await _project(code: [entry]);
+      final session = openSession(root);
+      final report = await runCheck(session);
+      session.close();
+      final checkCodes = {
+        for (final finding in report.findings)
+          if (finding.path == loginRecord &&
+              finding.keys['entry'] == '$_login:' &&
+              finding.kind != FindingKind.codeUnconfirmed)
+            finding.kind.wire,
+      };
+      final before = readDoc(root, loginRecord);
+
+      final fault = _refused(root, _recordAddress, ['$entry=$_old']);
+
+      expect(checkCodes, {'implements_symbol_unresolved'});
+      expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+      expect(
+        fault.refusals.single.message,
+        '$entry does not resolve: implements_symbol_unresolved',
+      );
+      expect(readDoc(root, loginRecord), before);
+    },
+  );
+
+  test(
+    'a covers entry differing from the disk name by letter case alone refuses '
+    'with the code check reports for it',
+    () async {
+      const wrongCase = 'app/lib/Login.dart';
+      final root = await _project(covers: [wrongCase]);
+      final session = openSession(root);
+      final report = await runCheck(session);
+      session.close();
+      final checkCodes = {
+        for (final finding in report.findings)
+          if (finding.path == _coversDoc &&
+              finding.kind == FindingKind.coversPathMissing)
+            finding.kind.wire,
+      };
+
+      final fault = _refused(root, _archAddress, ['$wrongCase=$_old']);
+
+      expect(checkCodes, {'covers_path_missing'});
+      expect(fault.refusals.single.code, WriteFaultCode.stampEntryUnresolved);
+      expect(
+        fault.refusals.single.message,
+        '$wrongCase does not resolve: ${checkCodes.single}',
+      );
+    },
+  );
+
+  test(
+    'a covers entry in NFC over a file written under its NFD name stamps',
+    () async {
+      const nfd = 'app/lib/cafe\u{301}.dart';
+      const nfc = 'app/lib/caf\u{e9}.dart';
+      const text = 'class Cafe {}\n';
+      final root = await _project(covers: [nfc], extra: {nfd: text});
+
+      final answer = _stamp(root, _archAddress, [
+        '$nfc=${_fileFingerprint(text, nfd)}',
+      ]);
+
+      expect(docOf(answer)['stamped'], [nfc]);
+    },
+  );
+
   test('an empty covers entry refuses stamp_entry_unresolved naming '
       'covers_entry_empty, in each empty form', () async {
     // Each pair is the entry as the doc writes it and as `--stamp` names it.
@@ -256,8 +376,6 @@ void main() {
       ('./', './'),
       ('/', '/'),
       ('./.', './.'),
-      ('lib/..', 'lib/..'),
-      ('./lib/../', './lib/../'),
     ];
     for (final (written, named) in forms) {
       final root = await _project(covers: [written]);

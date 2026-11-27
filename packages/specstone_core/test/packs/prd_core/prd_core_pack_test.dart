@@ -76,7 +76,9 @@ final class _Reach {
   const new(this.kind, this.forDocTypes, [this.sections]);
 
   final SharedPatternKind kind;
-  final List<String> forDocTypes;
+
+  /// The doc types it reaches, or null for a source that reaches none.
+  final List<String>? forDocTypes;
 
   /// The section ids, or null for the doc-level list.
   final List<String>? sections;
@@ -125,6 +127,8 @@ const _sharedPatterns = <String, _Reach>{
   'trace_outside_field': _Reach(SharedPatternKind.banned, [
     'gnfr',
   ], _gnfrFullTraceSections),
+  'scenario_trace': _Reach(SharedPatternKind.banned, null),
+  'trace_without_standard': _Reach(SharedPatternKind.banned, null),
   'by_line': _Reach(
     SharedPatternKind.required,
     ['goal'],
@@ -136,6 +140,22 @@ const _sharedPatterns = <String, _Reach>{
     ['verification'],
   ),
 };
+
+/// Each prd-core entry that takes its regex by `pattern_ref`: doc type, section
+/// (null for the doc-level list), entry id, and the shared source it names.
+const _foldedCopies = <(String, String, String, String)>[
+  ('measurement', 'scope', 'history', 'history'),
+  ('measurement', 'method', 'history', 'history'),
+  ('measurement', 'baseline', 'history', 'history'),
+  ('measurement', 'open_causes', 'history', 'history'),
+  ('nf', 'statement', 'trace_outside_field', 'trace_outside_field'),
+  ('fr', 'statement', 'second_shall', 'second_shall'),
+  ('fr', 'statement', 'trace_outside_field', 'scenario_trace'),
+  ('fr', 'edge_cases', 'trace_outside_field', 'scenario_trace'),
+  ('fr', 'rationale', 'trace_outside_field', 'scenario_trace'),
+  ('gnfr', 'interface', 'trace_outside_field', 'trace_without_standard'),
+  ('gnfr', 'design_standards', 'trace_outside_field', 'trace_without_standard'),
+];
 
 /// The doc types whose guide holds a banned word list at neither level.
 const _noWordListIds = [
@@ -175,7 +195,8 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.32.0');
+      // D13: 1.33.0 names codes in gnfr and nf statements.
+      expect(manifest.version.toString(), '1.33.0');
       expect(manifest.extendsPack, isNull);
     });
 
@@ -256,7 +277,7 @@ void main() {
           SharedPatternKind.banned => 'banned_patterns',
           SharedPatternKind.required => 'required_patterns',
         };
-        for (final docTypeId in pattern.forDocTypes!) {
+        for (final docTypeId in pattern.forDocTypes ?? const <String>[]) {
           final file = loadYaml(
             utf8.decode(shippedPackFiles['prd-core/$docTypeId.yaml']!),
           ) as YamlMap;
@@ -618,6 +639,66 @@ void main() {
           isNull,
           reason: docType.id,
         );
+      }
+    });
+  });
+
+  group('prd-core pattern_ref sources', () {
+    // D12.
+    test('each repeated prd-core regex takes pattern_ref from one source and '
+        'keeps its own message and in, and a source that reaches no doc type '
+        'joins none', () async {
+      final shared = {
+        for (final p in _prdCoreManifest().shared.patterns) p.id: p,
+      };
+      final set = await resolvePrdCore();
+      for (final (docTypeId, sectionId, entryId, ref) in _foldedCopies) {
+        final file = loadYaml(
+          utf8.decode(shippedPackFiles['prd-core/$docTypeId.yaml']!),
+        ) as YamlMap;
+        final section = (file['sections'] as YamlList).singleWhere(
+          (s) => (s as YamlMap)['id'] == sectionId,
+        ) as YamlMap;
+        final entry =
+            ((section['lint'] as YamlMap)['banned_patterns'] as YamlList)
+                    .singleWhere((e) => (e as YamlMap)['id'] == entryId)
+                as YamlMap;
+        final reason = '$docTypeId $sectionId $entryId';
+        expect(entry['pattern_ref'], ref, reason: reason);
+        expect(entry.containsKey('pattern'), isFalse, reason: reason);
+        expect(entry['message'], isNotNull, reason: reason);
+        expect(entry['in'], isNotNull, reason: reason);
+        final merged = sectionOf(
+          prdCoreDocType(set, docTypeId),
+          sectionId,
+        ).bannedPatterns!.singleWhere((e) => e.id == entryId);
+        expect(merged.pattern, shared[ref]!.pattern, reason: reason);
+        expect(merged.message, entry['message'], reason: reason);
+      }
+      final fr = sectionOf(
+        prdCoreDocType(set, 'fr'),
+        'statement',
+      ).bannedPatterns!.singleWhere((e) => e.id == 'second_shall');
+      expect(fr.message, contains('Use one "shall" and a positive form'));
+      for (final id in ['scenario_trace', 'trace_without_standard']) {
+        final source = shared[id]!;
+        expect(source.pattern, isNotNull, reason: id);
+        expect(source.forDocTypes, isNull, reason: id);
+        expect(source.sections, isNull, reason: id);
+        for (final docType in set.docTypes) {
+          expect(
+            docType.lint.bannedPatterns?.map((e) => e.id) ?? const <String>[],
+            isNot(contains(id)),
+            reason: '${docType.id} $id',
+          );
+          for (final section in docType.sections) {
+            expect(
+              section.bannedPatterns?.map((e) => e.id) ?? const <String>[],
+              isNot(contains(id)),
+              reason: '${docType.id} ${section.id} $id',
+            );
+          }
+        }
       }
     });
   });

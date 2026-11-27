@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
-import 'package:specstone_core/src/consistency_check/code_rules.dart';
+import 'package:specstone_core/src/consistency_check/exact_case_path.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
@@ -869,9 +869,46 @@ void main() {
     );
   });
 
+  // D9: `lib/..` and `./lib/../` hold a `..`, so they are outside, not empty.
+  test('a covers entry holding .. anywhere is covers_path_outside, never '
+      'covers_entry_empty', () async {
+    for (final form in ['lib/nope/../login.dart', 'lib/..', './lib/../']) {
+      final project = await writeCheckProject(extra: narrow(form));
+      final report = await checkOf(project);
+
+      final outside = report.findings
+          .where((f) => f.kind == FindingKind.coversPathOutside)
+          .single;
+      expect(outside.message, contains('`..`'), reason: form);
+      expect(outside.keys['entry'], form, reason: form);
+      expect(_kindsAt(report, loginRecord), [
+        FindingKind.coversPathOutside,
+      ], reason: form);
+    }
+  });
+
+  // D9: a code root holding `..` is refused, not folded.
+  test(
+    'a code root holding .. is code_root_missing naming the segment',
+    () async {
+      const root = 'app/lib/nope/../';
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: doc(techStack, '  - app/lib/\n', '  - $root\n'),
+        ),
+      );
+
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.codeRootMissing,
+      );
+      expect(finding.keys['entry'], root);
+      expect(finding.message, contains('`..`'));
+    },
+  );
+
   test('an empty covers entry gives covers_entry_empty alone, in each empty '
       'form', () async {
-    const forms = ['', '.', './', '/', './.', './/', 'lib/..', './lib/../'];
+    const forms = ['', '.', './', '/', './.', './/'];
     for (final form in forms) {
       final project = await writeCheckProject(
         extra: narrow(form.isEmpty ? "'$form'" : form),
@@ -919,7 +956,8 @@ void main() {
   test(
     'a project-root empty covers entry gives covers_entry_empty alone',
     () async {
-      for (final form in ['.', './', 'lib/..']) {
+      // D9: `lib/..` holds a `..`, so it is outside, not empty.
+      for (final form in ['.', './']) {
         final project = await writeCheckProject(
           extra: {
             '.specstone/config.yaml': skillPinsConfig(),
@@ -1073,7 +1111,9 @@ void main() {
         File('${tree.path}/$name').writeAsStringSync('');
       }
 
-      expect(namesFileOrFolderFrom(tree, 'lib/a.dart'), isTrue);
+      // D9: the one resolver answers; no entry here names a place.
+      final paths = ExactCasePaths();
+      expect(paths.resolve(tree, 'lib/a.dart').kind, CodePathKind.file);
       for (final entry in [
         r'co\de',
         'trail ',
@@ -1081,7 +1121,11 @@ void main() {
         'lib/../trail ',
         r'x\y/..',
       ]) {
-        expect(namesFileOrFolderFrom(tree, entry), isFalse, reason: entry);
+        expect(
+          paths.resolve(tree, entry).kind,
+          CodePathKind.notPortable,
+          reason: entry,
+        );
       }
     },
     skip: Platform.isWindows ? 'Windows cannot hold such a name' : null,

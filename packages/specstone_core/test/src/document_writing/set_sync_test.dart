@@ -408,6 +408,196 @@ void main() {
     expect(_docBytes(root), before);
   });
 
+  // D10: a record entry whose pointer has an empty path refuses its line.
+  test('a match line on the record entry item::Sym refuses argument_invalid naming its line and writes no doc', () async {
+    const entry = 'email_login::SignInPage';
+    final root = await _project(
+      extra: {loginRecord: _recordText().replaceFirst(_signIn, entry)},
+    );
+    final before = _docBytes(root);
+
+    final fault = _refused(root, ['match $_record $entry $_old']);
+
+    expect(fault.exitStatus, 64);
+    expect(
+      [for (final refusal in fault.refusals) '${refusal.line} ${refusal.code}'],
+      ['1 argument_invalid'],
+    );
+    expect(_docBytes(root), before);
+  });
+
+  // D10: each line kind that names a faulty record entry refuses the file.
+  test('a mismatch, planned, remove-task, or tests line naming a pointer with an empty path or tail refuses argument_invalid with the fault named and writes no doc', () async {
+    const noPath = 'email_login::SignInPage';
+    const noTail = 'email_login:$_login:';
+    const noTestPath = '$_checkPassword::refuses an empty password';
+    const noTestTail = '$_checkPassword:app/test/login_test.dart:';
+    const emptyPath = 'an empty path before ":"';
+    const emptyTail = 'an empty symbol after ":"';
+    for (final (line, entry, fault, isTest) in [
+      ('mismatch $_record $noPath: gone', noPath, emptyPath, false),
+      ('planned $_record $noTail $_old', noTail, emptyTail, false),
+      ('match $_record $noTail $_old', noTail, emptyTail, false),
+      ('remove-task ENG-1 $_record $noPath', noPath, emptyPath, false),
+      ('remove-task ENG-1 $_record $noTestPath', noTestPath, emptyPath, true),
+      ('remove-task ENG-1 $_record $noTestTail', noTestTail, emptyTail, true),
+      (
+        'tests $_record $_checkPassword: +:refuses',
+        ':refuses',
+        emptyPath,
+        true,
+      ),
+      (
+        'tests $_record $_checkPassword: +app/test/login_test.dart:',
+        'app/test/login_test.dart:',
+        emptyTail,
+        true,
+      ),
+    ]) {
+      final root = await _project(
+        extra: {
+          loginRecord: _recordText()
+              .replaceFirst(_signIn, isTest ? _signIn : entry)
+              .replaceFirst(
+                'implements:',
+                isTest ? "tests:\n  - '$entry'\nimplements:" : 'implements:',
+              ),
+        },
+      );
+      final before = _docBytes(root);
+
+      final refused = _refused(root, [line]);
+
+      expect(
+        [
+          for (final refusal in refused.refusals)
+            '${refusal.line} ${refusal.code}: ${refusal.message}',
+        ],
+        ['1 argument_invalid: $entry holds $fault'],
+        reason: line,
+      );
+      expect(_docBytes(root), before, reason: line);
+    }
+  });
+
+  test('a repoint of an item::Sym entry to a whole path repairs it, and a match naming the old or new pointer in the same file writes', () async {
+    const entry = 'email_login::SignInPage';
+    const moved = 'email_login:$_login:SignInPage';
+    for (final match in [entry, moved]) {
+      final root = await _project(
+        extra: {loginRecord: _recordText().replaceFirst(_signIn, entry)},
+      );
+
+      _sync(root, [
+        'repoint $_record $entry $_login',
+        'match $_record $match $_loginFingerprint',
+      ]);
+
+      expect(
+        readDoc(root, loginRecord),
+        contains("'$moved $_loginFingerprint'"),
+        reason: match,
+      );
+    }
+  });
+
+  test('a repoint of an item:path: entry to a new path with no symbol writes the entry with no empty tail', () async {
+    const entry = 'email_login:$_login:';
+    final root = await _project(
+      extra: {loginRecord: _recordText().replaceFirst(_signIn, entry)},
+    );
+
+    _sync(root, ['repoint $_record $entry $_other']);
+
+    final text = readDoc(root, loginRecord);
+    expect(text, contains("'email_login:$_other'"));
+    expect(text, isNot(contains("$_other:'")));
+  });
+
+  // D9: a `..` segment is refused, and a name is read in letter case exact.
+  test('a match line on an entry holding a .. segment refuses the file and writes no doc', () async {
+    const entry = 'app/lib/../lib/login.dart';
+    final root = await _project(covers: const [entry]);
+    final before = _docBytes(root);
+
+    final fault = _refused(root, ['match $_arch $entry $_loginFingerprint']);
+
+    expect(fault.exitStatus, 64);
+    expect(
+      [
+        for (final refusal in fault.refusals)
+          '${refusal.line} ${refusal.code}: ${refusal.message}',
+      ],
+      ['1 stamp_entry_unresolved: $entry does not resolve: covers_path_outside'],
+    );
+    expect(_docBytes(root), before);
+  });
+
+  test('a tests plus line whose file differs from the disk name by letter case alone refuses the file and writes no doc', () async {
+    const wrongCase = 'app/lib/Login.dart';
+    final root = await _project();
+    final before = _docBytes(root);
+
+    final fault = _refused(root, [
+      'tests $_record $_checkPassword: +$wrongCase',
+    ]);
+
+    expect(
+      [
+        for (final refusal in fault.refusals)
+          '${refusal.line} ${refusal.code}: ${refusal.message}',
+      ],
+      ['1 stamp_entry_unresolved: $wrongCase does not resolve: tests_unresolved'],
+    );
+    expect(_docBytes(root), before);
+  });
+
+  test('a tests plus line naming a wrong-case file with a test name refuses the file and writes no doc', () async {
+    const wrongCase = 'app/lib/Login.dart';
+    final root = await _project();
+    final before = _docBytes(root);
+
+    final fault = _refused(root, [
+      'tests $_record $_checkPassword: +$wrongCase:refuses_empty',
+    ]);
+
+    expect(
+      [
+        for (final refusal in fault.refusals)
+          '${refusal.code}: ${refusal.message}',
+      ],
+      ['stamp_entry_unresolved: $wrongCase does not resolve: tests_unresolved'],
+    );
+    expect(_docBytes(root), before);
+  });
+
+  test('a repoint of a tests entry to a .. or wrong-case path refuses the file and writes no doc', () async {
+    const entry = '$_checkPassword:$_login:refuses an empty password';
+    final root = await _project(
+      extra: {
+        loginRecord: _recordText().replaceFirst(
+          'implements:',
+          "tests:\n  - '$entry'\nimplements:",
+        ),
+      },
+    );
+    final before = _docBytes(root);
+
+    for (final path in ['app/lib/../lib/login.dart', 'app/lib/Login.dart']) {
+      final fault = _refused(root, ['repoint $_record $entry $path']);
+
+      expect(
+        [
+          for (final refusal in fault.refusals)
+            '${refusal.code}: ${refusal.message}',
+        ],
+        ['stamp_entry_unresolved: $path does not resolve: tests_unresolved'],
+        reason: path,
+      );
+      expect(_docBytes(root), before, reason: path);
+    }
+  });
+
   test('mismatch lines alone write no doc and no journal and list each line under Mismatches', () async {
     final root = await _project();
     final before = _docBytes(root);

@@ -8,6 +8,7 @@ import 'package:markdown/src/patterns.dart' show tablePattern;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart';
 import 'package:specstone_core/src/doc_model/models/atx_heading.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/write_fixture.dart' show writeProject;
@@ -148,10 +149,9 @@ void main() {
 
     test('answers a failing 26-cell row within 50 ms', () {
       final row = '| ${List.filled(26, '-').join(' | ')} | n/a x';
-      final watch = Stopwatch()..start();
+      final spent = cpuTimeOf(() => expect(isTableDelimiterRow(row), isFalse));
 
-      expect(isTableDelimiterRow(row), isFalse);
-      expect(watch.elapsedMilliseconds, lessThan(50));
+      expect(spent, lessThan(const Duration(milliseconds: 50)));
     });
   });
 

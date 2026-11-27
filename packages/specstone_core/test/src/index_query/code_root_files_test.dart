@@ -89,6 +89,30 @@ void main() {
     ]);
   });
 
+  // D9
+  test('a mention scan code root that matches its folder by letter case '
+      'alone lists nothing, on every OS', () {
+    touch('lib/a.dart');
+    expect(
+      mentionScanFiles(root, {
+        'LIB/',
+      }, docsRoot: Directory('${root.path}/docs')),
+      isEmpty,
+    );
+  });
+
+  // D9
+  test('a mention scan code root written in NFC lists the files of its NFD '
+      'folder by the disk spelling', () {
+    touch('cafe\u{301}/menu.dart');
+    expect(
+      mentionScanFiles(root, {
+        'caf\u{E9}/',
+      }, docsRoot: Directory('${root.path}/docs')),
+      ['cafe\u{301}/menu.dart'],
+    );
+  });
+
   test('code input: dot '
       'segments of an entry are dropped, so every path is in one form', () {
     touch('lib/a.dart');
@@ -124,6 +148,72 @@ void main() {
     },
   );
 
+  // D14
+  test('filesUnderCodeRoot prunes an ignored folder and skips an ignored '
+      'file, tracked or not', () {
+    [
+      'lib/a.dart',
+      'lib/b.g.dart',
+      'lib/tracked.g.dart',
+      'lib/gen/c.dart',
+      'lib/gen/kept.dart',
+    ].forEach(touch);
+    File('${root.path}/.gitignore')
+        .writeAsStringSync('*.g.dart\ngen/\n!lib/gen/kept.dart\n');
+    for (final args in [
+      ['init', '-q'],
+      ['add', '-f', 'lib/tracked.g.dart'],
+    ]) {
+      expect(
+        Process.runSync('git', args, workingDirectory: root.path).exitCode,
+        0,
+      );
+    }
+
+    expect(filesUnderCodeRoot(root, 'lib'), ['lib/a.dart']);
+    expect(filesUnderCodeRoot(root, 'lib/gen/'), isEmpty);
+    expect(filesUnderCodeRoot(root, 'lib/tracked.g.dart'), [
+      'lib/tracked.g.dart',
+    ], reason: 'an entry naming one file reads it');
+    expect(codeRootFiles(root, ['lib/', 'lib/b.g.dart']), [
+      'lib/a.dart',
+      'lib/b.g.dart',
+    ]);
+  });
+
+  // D14
+  test('a folder holding a .git entry starts its own work tree, so the outer '
+      'rules stop there', () {
+    [
+      'a.dart',
+      'c.outer',
+      'inner/top.dart',
+      'inner/lib/a.dart',
+      'inner/lib/b.outer',
+      'inner/lib/skip.dart',
+    ].forEach(touch);
+    File('${root.path}/.gitignore').writeAsStringSync('/inner/\n*.outer\n');
+    Directory('${root.path}/.git').createSync();
+    Directory('${root.path}/inner/.git').createSync();
+    File('${root.path}/inner/.gitignore').writeAsStringSync('skip.dart\n');
+
+    expect(filesUnderCodeRoot(root, '.'), [
+      'a.dart',
+      'inner/lib/a.dart',
+      'inner/lib/b.outer',
+      'inner/top.dart',
+    ]);
+    expect(filesUnderCodeRoot(root, 'inner/'), [
+      'inner/lib/a.dart',
+      'inner/lib/b.outer',
+      'inner/top.dart',
+    ]);
+    expect(filesUnderCodeRoot(root, 'inner/lib/'), [
+      'inner/lib/a.dart',
+      'inner/lib/b.outer',
+    ]);
+  });
+
   group('bounds', () {
     late Directory codeRoot;
 
@@ -137,7 +227,8 @@ void main() {
       expect(filesUnderCodeRoot(codeRoot, '../'), isEmpty);
       expect(filesUnderCodeRoot(codeRoot, 'lib/../../outside/'), isEmpty);
       expect(filesUnderCodeRoot(codeRoot, '../outside/b.dart'), isEmpty);
-      expect(filesUnderCodeRoot(codeRoot, 'lib/../lib/'), ['lib/a.dart']);
+      // D9: a `..` is refused, not folded.
+      expect(filesUnderCodeRoot(codeRoot, 'lib/../lib/'), isEmpty);
     });
 
     test('an entry that is not a relative / path lists nothing', () {
@@ -158,20 +249,27 @@ void main() {
   });
 
   group('normal form', () {
-    test('a code or covers entry drops . and the final /, and applies ..', () {
+    // D9: a `..` is kept, never folded into the segment before it.
+    test('a code or covers entry drops . and the final /, and keeps each '
+        '..', () {
       expect(normalCodeEntry('./lib/'), 'lib');
       expect(normalCodeEntry('lib/./src//'), 'lib/src');
-      expect(normalCodeEntry('lib/../docs/'), 'docs');
-      expect(normalCodeEntry('../x/../y'), '../y');
+      expect(normalCodeEntry('lib/../docs/'), 'lib/../docs');
+      expect(normalCodeEntry('../x/../y'), '../x/../y');
       expect(normalCodeEntry('./'), '');
+      expect(isOutsideCodeEntry('lib/../docs/'), isTrue);
+      expect(isOutsideCodeEntry('lib/nope/../a.dart'), isTrue);
+      expect(isOutsideCodeEntry('../y'), isTrue);
+      expect(isOutsideCodeEntry('lib/a.dart'), isFalse);
     });
 
-    test('a code file in the docs folder, by a lib/../docs entry, has no '
+    test('a code file in the docs folder, by a docs/ entry, has no '
         'project path', () {
       touch('docs/x.md');
       touch('lib/a.dart');
       final docsRoot = Directory('${root.path}/docs');
-      final files = filesUnderCodeRoot(root, 'lib/../docs/');
+      expect(filesUnderCodeRoot(root, 'lib/../docs/'), isEmpty);
+      final files = filesUnderCodeRoot(root, 'docs/');
       expect(files, ['docs/x.md']);
       expect(
         ProjectPathReader(

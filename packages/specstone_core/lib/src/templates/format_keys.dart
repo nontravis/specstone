@@ -315,6 +315,13 @@ const _fieldCharsKey = FormatKey(
   children: [_fieldCapDefault, ..._charLanguages],
 );
 
+const _patternRef = FormatKey(
+  'pattern_ref',
+  whenRequired: 'when no pattern is set',
+  valueForm: 'string',
+  meaning: 'the id of the shared pattern whose regex the entry takes',
+);
+
 const _bannedPatternKeys = <FormatKey>[
   FormatKey(
     'id',
@@ -324,10 +331,11 @@ const _bannedPatternKeys = <FormatKey>[
   ),
   FormatKey(
     'pattern',
-    whenRequired: 'required',
+    whenRequired: 'when no pattern_ref is set',
     valueForm: 'regular expression',
     meaning: 'the text a finding fires on',
   ),
+  _patternRef,
   FormatKey(
     'message',
     whenRequired: 'required',
@@ -357,10 +365,11 @@ const _requiredPatternKeys = <FormatKey>[
   ),
   FormatKey(
     'pattern',
-    whenRequired: 'required',
+    whenRequired: 'when no pattern_ref is set',
     valueForm: 'regular expression',
     meaning: 'the text the section must hold',
   ),
+  _patternRef,
   FormatKey(
     'message',
     whenRequired: 'required',
@@ -1128,7 +1137,12 @@ const _forDocTypes = FormatKey(
 );
 
 const _sharedPatternExtras = <FormatKey>[
-  _forDocTypes,
+  FormatKey(
+    'for_doc_types',
+    whenRequired: 'new entry no pattern_ref names',
+    valueForm: 'list of strings',
+    meaning: 'the doc types the entry reaches',
+  ),
   FormatKey(
     'sections',
     whenRequired: 'optional',

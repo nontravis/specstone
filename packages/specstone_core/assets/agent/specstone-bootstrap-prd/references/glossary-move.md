@@ -12,10 +12,10 @@ stop there: its `terms` section stays empty, and no entry moves.
 
 Read the glossary doc with `specstone get glossary:glossary --json` first. Unless its title already reads
 `Domain glossary`, the one `specstone guide glossary` names, pipe `Domain glossary`, with no `#`, to
-`specstone set glossary:glossary --title --base <hash>`, `bases.title` its base. A glossary doc already there takes the
-same retitle, empty or holding entries. Then take PROJECT's glossary entries in turn. An entry is one top-level item of
-the section with its nested items; its term is the text of its leading `**…**` span, trimmed, compared with case
-ignored. An item with no leading bold span has no term and always moves.
+`specstone set glossary:glossary --title --base <hash>`, `docs[0].bases.title` its base. A glossary doc already there
+takes the same retitle, empty or holding entries. Then take PROJECT's glossary entries in turn. An entry is one
+top-level item of the section with its nested items; its term is the text of its leading `**…**` span, trimmed,
+compared with case ignored. An item with no leading bold span has no term and always moves.
 
 - **Kept:** an entry whose term the glossary doc already holds stays in PROJECT, never renamed, and its section keeps
   its finding. List it once under open questions.

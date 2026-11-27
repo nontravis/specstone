@@ -59,10 +59,10 @@ sections:
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
     summary: true
     lint:
+      names_codes: true
       banned_patterns:
         - id: trace_outside_field
-          # A scenario ID, an NFR or PG ID, or an ISO, IEC, or IEEE standard cite.
-          pattern: '(?<![\w-])S[0-9]+(?![\w-])|\b(?:NFR|PG)-[A-Za-z]*[0-9]+\b|\b(?:ISO|IEC|IEEE)(?:/(?:ISO|IEC|IEEE))* [0-9]+'
+          pattern_ref: trace_outside_field
           message: 'trace in the Statement; guide line: Keep the trace in `traced_from` alone, never in the Statement'
           in: all
       banned_words:

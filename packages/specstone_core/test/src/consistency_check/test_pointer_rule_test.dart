@@ -231,6 +231,46 @@ void main() {
     },
   );
 
+  // D9: a tests path matches a disk name in letter case exactly.
+  test('a tests path in another letter case is tests_unresolved naming the '
+      'disk spelling', () async {
+    final report = await _run(
+      await _project(_record(tests: ['$_fr:app/TEST/login_test.dart:shows'])),
+    );
+
+    final finding = _only(report);
+    expect(finding.line, _testLine(1, 0));
+    expect(finding.message, contains('app/test/login_test.dart'));
+    expect(report.warnings, isEmpty);
+  });
+
+  // D9: a .. segment anywhere is refused, and no file is read for it.
+  test('a tests path holding .. anywhere is tests_unresolved and reads no '
+      'file', () async {
+    final report = await _run(
+      await _project(
+        _record(
+          tests: [
+            '$_fr:app/test/../test/login_test.dart:shows',
+            '$_fr:../app/test/login_test.dart',
+          ],
+        ),
+      ),
+    );
+
+    expect(_spots(report), [
+      '$_recordPath:${_testLine(1, 0)}: tests_unresolved',
+      '$_recordPath:${_testLine(1, 1)}: tests_unresolved',
+    ]);
+    for (final finding in report.findings.where(
+      (f) => f.kind == FindingKind.testsUnresolved,
+    )) {
+      expect(finding.message, contains('..'));
+      expect(finding.keys.containsKey('test'), isFalse);
+    }
+    expect(report.warnings, isEmpty);
+  });
+
   test('a folder, or a file not present, is tests_unresolved with no name '
       'key', () async {
     final report = await _run(
@@ -263,6 +303,19 @@ void main() {
     );
     expect(findings.first.keys, {'entry': 'app/test'});
     expect(findings.last.message, 'the test path is empty');
+  });
+
+  // D10
+  test('a tests line ending in : is tests_unresolved', () async {
+    final report = await _run(
+      await _project(_record(tests: ['$_fr:$_testFile:'])),
+    );
+
+    expect(_spots(report), [
+      '$_recordPath:${_testLine(1, 0)}: tests_unresolved',
+    ]);
+    expect(_only(report).message, 'the test name after : is empty');
+    expect(_only(report).keys, {'entry': '$_testFile:'});
   });
 
   test('a planned entry names a test file not written yet and gives no '
@@ -339,6 +392,27 @@ void main() {
     expect(_spots(report), isEmpty);
     expect(report.warnings, [
       '$_testFile: cannot read the file; tests names in it are not checked',
+    ]);
+  }, skip: unreadablePathSkipReason());
+
+  // D9
+  test('an unreadable NFD test file named in NFC is read by the disk '
+      'spelling, on a disk that normalizes Unicode and on one that does '
+      'not', () async {
+    const written = 'app/test/caf\u{E9}_test.dart';
+    const onDisk = 'app/test/cafe\u{301}_test.dart';
+    final project = await _project(
+      _record(tests: ['$_fr:$written:shows a toast']),
+      extra: {onDisk: _testBody},
+    );
+    final path = '${project.path}/$onDisk';
+    Process.runSync('chmod', ['000', path]);
+    addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+    final report = await _run(project);
+
+    expect(report.warnings, [
+      '$onDisk: cannot read the file; tests names in it are not checked',
     ]);
   }, skip: unreadablePathSkipReason());
 

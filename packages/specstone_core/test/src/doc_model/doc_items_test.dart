@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show withGeneratedFenced;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_test_support/specstone_test_support.dart';
 import 'package:test/test.dart';
 
 const _firstLine = 20;
@@ -416,17 +417,15 @@ void main() {
     test('a line of 200,000 leading > marks reads in linear time, a fenced '
         'one included', () {
       final marks = '>' * 200000;
-      final clock = Stopwatch()..start();
+      final spent = cpuTimeOf(() {
+        expect(_items('${marks}x'), [
+          const DocItem(line: 20, chars: 200001, text: 'x', heading: false),
+        ]);
+        expect(_items('```\n$marks\n```'), isEmpty);
+      });
 
-      final quoted = _items('${marks}x');
-      final fenced = _items('```\n$marks\n```');
-
-      expect(quoted, [
-        const DocItem(line: 20, chars: 200001, text: 'x', heading: false),
-      ]);
-      expect(fenced, isEmpty);
       // Copying the rest of the line per mark takes seconds at this size.
-      expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+      expect(spent, lessThan(const Duration(seconds: 2)));
     });
 
     test('a > mark takes up to 3 spaces before it and one after it', () {

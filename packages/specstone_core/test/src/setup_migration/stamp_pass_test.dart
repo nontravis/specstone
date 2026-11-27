@@ -425,6 +425,93 @@ void main() {
       );
     });
 
+    test('an override item one ID names in two cited sections is stamped from the section its override line anchors', () {
+      // D16: `check` reads the section the override line's anchor names, so the
+      // stamp hashes that block, not the first item of the ID in any section.
+      const projectApi = 'specs/API.md';
+      const featureApi = 'specs/f01_login/API.md';
+      const first = '- **API-C1** First [domain:login](../x.md) rule.';
+      const second = '- **API-C1** Second [domain:login](../x.md) rule.';
+      const relinked =
+          '- **API-C1** Second [architecture:login](../x.md) rule.';
+      String project(String anchored) =>
+          '# P API\n\n## Conventions\n\n$first\n\n## Extra conventions\n\n$anchored\n';
+      final shipped = _typeAt(projectApi)!;
+      final projectType = shipped.copyWith(
+        sections: [
+          ...shipped.sections,
+          const MergedSection(
+            id: 'extra_conventions',
+            header: 'Extra conventions',
+            prefixId: 'API-C',
+          ),
+        ],
+      );
+      final entry = 'project_api:project_api#API-C1 ${fingerprintOf(second)}';
+      final feature =
+          '---\noverrides:\n  - $entry\n---\n\n# Login API\n\n'
+          '## Operations\n\n### `login`\n\n'
+          '- Overrides: [API-C1](../API.md#extra-conventions) — slower, because it caches\n';
+      StampDoc doc(String path, String lf) => StampDoc(
+        docPath: path,
+        lf: lf,
+        type: path == projectApi ? projectType : _typeAt(path),
+      );
+
+      final pass = StampPass.plan(
+        [doc(projectApi, project(second)), doc(featureApi, feature)],
+        [doc(projectApi, project(relinked)), doc(featureApi, feature)],
+        linkedFrom: {projectApi: project(second)},
+      );
+
+      expect(
+        pass.apply(featureApi, feature),
+        contains(
+          '  - project_api:project_api#API-C1 ${fingerprintOf(relinked)}\n',
+        ),
+      );
+    });
+
+    test('an override entry no override line of its doc anchors keeps its fingerprint', () {
+      // D16: the stamp reads the section an override line anchors, as `check`
+      // does. An entry with no such line names no block, so it stays as
+      // written; the first-section item the old stamp read is no longer used.
+      const projectApi = 'specs/API.md';
+      const featureApi = 'specs/f01_login/API.md';
+      const item = '- **API-C1** One [domain:login](../x.md) rule.';
+      const relinked = '- **API-C1** One [architecture:login](../x.md) rule.';
+      String project(String text) => '# P API\n\n## Conventions\n\n$text\n';
+      final feature =
+          '---\noverrides:\n'
+          '  - project_api:project_api#API-C1 ${fingerprintOf(item)}\n---\n\n'
+          '# Login API\n\n## Operations\n\n### `login`\n';
+
+      final pass = StampPass.plan(
+        [
+          StampDoc(
+            docPath: projectApi,
+            lf: project(item),
+            type: _typeAt(projectApi),
+          ),
+          StampDoc(docPath: featureApi, lf: feature, type: _typeAt(featureApi)),
+        ],
+        [
+          StampDoc(
+            docPath: projectApi,
+            lf: project(relinked),
+            type: _typeAt(projectApi),
+          ),
+          StampDoc(docPath: featureApi, lf: feature, type: _typeAt(featureApi)),
+        ],
+        linkedFrom: {projectApi: project(item)},
+      );
+
+      expect(
+        pass.apply(featureApi, feature),
+        contains('  - project_api:project_api#API-C1 ${fingerprintOf(item)}\n'),
+      );
+    });
+
     test('an entry naming a block the run lacks is left as written', () {
       final docs = {
         _storyPath: _story(_one),

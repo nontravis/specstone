@@ -331,12 +331,18 @@ RunPlan _upgradeRunOf(
   // Whether `stepped` reads a doc only, recording no change, ledger entry, or
   // collision.
   var isProbing = false;
-  // A from doc an earlier step of the fold's pack names takes that pack's
-  // steps before its fold, typed by its frozen doc type, and the fold merges
+  // A from doc an earlier step of the fold's pack names, or an earlier fold
+  // of the run creates, takes the steps before its fold, and the fold merges
   // that stepped text.
   final frozenFromDocs = folds.fromPaths.isEmpty
       ? const <String, _FrozenFromDoc>{}
-      : _frozenFromDocsOf(upgrades, folds, frozen: frozen, matcher: matcher);
+      : _frozenFromDocsOf(
+          upgrades,
+          folds,
+          frozen: frozen,
+          set: finalSet,
+          matcher: matcher,
+        );
   final steppedTextByDocPath = <String, String>{};
   final ledger = HeadingLedger();
   void refuse(MigrateFault fault) {
@@ -528,7 +534,7 @@ RunPlan _upgradeRunOf(
       path: path,
       plannedPath: planned[path] ?? path,
       docType: doc.match.docType,
-      firstStep: doc.packStart,
+      firstStep: doc.firstStep,
       endStep: doc.foldIndex,
       changes: <String>[],
     );
@@ -1134,6 +1140,7 @@ final class _Folds {
     required this.byStep,
     required this.docs,
     required this.fromPaths,
+    required this.created,
     required this.collisions,
   });
 
@@ -1146,17 +1153,21 @@ final class _Folds {
   /// The DocPath of each doc a step folds, which the run moves to the trash.
   final Set<String> fromPaths;
 
+  /// The DocPath of each `to` doc a step creates, which no project doc holds.
+  final Set<String> created;
+
   /// The collisions found while pairing docs, to refuse the run with.
   final List<MigrateFault> collisions;
 }
 
-/// Finds the docs of [docPaths] each `merge_doc` step of [upgrades] folds.
+/// Finds the docs of [docPaths] each `merge_doc` step of [upgrades] folds,
+/// and records each fold and `rename_section` step in [_Folds.docs] in run
+/// order.
 ///
 /// A `from` doc whose `to` doc is not UTF-8 text is not folded; the pair is
 /// queued in [_Folds.collisions]. A `to` doc no project doc holds, which a
-/// step creates, is a `from` doc only of a later step of the same pack that an
-/// earlier step of that pack touches by `from` id: only then does the run hold
-/// the doc's stepped text ([_frozenFromDocsOf]).
+/// step creates, is a `from` doc of a later step of the run, in any pack, that
+/// an earlier step of the run touches by `from` id ([_frozenFromDocsOf]).
 _Folds _foldsOf(
   Directory root,
   List<PackUpgrade> upgrades, {
@@ -1176,15 +1187,17 @@ _Folds _foldsOf(
   final fromPaths = <String>{};
   final collisions = <MigrateFault>[];
   final held = {for (final path in docPaths) planned[path]!};
+  final runSteps = [for (final upgrade in upgrades) ...upgrade.steps];
+  final created = <String>{};
   var packStart = 0;
   for (final PackUpgrade(:steps) in upgrades) {
-    final created = <String>{};
     for (final (offset, PackStep(:step)) in steps.indexed) {
+      if (step is RenameSection) docs.renamed(step);
       if (step is! MergeDoc) continue;
       final toType = set.lookup(step.toId);
       if (toType == null) continue;
-      final readsCreated = steps
-          .take(offset)
+      final readsCreated = runSteps
+          .take(packStart + offset)
           .any((earlier) => earlier.step.touches(step.fromId));
       final pool = [...docPaths, if (readsCreated) ...created];
       final sources = [
@@ -1234,60 +1247,93 @@ _Folds _foldsOf(
     byStep: byStep,
     docs: docs,
     fromPaths: fromPaths,
+    created: created,
     collisions: collisions,
   );
 }
 
-/// A `merge_doc` `from` doc that an earlier step of the fold's own pack
-/// names: its frozen doc type with its target, and the run's step indexes
-/// from the first step of that pack up to the step that first folds it.
+/// A `merge_doc` `from` doc the run steps before its fold: its doc type with
+/// its target, and the run's step indexes from its first step up to the step
+/// that first folds it.
 final class _FrozenFromDoc {
-  const new(this.match, {required this.packStart, required this.foldIndex});
+  const new(this.match, {required this.firstStep, required this.foldIndex});
 
   final MatchedDocType match;
-  final int packStart;
+  final int firstStep;
   final int foldIndex;
 }
 
-/// Returns, by DocPath in step order, each doc of [folds] whose `from` id a
-/// step of the same pack before its first fold names, typed by that id's doc
-/// type in [frozen] and the target of its `to` doc.
+/// A `to` doc a fold of the run creates: the fold's step index and `to` type.
+final class _CreatedDoc {
+  const new(this.index, this.type);
+
+  final int index;
+  final MergedDocType type;
+}
+
+/// Returns, by DocPath in step order, each doc of [folds] the run steps
+/// before its first fold, typed with the target of its `to` doc.
 ///
 /// [upgrades] hold the run's steps, each pack's selected steps together in its
-/// chain order (`PackManifest.chainOrder`). A step of another pack never
-/// counts. The pack load refuses a pack with a step that names an id a
-/// `merge_doc` step after it in that same chain order folds, when the pack
-/// ships no frozen copy; each selected step before the fold is such a step,
-/// so [frozen] holds every id this reads.
+/// chain order (`PackManifest.chainOrder`). A `from` doc takes every step of
+/// the run before its fold that touches its `from` id, in any pack, from the
+/// first such step; a doc an earlier fold creates starts at that fold. It is
+/// typed by [frozen], else by [set], else as the `to` type of the fold that
+/// created it. The pack load refuses a step of the fold's own pack that names
+/// the `from` id when the pack ships no frozen copy, so [frozen] holds it.
 Map<String, _FrozenFromDoc> _frozenFromDocsOf(
   List<PackUpgrade> upgrades,
   _Folds folds, {
   required Map<String, MergedDocType> frozen,
+  required MergedSet set,
   required DocTypeMatcher matcher,
 }) {
   final docs = <String, _FrozenFromDoc>{};
+  final createdBy = <String, _CreatedDoc>{};
+  final runSteps = [for (final upgrade in upgrades) ...upgrade.steps];
   var packStart = 0;
   for (final PackUpgrade(:steps) in upgrades) {
     for (final (offset, PackStep(:step)) in steps.indexed) {
       if (step is! MergeDoc) continue;
       final fromId = step.fromId;
-      if (!steps.take(offset).any((earlier) => earlier.step.touches(fromId))) {
-        continue;
-      }
-      // checkFrozenDocTypes refused the load when the pack ships no copy.
-      final type = frozen[fromId]!;
       final index = packStart + offset;
-      for (final source in folds.byStep[index] ?? const <FoldSource>[]) {
+      final sources = folds.byStep[index] ?? const <FoldSource>[];
+      final isPackStepped = steps
+          .take(offset)
+          .any((earlier) => earlier.step.touches(fromId));
+      final touchedAt = runSteps.indexWhere(
+        (earlier) => earlier.step.touches(fromId),
+      );
+      for (final source in sources) {
         if (!folds.fromPaths.contains(source.fromPath) ||
             docs.containsKey(source.fromPath)) {
           continue;
         }
+        final creation = createdBy[source.fromPath];
+        final type = isPackStepped
+            // checkFrozenDocTypes refused the load when the pack ships no copy.
+            ? frozen[fromId]!
+            : frozen[fromId] ?? set.lookup(fromId) ?? creation?.type;
+        final firstStep =
+            creation?.index ??
+            (touchedAt >= 0 && touchedAt < index ? touchedAt : null);
+        if (type == null || firstStep == null) continue;
         final to = matcher.match(source.toPath);
         docs[source.fromPath] = _FrozenFromDoc(
           MatchedDocType(type, target: to is MatchedDocType ? to.target : null),
-          packStart: packStart,
+          firstStep: firstStep,
           foldIndex: index,
         );
+      }
+      if (set.lookup(step.toId) case final toType?) {
+        for (final source in sources) {
+          if (folds.created.contains(source.toPath)) {
+            createdBy.putIfAbsent(
+              source.toPath,
+              () => _CreatedDoc(index, toType),
+            );
+          }
+        }
       }
     }
     packStart += steps.length;

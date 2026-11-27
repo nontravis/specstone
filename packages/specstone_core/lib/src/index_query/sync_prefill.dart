@@ -20,7 +20,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart'
     show docPathOfProjectPath;
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show normalCodeEntry;
+    show isOutsideCodeEntry, normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/matrix_line.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
@@ -34,7 +34,6 @@ import 'package:specstone_core/src/templates/code_link_entry.dart';
 /// The marking line that opens the verdict part of a group file.
 const syncVerdictMarker = '==> verdicts <==';
 
-const _parentSegment = '..';
 const _hunkMark = '@@';
 const _diffFileMark = 'diff --git ';
 const _literalPathspecs = '--literal-pathspecs';
@@ -388,7 +387,7 @@ List<String> _messagesSince(CodeRepos repos, SyncLinkWork work) {
     final String top;
     final String? path;
     if (base == null) {
-      final entry = normalCodeEntry(work.link.path);
+      final entry = normalCodeEntry(work.link.readPath);
       final place = repos.placeOf(work.link.root, entry);
       if (place == null) return const [];
       top = place.top;
@@ -420,7 +419,7 @@ List<String> _messagesSince(CodeRepos repos, SyncLinkWork work) {
 /// path in the chain exists, or git fails.
 String? _renamedTo(CodeRepos repos, Directory base, String path) {
   final entry = normalCodeEntry(path);
-  if (entry.isEmpty || entry.startsWith(_parentSegment)) return null;
+  if (entry.isEmpty || isOutsideCodeEntry(entry)) return null;
   try {
     final place = repos.placeOf(base, entry);
     final start = place?.repoPathOf(entry);

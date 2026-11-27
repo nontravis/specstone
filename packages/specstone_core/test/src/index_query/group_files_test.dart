@@ -210,7 +210,7 @@ void main() {
     );
     expect(
       lines.where((line) => line.startsWith('read whole, in ')),
-      hasLength(2),
+      hasLength(4),
     );
   });
 

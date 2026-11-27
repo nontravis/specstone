@@ -4,10 +4,16 @@ description: |-
 title: Tokens
 path: specs/design_system/foundations/TOKENS.md
 sections:
+  - id: source_of_truth
+    header: Source of truth
+    required: false
+    description: |-
+      Name the code file that holds the token values.
   - id: token_list
     header: Token list
     required: true
     description: |-
       Write one table of Token, Value, Role; list every token once, since the list is closed.
+      With a Source of truth section, write each Value cell as the source symbol in a code span, not the value; with none, write the value.
 lint:
   title_no_number: true
