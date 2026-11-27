@@ -54,12 +54,13 @@ Write no PRD or spec doc and dispatch no writer until the Owner picks an approac
 
 ## 3. Write the change note
 
-Write the change note by `references/design.md`, from step 1's saved files, the Owner's answers, and dependency
-runs. Dispatch nothing to write it. It proposes each new or reshaped feature's `patterns:` value from
+Write the change note yourself by `references/design.md`, from step 1's saved files, the Owner's answers, and dependency
+runs. It proposes each new or reshaped feature's `patterns:` value from
 `specstone guide --pattern`.
 
-Ask the Owner each open question a doc must state, and write the answer into the note. Dispatch no writer while one
-is open. Then route the change by `references/class.md`: only an Undecided change takes steps 4 to 6.
+Ask the Owner each open question a doc must state; write the answer into the note. Dispatch no writer while one
+is open. Then route by `references/class.md`: only a Docs-first change takes steps 4 to 6. A change the
+plan check sent back Docs-first comes in here, keeps its note, and goes on to step 4.
 
 ## 4. Write the drafts, check them once
 
@@ -91,7 +92,7 @@ each item outside the drafts, goes with the ask. An Owner change follows `refere
 ## 6. Hand off to the plan skill
 
 With every draft approved, follow the `specstone-plan-sdd` skill with the whole approved drafts list and the change
-note's path; it shows the Owner the plan and asks how to run it.
+note's path.
 
 ## Without a dispatch
 

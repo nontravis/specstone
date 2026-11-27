@@ -39,7 +39,7 @@ Run `specstone context --for sync --out` first, before git, a file read, or any 
 2. Ask the Owner per `Mismatches:` point: fix the code (writes nothing) or the spec; for an `unstated behavior` point, fix the code or change the PRD.
    - A spec fix: a new `specstone-sdd-engineer` per group with picks, routed as its group: `mode: sync`, `picks`, the group's `scope:` and the first call's `group file:`; `feature:` only if the Owner named it.
 3. Once the last rerun and item 2's spec fixes are done, with no fix-the-work pick on a decided-line point left to rerun, approve every draft the sync wrote in this one step; approve none before it.
-   - With a `change note`, dispatch one fresh `specstone-sdd-auditor` by `../specstone-expert-sdd/references/dispatch.md`, with `job: decided-audit`, the change note's path, every draft the sync wrote, and the decided engineer's report.
+   - With a `change note`, dispatch one fresh `specstone-sdd-auditor` by `../specstone-expert-sdd/references/dispatch.md`, with `job: build-first-audit`, the change note's path, every draft the sync wrote, and the decided engineer's report.
    - Follow `../specstone-expert-sdd/references/approve.md` once, with that audit's report as its one `--audit`, or `--no-audit` with no `change note`, before the branch lands.
 4. Once a waiting line's draft is approved, write it, with the report's `--target <name>` when two or more:
    - Run `specstone set --sync` again on the same group file: it writes the waiting lines, each waiting `remove-task` line included; name to the Owner the tasks it removes, found as `references/task-refs.md` finds them.

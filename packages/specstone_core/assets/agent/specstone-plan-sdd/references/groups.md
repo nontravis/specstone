@@ -34,8 +34,9 @@ inputs in turn, as step 2 gives.
 Send each answers round this way, in place of step 3 item 2's send. After the merge, send an answer on a row to a
 fresh planner of that row's group, with its group's inputs written out again, `answers:`, and its `part:` path,
 which it amends. A plan check's round goes the same way: each finding goes to a fresh planner of the group whose
-part holds the task its plan line sits in, as an answer on a row does, and a finding on no part's line, such as the
-header's, goes to the merge planner. Then dispatch the merge planner again, once, with its inputs written out again,
+part holds the task its plan line sits in, as an answer on a row does. A decided-line finding, led by a `D<n>`, goes
+to a fresh planner of each group whose part cites that `D<n>`, and of group 1 when that line changes no story. Any
+other finding on no part's line, such as the header's, goes to the merge planner. Then dispatch the merge planner again, once, with its inputs written out again,
 `answers:` holding each other answer of the round, and `plan path:` the plan its `Plan:` line named, or the Owner's
 new path, as step 3 item 2 gives; it merges the amended parts into that plan. Relay each amended reply of an Owner's
 round as step 3 item 3 gives, and a check round's once, by section 1 item 3.

@@ -32,6 +32,22 @@ Owner so and why, never relay the plan as a clean one, and go on to step 3 item 
 When its `Findings:` holds a `Critical` or `Important` item, first show the Owner the check's `Report:` line and its
 relay block word for word, so the Owner sees every fault before the plan changes.
 
+A decided-line finding is a `Findings:` item, from a run whose change note holds an `Owner ok:` line, that opens
+after its `Critical` or `Important` label with a `D<n>` of that note. A task that departs from its `D<n>` is a plan
+fault, opened by its plan line, and goes to the planner as below.
+
+Before any planner round, ask the Owner once, in one message, on every decided-line finding. For each one, the Owner
+edits that decided line in the change note, or names there the doc it supersedes. Write the Owner's edit into the note
+when it comes in the chat. Run both decided-line tests of `../../specstone-brainstorming-sdd/references/design.md`
+section 3 on each edited line. When every such finding is settled and every edited line passes both tests, replace the
+note's `Owner ok:` line with `Owner ok: <YYYY-MM-DD>`, the date of the Owner's answer, and send as below.
+
+When any decided-line finding stays unsettled, some settled and some not included, or an edited line fails a
+decided-line test, the whole change goes Docs-first, and nothing is asked a second time. To take Docs-first, delete the
+note's `Owner ok:` line, send the planner no round, and leave the plan skill: run no item of step 3 and no step 4 of
+the plan skill's `SKILL.md`, so no run skill is offered. Follow `../../specstone-brainstorming-sdd/SKILL.md` from its
+step 4 with the same change note; the plan file stays where it is.
+
 Then send every finding once, `Minor` ones too, as step 3 item 2 sends answers: step 2's inputs written out again,
 `targets:` whole, `answers:` holding the findings, and `plan path:` the plan the `Plan:` line named.
 

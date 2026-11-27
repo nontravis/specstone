@@ -1,11 +1,11 @@
-`specstone-sdd-auditor`, its gate made, runs this for `job: decided-audit`. Write only the agent's `report:` file, no
+`specstone-sdd-auditor`, its gate made, runs this for `job: build-first-audit`. Write only the agent's `report:` file, no
 fix; ask the Owner nothing.
 
-## Decided audit
+## Build-first audit
 
-`job: decided-audit` takes the change note whose decided lines, its `D<n> (decided): <text>` decisions, the drafts
+`job: build-first-audit` takes the change note whose decided lines, its `D<n> (decided): <text>` decisions, the drafts
 carry; the decided engineer's report of a plan's last sync; and the drafts, their draft lists joined. It reads the drafts
-of a Decided change once its work is built, in 1 pass, and reports only `Contradiction`, `Stale reader`, and
+of a Build-first change once its work is built, in 1 pass, and reports only `Contradiction`, `Stale reader`, and
 `Not carried` items. Run no `check`, no `check --repeats`, and no lens walk; no fix loop and no re-review follow it.
 
 1. **Hashes and ground**: run steps 1 and 2 of `audit.md`'s **Builder check** on the drafts, a check of drafts; its ground

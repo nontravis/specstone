@@ -34,7 +34,7 @@ const _agentMd =
     "`specstone-brainstorming-sdd`'s class test: Doc-only, "
     '`specstone-update-sdd`; Restore or Internal, edit work built from the '
     'docs, no doc step, then `specstone-sync-sdd`; observable behavior, '
-    '`specstone-brainstorming-sdd` (Decided or Undecided); Owner-named '
+    '`specstone-brainstorming-sdd` (Build-first or Docs-first); Owner-named '
     'class wins.\n'
     '- Read docs with `specstone context <target> --for <mode> --out`; '
     'search saved files before any `specstone get`; in design work ground a '

@@ -9,7 +9,7 @@ section 1 hold; section 2 gives the dispatch for every other case. A host with n
 Each condition is a fact read from this session's history or from CLI output, never from a doc file.
 
 1. This session ran a `specstone context … --out` call naming every target (each story of an approved drafts list,
-   or, for a Decided change sent with no targets, each story its decided lines change), and has run no `set`, `new`,
+   or, for a Build-first change sent with no targets, each story its decided lines change), and has run no `set`, `new`,
    `move`, `rename`, or writer dispatch since.
 2. The Ground call, `specstone context … --for implement --out --groups`, you run as the agent file's Ground source 1
    and Workflow step 2 give, exits 0 and prints no `==> group` line.
@@ -19,7 +19,7 @@ Check the conditions in order: condition 2's call runs only when condition 1 hol
 bundle. A failing condition 1 runs no `context` call. Your condition 2 call stands as the agent file's Ground source 1
 call, so a passing test runs no second one.
 
-A non-zero exit, or a Decided change whose decided lines change no story to name, fails condition 2.
+A non-zero exit, or a Build-first change whose decided lines change no story to name, fails condition 2.
 
 When all three hold, follow `../../../agents/specstone-plan-engineer.md` under the same inputs and `report:` path a
 dispatch would get, writing its one plan file and its report. When following it would open a code file, stop and

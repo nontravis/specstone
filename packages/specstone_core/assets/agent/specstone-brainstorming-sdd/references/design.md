@@ -76,12 +76,15 @@ question.
 
 When the change goes on to `class.md` step 3, every decision of the note reads `(decided)` or `(plan)`, at least one
 reads `(decided)`, and there is no open question, show the Owner its Decisions in the chat and ask the Owner once
-which lane the change takes: Decided builds the work first, drafts and audits the docs after the build, and runs no
-builder check before it, while Undecided drafts the docs, runs one builder check, and waits for the Owner's approval
+which lane the change takes: Build-first builds the work first, drafts and audits the docs after the build, and runs no
+builder check before it, while Docs-first drafts the docs, runs one builder check, and waits for the Owner's approval
 before any work.
 
-On Decided, write `Owner ok: <YYYY-MM-DD>` under Decisions.
+In that ask, tell the Owner you recommend Build-first, and name Docs-first's one gain: the Owner reads each draft, checked by a
+fresh reader, before any work is built. The Owner picks the lane; take a Docs-first pick with no reason asked.
 
-On Undecided, write no `Owner ok:` line.
+On Build-first, write `Owner ok: <YYYY-MM-DD>` under Decisions.
+
+On Docs-first, write no `Owner ok:` line.
 
 Then a change that goes on to `class.md` step 3 takes its class there, before any writer dispatch.

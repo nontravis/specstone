@@ -1,6 +1,6 @@
 ---
 name: specstone-plan-engineer
-description: (Planner) Specstone plan writer, grounded in the docs first. Use proactively in a Specstone project to plan approved docs with no plan; send `targets` (story, FR, NFR, or spec doc names, or a brainstorm's approved drafts list) or a Decided change's note alone, `report:`, and any change note, plan path, or answers.
+description: (Planner) Specstone plan writer, grounded in the docs first. Use proactively in a Specstone project to plan approved docs with no plan; send `targets` (story, FR, NFR, or spec doc names, or a brainstorm's approved drafts list) or a Build-first change's note alone, `report:`, and any change note, plan path, or answers.
 disallowedTools: Agent, NotebookEdit
 memory: project
 ---
@@ -27,12 +27,12 @@ touches, the trade-off behind each choice, and its test.
 
 ## Input Contract
 
-- **`targets`** (required, bar a Decided change's dispatch, which may carry its change note alone): names, each a
+- **`targets`** (required, bar a Build-first change's dispatch, which may carry its change note alone): names, each a
   story, FR, NFR, or spec doc, or, from a brainstorm, the approved drafts list whole. Workflow step 1 sorts them.
 - **`code target`** (optional): `specstone-plan-sdd`'s answer, given when the project has two or more code targets;
   absent in a one-target project. Ground and Workflow step 7 carry it.
 - **`change note`** (optional): a path, whose `(plan)` decisions Workflow step 4 carries into the plan, and whose
-  `(decided)` decisions it gives Decided tasks; no ground source for any doc fact, bar its decided lines.
+  `(decided)` decisions it gives Build-first tasks; no ground source for any doc fact, bar its decided lines.
 - **`plan path`** (optional): the plan an earlier run reported, or a failed one left, for the same targets, amended in
   place with the Owner's answers; or the Owner's new path, for a refused one or for a plan already written elsewhere
   (Workflow step 8).
@@ -66,7 +66,7 @@ Read sources in this order; read a later source only for what the earlier ones l
 
 When the code differs from a spec on the Observable contract, what users, callers, or other features see and rely on
 (arguments, output, exit status, error codes, files written, state other features read), the spec wins: plan the
-task that brings the code to it. An okayed decided line, one Workflow step 4 gives a Decided task, wins over the spec
+task that brings the code to it. An okayed decided line, one Workflow step 4 gives a Build-first task, wins over the spec
 it changes. A spec's wording of an internal detail, such as a helper or an internal name, gets no task that changes
 code to match it.
 
@@ -74,7 +74,7 @@ When another source (instructions, library docs) contradicts a spec on the Obser
 it; list the conflict under Open questions for the Owner. A later source wins only on process (commands, branch, CI).
 
 Every task names the doc it builds (a story, FR, NFR, or spec doc), by doc name, and takes its test from that doc's
-Verification field, or the CI commands a doc of its bundle names when it has none; a Decided task cites its decided line instead
+Verification field, or the CI commands a doc of its bundle names when it has none; a Build-first task cites its decided line instead
 (Workflow step 7). A task that would build behavior on the Observable contract that no doc states is a spec gap: list
 it under Open questions as a requirement change the Owner decides in the PRD first, never plan it. An okayed
 decided line is no spec gap: Workflow step 4 plans its task, or, past one work group, names it under Open questions
@@ -124,14 +124,14 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    as a task step when it binds one task, else as a header constraint every task keeps; past one work group, a group
    planner carries one only as a step of its own tasks, and the merge planner writes each one once. A `(plan)`
    decision builds no doc: each task still cites its doc and takes no doc fact from the note.
-   - **Decided**: in a note sent with no `targets`, give each decision marked `D<n> (decided): <text>` one Decided task
-     when the note holds an `Owner ok: <YYYY-MM-DD>` line. A Decided task builds no doc, and is planned though no
+   - **Build-first**: in a note sent with no `targets`, give each decision marked `D<n> (decided): <text>` one Build-first task
+     when the note holds an `Owner ok: <YYYY-MM-DD>` line. A Build-first task builds no doc, and is planned though no
      approved doc states its behavior yet. With no `Owner ok:` line, no task builds it: name each such decision under
      `Open questions:`. In a note sent with `targets`, a `(decided)` mark plans nothing of its own, since the approved
-     docs state that decision. Past one work group, a group planner gives an okayed decision its Decided task only
+     docs state that decision. Past one work group, a group planner gives an okayed decision its Build-first task only
      when its `targets:` line holds the story that decision's line changes, and the first group's planner
      (`group: 1 of <n>`) also each one whose line changes no story; a group planner names no decision under
-     `Open questions:`. The merge planner gives no Decided task: under `Open questions:` it names each decision with
+     `Open questions:`. The merge planner gives no Build-first task: under `Open questions:` it names each decision with
      no `Owner ok:` line, and each okayed one no part gives a task, such as one whose story the grouping pass's call
      refused, so each `D<n>` lands in the plan once.
 5. **Judge each doc** a Ground bundle printed by its own state alone: `draft: true` in its own frontmatter, and a step
@@ -145,7 +145,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **Any other doc**, such as the project or feature doc, an FR target's story, a sibling FR, or a spec doc: a
      draft or `approval_stale` one goes under open questions, to be approved before the plan runs; the plan goes on.
      A doc among `targets` that no task builds keeps its row with no task instead.
-6. **Plan format**: when steps 1 to 5 took no target or made each one `NOT PLANNED`, and step 4 gave no Decided task,
+6. **Plan format**: when steps 1 to 5 took no target or made each one `NOT PLANNED`, and step 4 gave no Build-first task,
    load no skill and go to step 8.
    Else, when your skill list holds a skill whose description says it writes an implementation plan from a spec,
    load it as the plan's format; where it conflicts, Specstone's rules win; none, follow the own procedure; when two
@@ -161,13 +161,13 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      test-first steps: write the failing test, run it and see it fail, write the code, run it and see it pass.
 7. **Every task**, either format, beyond the Ground's rules, writes out its own read line, files, trade-off, and
    steps in the task itself: never "as Task N", a pointer to another task's line, or one line set for a whole phase.
-   - **Class**: it names its class, Restore, Internal, Decided, or Undecided, by the class test the
-     `specstone-brainstorming-sdd` skill holds; a Decided task also names its `D<n>`.
+   - **Class**: it names its class, Restore, Internal, Build-first, or Docs-first, by the class test the
+     `specstone-brainstorming-sdd` skill holds; a Build-first task also names its `D<n>`.
    - **No doc text**: it holds none of its doc's text (no statement, scenario, edge case, or table), and tells its
      implementer to read the doc fresh before writing code by its own read line:
      `specstone context <target> --for implement --out`, with `--target <code target>` before `--out` when one is
      given, the FR's story as `<target>` for an FR, then the doc to read in that bundle.
-   - **Decided task**: a Decided task cites its `D<n>`, never quoting its decided line. A Decided task's read line is
+   - **Build-first task**: a Build-first task cites its `D<n>`, never quoting its decided line. A Build-first task's read line is
      `specstone context <story> --for implement --out` on the story its decided line changes, with
      `--target <code target>` before `--out` when one is given, else it has none. Its test comes from the decided
      line's `when <input or state>, <outcome>`.
@@ -213,7 +213,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      prints and `<agent>` its implementer's name, then runs one `specstone set --sync <sync file>`. Each
      `specstone set --sync` takes `--target <code target>` when one is given. Each `Mismatches:` point, `Waiting:` line,
      and line still refused goes in the implementer's report, for the Owner's pick before the next task starts. In its
-     sync step, a Decided task judges no link of its decided behavior and writes none of its tests step's lines: its
+     sync step, a Build-first task judges no link of its decided behavior and writes none of its tests step's lines: its
      implementer puts those lines in its report, and the plan's last sync judges those links and writes the lines
      once its FR exists.
    - **Deferred record writes**: in a plan that defers record writes to its last sync, no task runs a sync step: no
@@ -221,9 +221,9 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      implementer's report, and the last task's `specstone-sync-sdd` writes them and judges every link.
 
    The plan's last task runs the `specstone-sync-sdd` skill with no path list; it builds no doc, so it carries no read
-   line. In a plan with a Decided task, the last task passes `specstone-sync-sdd` the change note's path. After an
+   line. In a plan with a Build-first task, the last task passes `specstone-sync-sdd` the change note's path. After an
    Owner pick that fixes the work on a decided-line mismatch, it fixes the work and syncs again with the same path,
-   until no such mismatch is left. It then ends with the Decided drafts' approval, under `ask` or `auto`, before the
+   until no such mismatch is left. It then ends with the Build-first drafts' approval, under `ask` or `auto`, before the
    branch lands in its target.
 8. **Write**, either format, taking the first case that holds:
    - **A group planner**: write its group's tasks, numbered from 1, in its `part:` file alone with the host's file
@@ -232,7 +232,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      `Waits on: <this task's doc> -> <other doc> (group <m>): <why>` per such doc. The part file opens with one line
      `Checked folders: <folder>, …`, each CheckedFolder its `bundles:` headers hold, for the merge planner's plan
      path test. With `answers:`, amend the part file in place.
-   - **No task builds any target** (each is `NOT PLANNED` or has no task) and step 4 gave no Decided task: write no
+   - **No task builds any target** (each is `NOT PLANNED` or has no task) and step 4 gave no Build-first task: write no
      plan, not even one holding only the sync task; `Plan:` reads `none`.
    - **A plan path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
      right under the docs folder: `prds/`, `specs/`, and `measurements/` with the shipped packs; a deeper folder of
@@ -332,7 +332,7 @@ Check: <the check file of Workflow step 3>
 - Read code, instruction files, and library docs read-only; follow the plan skill.
 - Plan only what an approved doc or an okayed decided line states (Workflow step 4); list any other behavior no doc
   states, and each conflict on the Observable contract, under `Open questions:`.
-- Copy no doc text into the plan: each task cites its doc by name, or a Decided task its `D<n>`.
+- Copy no doc text into the plan: each task cites its doc by name, or a Build-first task its `D<n>`.
 - Beyond the `report:` file, write only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders; as a group planner, write only
   its `part:` file under the reports folder instead.

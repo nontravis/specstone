@@ -87,7 +87,7 @@ const _requiredReferences = <String>[
   'specstone-brainstorming-sdd/references/trim-audit.md',
   _noDispatchReference,
   _reReviewReference,
-  _decidedAuditReference,
+  _buildFirstAuditReference,
   _fixLoopReference,
 ];
 
@@ -2329,8 +2329,10 @@ void _approveStepTests() {
     );
   });
 
-  test('a Decided approval takes the decided engineer report as its one '
+  // D8
+  test('a Build-first approval takes the decided engineer report as its one '
       'author', () {
+    // D7
     // D1
     final approve = _approveText();
     expect(approve, isNot(contains('once per sync engineer report')));
@@ -2339,7 +2341,7 @@ void _approveStepTests() {
       approve,
       matches(RegExp("decided engineer's report[^;]*`--author <path>`")),
     );
-    final audit = _oneLine(_pluginText(_decidedAuditReference));
+    final audit = _oneLine(_pluginText(_buildFirstAuditReference));
     expect(audit, isNot(contains('each sync engineer report')));
     final ground = audit.substring(audit.indexOf('1. **Hashes and ground**'));
     expect(
@@ -2348,6 +2350,7 @@ void _approveStepTests() {
     );
   });
 
+  // D8
   test('a sync approves every draft it wrote in one step after its last '
       'rerun', () {
     // D2
@@ -2367,7 +2370,10 @@ void _approveStepTests() {
       allOf(contains('--audit'), contains('--no-audit')),
     );
     expect(
-      _hasSentenceWith(sentences.join(' '), ['decided-audit', 'every draft']),
+      _hasSentenceWith(sentences.join(' '), [
+        'build-first-audit',
+        'every draft',
+      ]),
       isTrue,
     );
   });
@@ -2539,8 +2545,8 @@ const _reReviewReference =
 
 const _reReviewHeading = '## Re-review';
 
-const _decidedAuditReference =
-    'specstone-brainstorming-sdd/references/decided-audit.md';
+const _buildFirstAuditReference =
+    'specstone-brainstorming-sdd/references/build-first-audit.md';
 
 /// The one fix loop main runs after a builder check or a trim audit.
 const _fixLoopReference = 'specstone-expert-sdd/references/fix-loop.md';
@@ -2893,6 +2899,20 @@ void _brainstormFlowTests() {
     expect(order, orderedEquals([...order]..sort()), reason: 'order');
   });
 
+  // D5
+  test('a change the plan check sends back Docs-first goes on to the drafts '
+      'step with its note', () {
+    expect(
+      _hasSentenceWith(step(_brainstormNote), [
+        'plan check',
+        'Docs-first',
+        'keeps its note',
+        'step 4',
+      ]),
+      isTrue,
+    );
+  });
+
   test('the plan skill and the plan engineer take the input `change note` and '
       'no `design document`', () {
     for (final (file, inputLine) in [
@@ -2908,12 +2928,13 @@ void _brainstormFlowTests() {
     }
   });
 
-  test('the class test asks Doc-only first and Decided last, calls an internal code-level change Internal, and takes a doubtful change as Undecided', () {
+  // D7
+  test('the class test runs Doc-only before Build-first, keeps code-level change Internal, and sends doubt Docs-first', () {
     final text = _pluginText(_classReference);
     final questions = text.substring(0, text.indexOf('| Class |'));
     final docOnly = questions.indexOf('Doc-only');
     expect(docOnly, isNonNegative);
-    expect(docOnly, lessThan(questions.indexOf('Decided')));
+    expect(docOnly, lessThan(questions.indexOf('Build-first')));
     expect(
       _oneLine(text),
       contains(
@@ -2923,8 +2944,13 @@ void _brainstormFlowTests() {
         ),
       ),
     );
-    final closing = text.substring(text.indexOf('A change not shown Decided'));
-    expect(closing, contains('is Undecided'));
+    final closing = text.substring(
+      text.indexOf('A change not shown Build-first'),
+    );
+    expect(
+      closing,
+      startsWith('A change not shown Build-first is Docs-first:\n'),
+    );
     expect(closing, contains('- its class is in doubt'));
     expect(closing, contains('neither `(decided)` nor `(plan)`'));
     expect(closing, contains('have no `Owner ok:` line in the note'));
@@ -2969,16 +2995,17 @@ void _reReviewTests() {
     },
   );
 
+  // D8
   test(
     'each audit reference opens its items with a comma-joined docs list',
     () {
       final audit = _pluginText(_auditReference);
-      final decided = _pluginText(_decidedAuditReference);
+      final decided = _pluginText(_buildFirstAuditReference);
       final reReview = _pluginText(_reReviewReference);
       final trim = _pluginText(_trimAuditReference);
       final jobs = {
         _auditReference: _sectionOf(audit, _builderCheckHeading),
-        _decidedAuditReference: _sectionOf(decided, '## Decided audit'),
+        _buildFirstAuditReference: _sectionOf(decided, '## Build-first audit'),
         _reReviewReference: _sectionOf(reReview, _reReviewHeading),
       };
       for (final MapEntry(:key, :value) in jobs.entries) {
@@ -3004,12 +3031,13 @@ void _reReviewTests() {
     },
   );
 
+  // D8
   test(
     'each audit writes its Audited lines from the dry run doc and base keys',
     () {
       final texts = {
         _auditReference: _pluginText(_auditReference),
-        _decidedAuditReference: _pluginText(_decidedAuditReference),
+        _buildFirstAuditReference: _pluginText(_buildFirstAuditReference),
         _reReviewReference: _pluginText(_reReviewReference),
         _trimAuditReference: _pluginText(_trimAuditReference),
       };
@@ -3041,12 +3069,13 @@ void _reReviewTests() {
     expect(_hasSentenceWith(audit, ['code-level', 'restore']), isTrue);
   });
 
+  // D8
   test('the auditor names a Notes section for each of its five jobs', () {
     for (final file in [
       _auditReference,
       _reReviewReference,
       _trimAuditReference,
-      _decidedAuditReference,
+      _buildFirstAuditReference,
       _planCheck,
     ]) {
       expect(_oneLine(_pluginText(file)), contains('`Notes:`'), reason: file);
@@ -3070,6 +3099,7 @@ void _reReviewTests() {
   });
 
   // D16
+  // D8
   test("the auditor links each job's report shape and restates none", () {
     final text = _pluginText(_auditor);
     final from = text.indexOf('\n## Output Format\n');
@@ -3079,7 +3109,7 @@ void _reReviewTests() {
       '- **Builder check**',
       '- **Re-review**',
       '- **Trim audit**',
-      '- **Decided audit**',
+      '- **Build-first audit**',
       '- **Plan check**',
     ]) {
       expect(lines.any((line) => line.startsWith(lead)), isFalse, reason: lead);
@@ -3097,6 +3127,7 @@ void _reReviewTests() {
     }
   });
 
+  // D8
   test('the auditor takes five jobs and names the plan check and its load', () {
     final text = _pluginText(_auditor);
     final drafts = _bulletOf(text, '- **Drafts**');
@@ -3104,7 +3135,7 @@ void _reReviewTests() {
       expect(drafts, contains(word), reason: word);
     }
     final loads = _sectionOf(text, '## On-Demand Loads');
-    for (final job in ['re-review', 'decided-audit']) {
+    for (final job in ['re-review', 'build-first-audit']) {
       expect(
         loads,
         contains(
@@ -3124,14 +3155,14 @@ void _reReviewTests() {
     final head = text.substring(0, text.indexOf('\n---\n', 4));
     for (final job in [
       '`job: re-review`',
-      '`job: decided-audit`',
+      '`job: build-first-audit`',
       '`job: plan-check`',
     ]) {
       expect(head, contains(job), reason: job);
     }
     final decided = _sectionOf(
-      _pluginText(_decidedAuditReference),
-      '## Decided audit',
+      _pluginText(_buildFirstAuditReference),
+      '## Build-first audit',
     );
     for (final words in [
       '`Contradiction`, `Stale reader`, and `Not carried`',
@@ -3161,7 +3192,7 @@ void _reReviewTests() {
       _auditReference,
       _trimAuditReference,
       _reReviewReference,
-      _decidedAuditReference,
+      _buildFirstAuditReference,
     ]) {
       final words = _oneLine(_pluginText(file)).toLowerCase();
       for (final gone in ['fix-read', 'fix read']) {
@@ -3174,13 +3205,98 @@ void _reReviewTests() {
     );
   });
 
-  test('the Decided audit reports only Contradiction, Stale reader, and Not '
-      'carried items, with no feature pattern search', () {
-    final text = _pluginText(_decidedAuditReference);
+  // D8
+  test('the Build-first audit reference names its agent and job value on its '
+      'first line', () {
+    final text = _pluginText(_buildFirstAuditReference);
     final first = text.split('\n').first;
-    for (final word in ['`specstone-sdd-auditor`', '`job: decided-audit`']) {
+    for (final word in [
+      '`specstone-sdd-auditor`',
+      '`job: build-first-audit`',
+    ]) {
       expect(first, contains(word), reason: word);
     }
+  });
+
+  // D8
+  test('no shipped file keeps the old audit name or job value', () {
+    final files = contentFiles();
+    for (final file in files) {
+      for (final old in ['decided-audit', 'Decided audit']) {
+        expect(file.body, isNot(contains(old)), reason: '${file.path}: $old');
+        expect(
+          file.frontmatter ?? '',
+          isNot(contains(old)),
+          reason: '${file.path} frontmatter: $old',
+        );
+      }
+    }
+    final paths = files.map((file) => file.path);
+    expect(paths, contains(_buildFirstAuditReference));
+    expect(
+      paths.where((path) => path.endsWith('references/decided-audit.md')),
+      isEmpty,
+    );
+  });
+
+  // D7
+  test('no shipped skill or agent file names a lane by its old word', () {
+    final oldLane = RegExp(r'\b(?:Undecided|Decided)\b(?!-only)');
+    final files = contentFiles();
+    for (final file in files) {
+      expect(oldLane.hasMatch(file.body), isFalse, reason: '${file.path} body');
+      expect(
+        oldLane.hasMatch(file.frontmatter ?? ''),
+        isFalse,
+        reason: '${file.path} frontmatter',
+      );
+    }
+    final text = files.singleWhere((file) => file.path == _classReference).body;
+    expect(text, allOf(contains('Build-first'), contains('Docs-first')));
+  });
+
+  // D9
+  test(
+    'the lane ask puts Build-first forward and leaves the pick to the Owner',
+    () {
+      final ask = _sectionOf(
+        _pluginText(_designReference),
+        '## 4. Tell the Owner',
+      );
+      expect(
+        _hasSentenceWith(ask, ['In that ask', 'recommend', 'Build-first']),
+        isTrue,
+      );
+      expect(
+        _hasSentenceWith(ask, [
+          'Docs-first',
+          'fresh reader',
+          'before any work',
+        ]),
+        isTrue,
+      );
+      expect(_hasSentenceWith(ask, ['The Owner picks the lane']), isTrue);
+      expect(_hasSentenceWith(ask, ['Docs-first', 'no reason asked']), isTrue);
+    },
+  );
+
+  // D8
+  test('the auditor lists the renamed job and so stops on the old one', () {
+    final text = _pluginText(_auditor);
+    final job = _bulletOf(text, '- **`job`**');
+    expect(job, contains('`build-first-audit`'));
+    expect(job, isNot(contains('`decided-audit`')));
+    final missing = _bulletOf(text, '- **Missing input**');
+    expect(missing, contains('`build-first-audit`'));
+    expect(missing, contains('its five values'));
+    expect(
+      _sectionOf(text, '## On-Demand Loads'),
+      contains(
+        '| `job: build-first-audit` | '
+        '`.agents/skills/specstone-brainstorming-sdd/references/'
+        'build-first-audit.md` |',
+      ),
+    );
   });
 
   test('the builder check writes fix lines under a finding it can settle', () {
@@ -3780,6 +3896,18 @@ const _planCheck = 'specstone-plan-sdd/references/plan-check.md';
 /// The plan skill's fresh plan check, run before the Owner sees a written plan.
 const _planFreshRead = 'specstone-plan-sdd/references/fresh-read.md';
 
+/// The heading of the plan check's report shape.
+const _planCheckReport = '## 6. Report';
+
+/// The first fenced block of the plan check's report section, its lines kept;
+/// empty when the section holds none.
+String _planCheckReportBlock() {
+  final text = _pluginText(_planCheck);
+  final start = text.indexOf('\n$_planCheckReport\n');
+  if (start < 0) return '';
+  return _fencedBlock.firstMatch(text.substring(start))?.group(1) ?? '';
+}
+
 void _planFlowTests() {
   test('plan-sdd keeps its skill file and groups reference within the size '
       'cap', () {
@@ -3847,6 +3975,200 @@ void _planFlowTests() {
     expect(
       _sectionOf(text, '## Ground'),
       contains('--for implement --out --groups`'),
+    );
+  });
+
+  // D1
+  test(
+    'an okayed note has the plan check rank a decided line clash as Critical',
+    () {
+      final text = _pluginText(_planCheck);
+      expect(
+        _hasSentenceWith(text, ['`Owner ok:`', 'Critical', '`D<n>`']),
+        isTrue,
+      );
+      expect(
+        text,
+        contains('`../../specstone-brainstorming-sdd/references/audit.md`'),
+      );
+      expect(text, contains('`Contradiction`'));
+      expect(
+        _planCheckReportBlock(),
+        contains('- Critical: D<n> <change note path>:<line>'),
+      );
+      expect(
+        _hasSentenceWith(_sectionOf(text, _planCheckReport), [
+          'Critical',
+          '`Fix:`',
+          'no `Fix:`',
+        ]),
+        isTrue,
+      );
+      expect(
+        _bulletOf(_pluginText(_auditor), '- **Plan check**'),
+        anyOf(isEmpty, contains('change note')),
+      );
+    },
+  );
+
+  // D2
+  test(
+    'a decided line with no outcome for a covered state is one Important item',
+    () {
+      final text = _pluginText(_planCheck);
+      expect(
+        _hasSentenceWith(text, ['Important', '`D<n>`', 'no `Fix:`']),
+        isTrue,
+      );
+      expect(_planCheckReportBlock(), contains('- Important: D<n>'));
+    },
+  );
+
+  // D3
+  test('the plan check greps every refs file once for its decided lines', () {
+    final text = _pluginText(_planCheck);
+    expect(
+      _hasSentenceWith(text, [
+        '`grep -n -E`',
+        'refs file',
+        'decided line',
+        'every group',
+      ]),
+      isTrue,
+    );
+    // D1 D2
+    expect(
+      _hasSentenceWith(text, ['hit', '`Critical`', '`Important`']),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(text, [
+        'evidence',
+        '`<doc>#<key>`',
+        '`==> `',
+        'never',
+        '`<path>:<line>`',
+      ]),
+      isTrue,
+    );
+    expect(_planCheckReportBlock(), isNot(contains('<refs path>')));
+    expect(
+      text,
+      contains(
+        '`../../specstone-brainstorming-sdd/references/build-first-audit.md`',
+      ),
+    );
+    expect(
+      _bulletOf(_pluginText(_auditor), '- In a plan check'),
+      contains('`grep -n -E`'),
+    );
+  });
+
+  // D6
+  test('without an Owner ok line the plan check clears every decided line as before', () {
+    final text = _pluginText(_planCheck);
+    final read = _sectionOf(text, '## 2. Read the plan');
+    expect(
+      _bulletOf(text, '3. When a `change note` is given'),
+      allOf(isNotEmpty, isNot(contains('no change note'))),
+    );
+    expect(
+      _hasSentenceWith(read, [
+        '`Owner ok:`',
+        'decided line',
+        'lacks',
+        'no change note',
+      ]),
+      isTrue,
+    );
+  });
+
+  // D4
+  test('a decided-line finding goes to the Owner before any planner round', () {
+    final act = _sectionOf(
+      _pluginText(_planFreshRead),
+      '## 2. Act on the check',
+    );
+    expect(
+      act.indexOf('decided-line finding'),
+      allOf(
+        isNonNegative,
+        lessThan(act.indexOf('Then send every finding once')),
+      ),
+    );
+    expect(_hasSentenceWith(act, ['decided-line tests', 'design.md']), isTrue);
+    expect(
+      _hasSentenceWith(act, [
+        'ask the Owner once',
+        'in one message',
+        'every decided-line finding',
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(act, [
+        "replace the note's `Owner ok:` line with `Owner ok: <YYYY-MM-DD>`",
+        "the date of the Owner's answer",
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(act, ['names there the doc it supersedes']),
+      isTrue,
+    );
+  });
+
+  // D5
+  test(
+    'an unsettled decided-line finding takes the whole change Docs-first',
+    () {
+      final act = _sectionOf(
+        _pluginText(_planFreshRead),
+        '## 2. Act on the check',
+      );
+      expect(_hasSentenceWith(act, ['Docs-first', '`Owner ok:`']), isTrue);
+      expect(
+        _hasSentenceWith(act, [
+          'some settled and some not included',
+          'fails a decided-line test',
+        ]),
+        isTrue,
+      );
+      expect(
+        _hasSentenceWith(act, [
+          'leave the plan skill',
+          'no item of step 3',
+          "no step 4 of the plan skill's `SKILL.md`",
+        ]),
+        isTrue,
+      );
+      expect(act, contains('`../../specstone-brainstorming-sdd/SKILL.md`'));
+      expect(_hasSentenceWith(act, ['step 4', 'same change note']), isTrue);
+    },
+  );
+
+  // D4
+  test('a decided-line finding goes to the group planner whose part cites its '
+      'D<n>', () {
+    final answers = _sectionOf(
+      _pluginText(_planGroups),
+      '## 2. Answers after the merge',
+    );
+    expect(
+      _hasSentenceWith(answers, [
+        'decided-line finding',
+        'each group whose part cites that `D<n>`',
+        'group 1',
+        'changes no story',
+      ]),
+      isTrue,
+    );
+    expect(
+      _hasSentenceWith(answers, [
+        "Any other finding on no part's line",
+        'merge planner',
+      ]),
+      isTrue,
     );
   });
 

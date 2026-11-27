@@ -31,7 +31,7 @@ specstone list user_story --status planned --json
 
 - **From `specstone-brainstorming-sdd`:** its last step follows this skill with the approved drafts list and the
   change note's path. Take the list whole, a project or feature doc included:
-  which docs a task builds is `specstone-plan-engineer`'s call alone. A Decided change comes with its note's path
+  which docs a task builds is `specstone-plan-engineer`'s call alone. A Build-first change comes with its note's path
   alone: offer the Owner no pick, and send no `targets:`.
 - **Target names given:** each an approved story, FR, NFR, or spec doc. Take them as named.
 - **No target, outside a brainstorm:** Offer the Owner each story of the list, rerun with `--target <name>` after the
@@ -45,7 +45,7 @@ A target that already has a plan gets a new one at the Owner's word: search for 
 Unless the test in `references/main-writer.md` passes, dispatch one `specstone-plan-engineer` as
 `../specstone-expert-sdd/references/dispatch.md` gives, with these inputs and no doc text:
 
-- `targets:` the target names, or the approved drafts list whole; leave the line out for a Decided change;
+- `targets:` the target names, or the approved drafts list whole; leave the line out for a Build-first change;
 - `code target:` the Owner's answer; leave the line out when none was asked;
 - `change note:` its path, when a brainstorm passed one;
 - `report:` `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints, run
