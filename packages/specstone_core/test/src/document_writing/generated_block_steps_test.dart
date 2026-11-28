@@ -1,6 +1,8 @@
 @Tags(['integration'])
 library;
 
+// ignore_for_file: lines_longer_than_80_chars, one test name stays one literal a doc row cites
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -835,11 +837,51 @@ void main() {
       expect(File('${root.path}/docs/$gardenPath').existsSync(), isFalse);
     });
 
-    test('its dry run', () async {
+    test(
+      'a dry-run move that leaves a group empty lists its deletes line',
+      () async {
+        final root = await gardenProject();
+        final before = _docBytes(root);
+
+        expectDeleted(moveBeds(root, dryRun: true), dryRun: true);
+        expect(_docBytes(root), before);
+      },
+    );
+
+    ReadAnswer planBeds(Directory root, {required bool dryRun}) => writeIn(
+      root,
+      (s) => answerPlanMove(
+        s,
+        parseMovePlan(
+          'feature:garden/beds -> feature:kitchen/menus\n',
+          path: 'plan.txt',
+        ),
+        dryRun: dryRun,
+        generators: _generators,
+      ),
+    );
+
+    test('a plan feature line that empties a group deletes its features doc before the mentions lines', () async {
+      final root = await gardenProject();
+      File('${root.path}/CLAUDE.md')
+          .writeAsStringSync('Read `feature:garden/beds` first.\n');
+
+      final answer = planBeds(root, dryRun: false);
+
+      expectDeleted(answer, dryRun: false);
+      expect(File('${root.path}/docs/$gardenPath').existsSync(), isFalse);
+      expect(answer.text, contains('mentions CLAUDE.md:'));
+      expect(
+        answer.text.indexOf('deleted $gardenPath'),
+        lessThan(answer.text.indexOf('mentions ')),
+      );
+    });
+
+    test('a plan feature line that empties a group lists deletes under its dry run', () async {
       final root = await gardenProject();
       final before = _docBytes(root);
 
-      expectDeleted(moveBeds(root, dryRun: true), dryRun: true);
+      expectDeleted(planBeds(root, dryRun: true), dryRun: true);
       expect(_docBytes(root), before);
     });
 
@@ -874,6 +916,7 @@ void main() {
       required OwnerConfirmation confirmation,
       String? planHash,
       String? answer,
+      String? Function()? readLine,
       StringSink? prompts,
     }) => writeIn(
       root,
@@ -881,7 +924,7 @@ void main() {
         s,
         ['feature:garden/beds'],
         confirmation: confirmation,
-        readLine: () => answer,
+        readLine: readLine ?? () => answer,
         prompts: prompts ?? StringBuffer(),
         planHash: planHash,
         generators: _generators,
@@ -978,6 +1021,39 @@ void main() {
       expect(prompts.toString(), contains('deletes $gardenPath\n'));
       expect(prompts.toString(), endsWith('delete 2 files? [y/N] '));
       expect(File('${root.path}/docs/$gardenPath').existsSync(), isTrue);
+    });
+
+    test('a features doc edited while the Owner prompt waits is listed and prompted again', () async {
+      final root = await unlistedBeds();
+      final garden = File('${root.path}/docs/$gardenPath');
+      final prompts = StringBuffer();
+      var reads = 0;
+
+      deleteBeds(
+        root,
+        confirmation: OwnerConfirmation.prompt,
+        readLine: () {
+          reads++;
+          if (reads > 1) return 'n';
+          garden.writeAsStringSync(
+            '${garden.readAsStringSync()}\nOwner note.\n',
+          );
+          return 'y';
+        },
+        prompts: prompts,
+      );
+
+      expect(reads, 2);
+      expect(
+        'deletes $gardenPath\n'.allMatches(prompts.toString()),
+        hasLength(2),
+      );
+      expect(
+        'delete 2 files? [y/N] '.allMatches(prompts.toString()),
+        hasLength(2),
+      );
+      expect(garden.existsSync(), isTrue);
+      expect(garden.readAsStringSync(), contains('Owner note.'));
     });
   });
 
