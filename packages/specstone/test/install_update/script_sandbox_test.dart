@@ -1,6 +1,7 @@
 @Tags(['ps1', 'integration'])
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -325,6 +326,29 @@ $extra = if ($env:EXTRA) { $env:EXTRA } else { 'none' }
     expect(
       Directory('${repoRoot().path}/packages/specstone').existsSync(),
       isTrue,
+    );
+  });
+
+  test('a failing sandbox delete that is no sharing violation rethrows its '
+      'error and names no holder', () async {
+    final gone = Directory.systemTemp.createTempSync('specstone_gone_')
+      ..deleteSync();
+    final printed = <String>[];
+
+    final error = await runZoned(
+      () => deleteNamingHolders(gone).then<Object?>((_) => null),
+      zoneSpecification: ZoneSpecification(
+        print: (_, _, _, line) => printed.add(line),
+      ),
+    ).catchError((Object error) => error);
+
+    expect(
+      error,
+      isA<PathNotFoundException>().having((e) => e.path, 'path', gone.path),
+    );
+    expect(
+      printed.where((line) => line.startsWith('sandbox holder:')),
+      isEmpty,
     );
   });
 }

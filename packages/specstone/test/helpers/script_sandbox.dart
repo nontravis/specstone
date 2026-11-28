@@ -20,9 +20,8 @@ Directory repoRoot() {
 
 /// Creates a [ScriptSandbox] under a new temp folder.
 ///
-/// The folder is deleted by `addTearDown`; when Windows refuses the delete as
-/// in use by another process, `sandbox holder:` lines name the holders before
-/// the error is rethrown. On POSIX a `uname` stub answers
+/// The folder is deleted by `addTearDown`, through [deleteNamingHolders]. On
+/// POSIX a `uname` stub answers
 /// `STUB_UNAME_S` (default `Linux`) for `-s` and `STUB_UNAME_M` (default
 /// `x86_64`) for `-m`.
 Future<ScriptSandbox> createScriptSandbox() async {
@@ -30,7 +29,7 @@ Future<ScriptSandbox> createScriptSandbox() async {
   // sandbox root uses that form too (on Windows, `RUNNER~1` is `runneradmin`).
   final created = await Directory.systemTemp.createTemp('specstone_sandbox_');
   final root = Directory(await created.resolveSymbolicLinks());
-  addTearDown(() => _deleteNamingHolders(root));
+  addTearDown(() => deleteNamingHolders(root));
   final sandbox = ScriptSandbox._(root);
   for (final folder in [
     sandbox.home,
@@ -589,16 +588,16 @@ Future<T> withUserPathLock<T>(Future<T> Function() body) async {
 /// Windows' ERROR_SHARING_VIOLATION.
 const _sharingViolation = 32;
 
-/// The most files the holder query names to the Restart Manager; their
-/// base64 list stays under the 32,767-character environment value cap.
-const _holderFileCap = 100;
+/// The most UTF-8 bytes of file paths the holder query names to the Restart
+/// Manager. Their base64 list, about 10,700 characters, leaves the rest of
+/// the 32,767-character environment block to the runner's own variables.
+const _holderListByteCap = 8000;
 
 /// Deletes [folder] and, when Windows refuses it as in use by another
 /// process, prints `sandbox holder:` lines naming who holds it, then rethrows.
 ///
-/// The race is rare (one failing delete on record, none in 52 repeats), so
-/// the lines are what the next failure leaves to diagnose it from.
-Future<void> _deleteNamingHolders(Directory folder) async {
+/// The race is rare, so the next failure names its holder in the test log.
+Future<void> deleteNamingHolders(Directory folder) async {
   try {
     await folder.delete(recursive: true);
   } on FileSystemException catch (error) {
@@ -613,43 +612,64 @@ Future<void> _printHolders(Directory folder, String? failedPath) async {
   // A failing query prints its own line and leaves the delete's error, which
   // the caller rethrows, as the test's failure.
   try {
-    final left = folder.existsSync()
-        ? folder.listSync(recursive: true)
-        : const <FileSystemEntity>[];
-    _printHolderLine(
-      '${left.length} entries left under ${folder.path}; failed on '
-      '$failedPath; first: ${left.take(10).map((e) => e.path).join(', ')}',
-    );
-    final files = <String>{
-      if (failedPath != null && FileSystemEntity.isFileSync(failedPath))
-        failedPath,
-      for (final entity in left)
-        if (entity is File) entity.path,
-    }.take(_holderFileCap);
-    // -EncodedCommand takes UTF-16LE, so no quote in the script needs escaping.
-    final encoded = base64.encode([
-      for (final unit in _holderScript.codeUnits) ...[unit & 0xff, unit >> 8],
-    ]);
-    // Not runPowerShell: its module cache folder registers a teardown, and a
-    // query started from a teardown must register none.
-    final result = await Process.run(
-      'powershell',
-      ['-NoProfile', '-EncodedCommand', encoded],
-      environment: {
-        'SPECSTONE_HOLDER_FILES': base64.encode(utf8.encode(files.join('\n'))),
-        'SPECSTONE_HOLDER_LEAF': folder.uri.pathSegments.lastWhere(
-          (segment) => segment.isNotEmpty,
-        ),
-      },
-    );
-    for (final line in '${result.stdout}'.split('\n')) {
-      if (line.trim().isNotEmpty) _printLine(line.trimRight());
-    }
-    if (result.exitCode != 0) {
-      _printHolderLine('query exit ${result.exitCode}: ${result.stderr}');
-    }
+    final files = _filesLeftIn(folder, failedPath);
+    _printQueryOutput(await _queryHolders(folder, files));
   } on Object catch (queryError) {
     _printHolderLine('query failed: $queryError');
+  }
+}
+
+/// Prints what is left under [folder] and returns the files to ask the
+/// Restart Manager about, [failedPath] first, within [_holderListByteCap].
+List<String> _filesLeftIn(Directory folder, String? failedPath) {
+  final left = folder.existsSync()
+      ? folder.listSync(recursive: true)
+      : const <FileSystemEntity>[];
+  _printHolderLine(
+    '${left.length} entries left under ${folder.path}; failed on '
+    '$failedPath; first: ${left.take(10).map((e) => e.path).join(', ')}',
+  );
+  final files = <String>[];
+  var bytes = 0;
+  for (final path in {
+    if (failedPath != null && FileSystemEntity.isFileSync(failedPath))
+      failedPath,
+    for (final entity in left)
+      if (entity is File) entity.path,
+  }) {
+    bytes += utf8.encode(path).length + 1;
+    if (bytes > _holderListByteCap) break;
+    files.add(path);
+  }
+  return files;
+}
+
+/// Runs [_holderScript] over [files] and the name of [folder].
+Future<ProcessResult> _queryHolders(Directory folder, List<String> files) {
+  // -EncodedCommand takes UTF-16LE, so no quote in the script needs escaping.
+  final encoded = base64.encode([
+    for (final unit in _holderScript.codeUnits) ...[unit & 0xff, unit >> 8],
+  ]);
+  // Not runPowerShell: its module cache folder registers a teardown, and a
+  // query started from a teardown must register none.
+  return Process.run(
+    'powershell',
+    ['-NoProfile', '-EncodedCommand', encoded],
+    environment: {
+      'SPECSTONE_HOLDER_FILES': base64.encode(utf8.encode(files.join('\n'))),
+      'SPECSTONE_HOLDER_LEAF': folder.uri.pathSegments.lastWhere(
+        (segment) => segment.isNotEmpty,
+      ),
+    },
+  );
+}
+
+void _printQueryOutput(ProcessResult result) {
+  for (final line in '${result.stdout}'.split('\n')) {
+    if (line.trim().isNotEmpty) _printLine(line.trimRight());
+  }
+  if (result.exitCode != 0) {
+    _printHolderLine('query exit ${result.exitCode}: ${result.stderr}');
   }
 }
 
