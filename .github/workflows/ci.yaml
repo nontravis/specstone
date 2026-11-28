@@ -174,7 +174,9 @@ jobs:
 
   test-scripts-windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    # Trace branch: a cancelled job ignores continue-on-error, so the repeat
+    # step below gets room to finish.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1
@@ -188,6 +190,29 @@ jobs:
         run: >-
           dart test --tags ps1 -r expanded --timeout 3m
           --file-reporter json:ps1-results.json
+      # Trace branch: repeats the test whose sandbox delete races, so a failed
+      # delete prints the `trace holder:` lines of script_sandbox.dart.
+      - name: Repeat the sandbox teardown race
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        working-directory: packages/specstone
+        shell: pwsh
+        run: |
+          $failed = 0
+          # One proof run prints the holder query's lines with no failure.
+          $env:SPECSTONE_TRACE_HOLDERS_ALWAYS = '1'
+          dart test test/install_update/install_ps1_test.dart --tags ps1 -r expanded --timeout 3m --name "a user PATH that is not a string value"
+          Remove-Item Env:SPECSTONE_TRACE_HOLDERS_ALWAYS
+          foreach ($i in 1..20) {
+            dart test test/install_update/install_ps1_test.dart --tags ps1 -r expanded --timeout 3m --name "a user PATH that is not a string value"
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          foreach ($i in 1..3) {
+            dart test test/install_update/install_ps1_test.dart --tags ps1 -r expanded --timeout 3m
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          "trace repeat: $failed of 23 runs failed"
+          exit $failed
       # The JSON file names every test with its start and end time, so a
       # cancelled or timed-out run still shows which test it stood in.
       - uses: actions/upload-artifact@v7

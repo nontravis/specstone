@@ -28,7 +28,7 @@ Future<ScriptSandbox> createScriptSandbox() async {
   // sandbox root uses that form too (on Windows, `RUNNER~1` is `runneradmin`).
   final created = await Directory.systemTemp.createTemp('specstone_sandbox_');
   final root = Directory(await created.resolveSymbolicLinks());
-  addTearDown(() => root.delete(recursive: true));
+  addTearDown(() => _deleteNamingHolders(root));
   final sandbox = ScriptSandbox._(root);
   for (final folder in [
     sandbox.home,
@@ -545,7 +545,7 @@ String _moduleAnalysisCachePath() {
   final folder = Directory.systemTemp.createTempSync('specstone_ps_cache_');
   addTearDown(() {
     _cachePath = null;
-    folder.deleteSync(recursive: true);
+    return _deleteNamingHolders(folder);
   });
   final target = File('${folder.path}${Platform.pathSeparator}$_cacheFile');
   final localAppData = Platform.environment['LOCALAPPDATA'];
@@ -583,3 +583,195 @@ Future<T> withUserPathLock<T>(Future<T> Function() body) async {
   addTearDown(() => writeUserPath(saved));
   return body();
 }
+
+/// Windows' ERROR_SHARING_VIOLATION.
+const _sharingViolation = 32;
+
+/// The most files the holder query names to the Restart Manager; their
+/// base64 list stays under the 32,767-character environment value cap.
+const _holderFileCap = 100;
+
+/// With this variable at `1`, every delete prints its holder lines first, so
+/// a run with no failure still shows that the query works on the runner.
+const _holdersAlwaysVariable = 'SPECSTONE_TRACE_HOLDERS_ALWAYS';
+
+/// Deletes [folder] and, when Windows refuses it as in use by another
+/// process, prints `trace holder:` lines naming who holds it, then rethrows.
+Future<void> _deleteNamingHolders(Directory folder) async {
+  if (Platform.isWindows &&
+      Platform.environment[_holdersAlwaysVariable] == '1') {
+    await _printHolders(folder, null);
+  }
+  try {
+    await folder.delete(recursive: true);
+  } on FileSystemException catch (error) {
+    if (error.osError?.errorCode == _sharingViolation) {
+      await _printHolders(folder, error.path);
+    }
+    rethrow;
+  }
+}
+
+Future<void> _printHolders(Directory folder, String? failedPath) async {
+  // Trace branch only: a failing query must not hide the delete's own error.
+  try {
+    final left = folder.existsSync()
+        ? folder.listSync(recursive: true)
+        : const <FileSystemEntity>[];
+    _printHolderLine(
+      '${left.length} entries left under ${folder.path}; failed on '
+      '$failedPath; first: ${left.take(10).map((e) => e.path).join(', ')}',
+    );
+    final files = <String>{
+      if (failedPath != null && FileSystemEntity.isFileSync(failedPath))
+        failedPath,
+      for (final entity in left)
+        if (entity is File) entity.path,
+    }.take(_holderFileCap);
+    // -EncodedCommand takes UTF-16LE, so no quote in the script needs escaping.
+    final encoded = base64.encode([
+      for (final unit in _holderScript.codeUnits) ...[unit & 0xff, unit >> 8],
+    ]);
+    final result = await runPowerShell(
+      'trace-holder',
+      ['-NoProfile', '-EncodedCommand', encoded],
+      environment: {
+        'SPECSTONE_TRACE_FILES': base64.encode(utf8.encode(files.join('\n'))),
+        'SPECSTONE_TRACE_LEAF': folder.uri.pathSegments.lastWhere(
+          (segment) => segment.isNotEmpty,
+        ),
+      },
+    );
+    for (final line in '${result.stdout}'.split('\n')) {
+      if (line.trim().isNotEmpty) _printTraceLine(line.trimRight());
+    }
+    if (result.exitCode != 0) {
+      _printHolderLine('query exit ${result.exitCode}: ${result.stderr}');
+    }
+  } on Object catch (traceError) {
+    _printHolderLine('query failed: $traceError');
+  }
+}
+
+void _printHolderLine(String text) => _printTraceLine('trace holder: $text');
+
+void _printTraceLine(String line) {
+  // ignore: avoid_print, the job log is where the trace branch reads holders.
+  print(line);
+}
+
+/// Prints one `trace holder: pid <pid> <name> <image>` line per process the
+/// Restart Manager reports for the files in `SPECSTONE_TRACE_FILES` (base64,
+/// one path per line), then one line of every process whose executable path
+/// or command line holds `SPECSTONE_TRACE_LEAF`, the folder's own name.
+const _holderScript = r'''
+$ProgressPreference = 'SilentlyContinue'
+$source = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
+
+public static class SpecstoneHolders {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct UniqueProcess {
+    public int ProcessId;
+    public FILETIME StartTime;
+  }
+
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  public struct ProcessInfo {
+    public UniqueProcess Process;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string AppName;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string ServiceShortName;
+    public int ApplicationType;
+    public uint AppStatus;
+    public uint SessionId;
+    [MarshalAs(UnmanagedType.Bool)] public bool Restartable;
+  }
+
+  [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+  static extern int RmStartSession(out uint session, int flags, string key);
+
+  [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+  static extern int RmRegisterResources(uint session, uint fileCount,
+    string[] files, uint appCount, UniqueProcess[] apps, uint serviceCount,
+    string[] services);
+
+  [DllImport("rstrtmgr.dll")]
+  static extern int RmGetList(uint session, out uint needed, ref uint count,
+    [In, Out] ProcessInfo[] infos, ref uint reasons);
+
+  [DllImport("rstrtmgr.dll")]
+  static extern int RmEndSession(uint session);
+
+  public static List<string> List(string[] files) {
+    var lines = new List<string>();
+    uint session;
+    int code = RmStartSession(out session, 0, Guid.NewGuid().ToString());
+    if (code != 0) { lines.Add("error RmStartSession " + code); return lines; }
+    try {
+      code = RmRegisterResources(session, (uint)files.Length, files, 0, null,
+        0, null);
+      if (code != 0) {
+        lines.Add("error RmRegisterResources " + code);
+        return lines;
+      }
+      uint needed;
+      uint count = 0;
+      uint reasons = 0;
+      ProcessInfo[] infos = new ProcessInfo[0];
+      code = RmGetList(session, out needed, ref count, null, ref reasons);
+      for (int tries = 0; code == 234 && tries < 3; tries++) {
+        infos = new ProcessInfo[needed];
+        count = needed;
+        code = RmGetList(session, out needed, ref count, infos, ref reasons);
+      }
+      if (code != 0) { lines.Add("error RmGetList " + code); return lines; }
+      for (int i = 0; i < count; i++) {
+        lines.Add(infos[i].Process.ProcessId + "|" + infos[i].AppName);
+      }
+    } finally {
+      RmEndSession(session);
+    }
+    return lines;
+  }
+}
+'@
+Add-Type -TypeDefinition $source
+$files = @()
+if ($env:SPECSTONE_TRACE_FILES) {
+  $bytes = [Convert]::FromBase64String($env:SPECSTONE_TRACE_FILES)
+  $text = [Text.Encoding]::UTF8.GetString($bytes)
+  $files = @($text -split "`n" | Where-Object { $_ })
+}
+if ($files.Count -eq 0) {
+  'trace holder: restart manager: no file left to ask about'
+} else {
+  $found = [SpecstoneHolders]::List([string[]]$files)
+  if ($found.Count -eq 0) {
+    "trace holder: restart manager: no holder of $($files.Count) files"
+  }
+  foreach ($line in $found) {
+    if ($line.StartsWith('error ')) {
+      "trace holder: restart manager $line"
+      continue
+    }
+    $id, $name = $line.Split('|', 2)
+    $image = (Get-CimInstance Win32_Process -Filter "ProcessId=$id").ExecutablePath
+    "trace holder: pid $id $name $image"
+  }
+}
+$leaf = $env:SPECSTONE_TRACE_LEAF
+$ignoreCase = [StringComparison]::OrdinalIgnoreCase
+$hits = @(Get-CimInstance Win32_Process | Where-Object {
+  "$($_.ExecutablePath) $($_.CommandLine)".IndexOf($leaf, $ignoreCase) -ge 0
+})
+if ($hits.Count -eq 0) {
+  'trace holder: processes naming the folder: none'
+} else {
+  'trace holder: processes naming the folder: ' + (($hits | ForEach-Object {
+    "$($_.ProcessId) $($_.Name) $($_.ExecutablePath)"
+  }) -join '; ')
+}
+''';
