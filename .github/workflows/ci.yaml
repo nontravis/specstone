@@ -85,20 +85,20 @@ jobs:
         if: matrix.leg.suite == 'cli' && matrix.os == 'ubuntu-latest'
         working-directory: packages/specstone
         run: >-
-          dart test --coverage-path=coverage/lcov.info --exclude-tags timing
+          dart test --coverage-path=coverage/lcov.info --exclude-tags timing,baseline
           --shard-by-suite --total-shards=${{ env.CLI_SHARDS }} --shard-index=${{ matrix.leg.shard }}
       - name: Test specstone (macOS)
         if: matrix.leg.suite == 'cli' && matrix.os == 'macos-latest'
         working-directory: packages/specstone
         run: >-
-          dart test --exclude-tags timing
+          dart test --exclude-tags timing,baseline
           --shard-by-suite --total-shards=${{ env.CLI_SHARDS }} --shard-index=${{ matrix.leg.shard }}
       # The PowerShell script tests run in test-scripts-windows.
       - name: Test specstone (Windows)
         if: matrix.leg.suite == 'cli' && matrix.os == 'windows-latest'
         working-directory: packages/specstone
         run: >-
-          dart test --exclude-tags timing,ps1
+          dart test --exclude-tags timing,ps1,baseline
           --shard-by-suite --total-shards=${{ env.CLI_SHARDS }} --shard-index=${{ matrix.leg.shard }}
       - uses: actions/upload-artifact@v7
         if: matrix.leg.suite == 'cli' && matrix.os == 'ubuntu-latest'
@@ -127,6 +127,23 @@ jobs:
       - name: Timing gate
         working-directory: packages/specstone
         run: dart test --tags timing test/nfr_timing_test.dart
+
+  baseline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.5
+      - run: dart pub get --enforce-lockfile
+      - name: Baseline gate
+        working-directory: packages/specstone
+        run: dart test --tags baseline test/baseline_write_waits_test.dart
 
   # Merges the core shards' hit maps and holds the core coverage gate.
   core-coverage:

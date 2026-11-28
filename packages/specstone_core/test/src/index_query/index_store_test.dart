@@ -555,32 +555,25 @@ void main() {
         featureDoc: contentHashOf(utf8.encode(edited)),
       });
     });
-    test('the default busy timeout is 10 s', () async {
+    test('the default busy timeout is 10 s', () {
+      expect(indexBusyTimeout, const Duration(seconds: 10));
+    });
+    test('with no timeout given, a write outwaits a lock another connection '
+        'lets go', () async {
       final r = await root();
       IndexStore.open(r).close();
       final holder = sqlite3.open(file(r, indexFilePath).path)
         ..execute('BEGIN IMMEDIATE');
-      addTearDown(
-        () => holder
-          ..execute('ROLLBACK')
-          ..close(),
-      );
-      final store = IndexStore.open(r);
-      addTearDown(store.close);
-      final watch = Stopwatch()..start();
-      expect(
-        () => store.write(() => store.putDoc(parsed('README.md', '# R\n'))),
-        throwsA(
-          isA<IndexFault>()
-              .having((f) => f.code, 'code', IndexFaultCode.indexBusy)
-              .having((f) => f.exitStatus, 'exit', 75),
-        ),
-      );
-      watch.stop();
-      // SQLite counts the timeout as the sum of its nominal sleeps, so a
-      // loaded runner overshoots it: only the lower bound holds everywhere.
-      expect(watch.elapsed.inMilliseconds, greaterThanOrEqualTo(10000));
-    }, timeout: const Timeout(Duration(seconds: 40)));
+      addTearDown(holder.close);
+      final ready = ReceivePort();
+      final written = _writeWithDefaultTimeout(r.path, ready.sendPort);
+
+      await Future.any([ready.first, written]);
+      await Future<void>.delayed(_lockHeldAfterSignal);
+      holder.execute('ROLLBACK');
+
+      expect(await written, 'written');
+    });
     test(
       'a read-only index file refuses the write and stays byte-identical',
       skip: unreadablePathSkipReason(),
@@ -1796,5 +1789,36 @@ void main() {
       store.write(() => store.deleteDoc(frPath));
       expect(wordsOf(store, frPath), isEmpty);
     });
+  });
+}
+
+/// How long the lock stays held after the writer signals it is about to write.
+const _lockHeldAfterSignal = Duration(milliseconds: 300);
+
+/// Writes one doc in an isolate with `IndexStore`'s default busy timeout.
+///
+/// Returns `'written'`, or the fault code when the write fails. A top-level
+/// function keeps the closure free of the caller's `Database` objects, which
+/// an isolate cannot send.
+Future<String> _writeWithDefaultTimeout(String path, SendPort ready) {
+  return Isolate.run(() {
+    final store = IndexStore.open(Directory(path));
+    try {
+      ready.send(null);
+      store.write(
+        () => store.putDoc(
+          parseIndexedDoc(
+            docPath: 'README.md',
+            bytes: utf8.encode('# R\n'),
+            match: const NoDocType(),
+          ),
+        ),
+      );
+      return 'written';
+    } on IndexFault catch (fault) {
+      return '${fault.code}';
+    } finally {
+      store.close();
+    }
   });
 }

@@ -6,6 +6,8 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../specstone_core/test/helpers/git_repo.dart'
+    show cleanGitEnvironment;
 import '../helpers/release_repo.dart';
 
 const fetchLine =
@@ -31,6 +33,8 @@ const preReleased =
     'develop pushed';
 
 void main() {
+  setUpAll(buildReleaseTemplate);
+
   late ReleaseRepo repo;
   late String before;
 
@@ -1060,10 +1064,8 @@ dependencies:
         Platform.resolvedExecutable,
         ['run', '../../tool/release.dart', '0.2.0', '--dry-run'],
         workingDirectory: '${repo.work.path}/packages/specstone',
-        environment: {
-          'PATH':
-              '${repo.root.path}/stubs:${Platform.environment['PATH'] ?? ''}',
-        },
+        environment: {...cleanGitEnvironment(), ...repo.stubEnvironment},
+        includeParentEnvironment: false,
       );
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
@@ -2070,6 +2072,40 @@ dependencies:
         ].map((l) => '$l\n').join(),
       );
       expect(await repo.state(), mid);
+    });
+  });
+
+  group('fixture', () {
+    test('each fixture is its own copy, with its own origin and gh '
+        'log', () async {
+      final other = await createReleaseRepo();
+
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI': 'failure'});
+
+      expect(r.exitCode, 1);
+      expect(repo.ghCalls(), isNotEmpty);
+      expect(other.ghCalls(), isEmpty);
+      expect(repo.root.path, isNot(other.root.path));
+      expect(await repo.git(['remote', 'get-url', 'origin']), repo.origin.path);
+      expect(
+        await other.git(['remote', 'get-url', 'origin']),
+        other.origin.path,
+      );
+    });
+
+    test('a fixture copy names no path of the template', () {
+      final entries = repo.root.listSync(recursive: true, followLinks: false);
+      final naming = [
+        for (final f in entries.whereType<File>())
+          if (!f.path.contains('/.git/objects/') &&
+              latin1
+                  .decode(f.readAsBytesSync())
+                  .contains(releaseTemplatePrefix))
+            f.path,
+        for (final l in entries.whereType<Link>())
+          if (l.targetSync().contains(releaseTemplatePrefix)) l.path,
+      ];
+      expect(naming, isEmpty);
     });
   });
 }

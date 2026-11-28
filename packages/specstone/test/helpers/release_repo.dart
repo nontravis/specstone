@@ -6,6 +6,56 @@ import '../../../specstone_core/test/helpers/git_repo.dart'
     show cleanGitEnvironment;
 import 'script_sandbox.dart';
 
+/// The temp-folder prefix of the release template; no copy names it.
+const releaseTemplatePrefix = 'specstone_release_template_';
+
+final class _ReleaseTemplate {
+  new(this.fixture, this.snapshot);
+
+  final Directory fixture;
+
+  /// The kernel module of `tool/release.dart`, outside [fixture] so copies
+  /// do not carry it.
+  final File snapshot;
+}
+
+_ReleaseTemplate? _template;
+
+/// Builds the default release fixture once, for [createReleaseRepo] to copy.
+///
+/// Call it in `setUpAll`; `addTearDown` deletes the template at the end of
+/// the file.
+Future<void> buildReleaseTemplate() async {
+  final folder = await Directory.systemTemp.createTemp(releaseTemplatePrefix);
+  addTearDown(() {
+    _template = null;
+    return folder.delete(recursive: true);
+  });
+  final fixture = Directory('${folder.path}/fixture');
+  await fixture.create();
+  await ReleaseRepo._(
+    root: fixture,
+    work: Directory('${fixture.path}/work'),
+    origin: Directory('${fixture.path}/origin.git'),
+  )._create('0.1.0', const {});
+  final snapshot = File('${folder.path}/release.dill');
+  // The fixture's pub workspace resolves `package:specstone_core`.
+  final compile = await Process.run(Platform.resolvedExecutable, [
+    'compile',
+    'kernel',
+    'tool/release.dart',
+    '-o',
+    snapshot.path,
+  ], workingDirectory: '${fixture.path}/work');
+  if (compile.exitCode != 0) {
+    throw StateError(
+      'compiling the release tool exited ${compile.exitCode}: '
+      '${compile.stderr}',
+    );
+  }
+  _template = _ReleaseTemplate(fixture, snapshot);
+}
+
 /// Creates a fixture repo pair for `tool/release.dart`, deleted by
 /// `addTearDown`.
 ///
@@ -13,10 +63,17 @@ import 'script_sandbox.dart';
 /// state of it with `main` and `develop` pushed and `develop` checked out.
 /// [files] replaces or adds files (path relative to `work/`) before the first
 /// commit. A `gh` stub sits in `stubs/`; see [ReleaseRepo.release].
+///
+/// With the default [version] and no [files] it copies the template that
+/// [buildReleaseTemplate] built; any other argument builds a fresh fixture.
 Future<ReleaseRepo> createReleaseRepo({
   String version = '0.1.0',
   Map<String, String> files = const {},
 }) async {
+  final template = _template;
+  if (template == null) {
+    throw StateError('call buildReleaseTemplate in setUpAll first');
+  }
   final root = await Directory.systemTemp.createTemp('specstone_release_');
   addTearDown(() => root.delete(recursive: true));
   final repo = ReleaseRepo._(
@@ -24,7 +81,11 @@ Future<ReleaseRepo> createReleaseRepo({
     work: Directory('${root.path}/work'),
     origin: Directory('${root.path}/origin.git'),
   );
-  await repo._create(version, files);
+  if (version == '0.1.0' && files.isEmpty) {
+    await repo._copyFrom(template.fixture);
+  } else {
+    await repo._create(version, files);
+  }
   return repo;
 }
 
@@ -42,7 +103,15 @@ final class ReleaseRepo {
 
   File get _ghLog => File('${root.path}/gh.log');
 
-  /// Runs `dart run tool/release.dart [args]` in `work/`.
+  /// The environment that puts the `gh` stub first on PATH and points it at
+  /// this fixture's folder.
+  Map<String, String> get stubEnvironment => {
+    'PATH': '${_stubs.path}:${Platform.environment['PATH'] ?? ''}',
+    'GH_STUB_ROOT': root.path,
+  };
+
+  /// Runs `tool/release.dart [args]` in `work/` from the template's kernel
+  /// snapshot, which `dart <snapshot>` runs as `dart run` would.
   ///
   /// PATH holds `<root>/stubs` first. [gh] sets the stub's variables:
   /// `GH_STUB_AUTH` (`ok` | `none` | `broken`), `GH_STUB_CI` (`success` |
@@ -75,15 +144,15 @@ final class ReleaseRepo {
     List<String> args, {
     Map<String, String> gh = const {},
   }) {
+    final template = _template;
+    if (template == null) {
+      throw StateError('call buildReleaseTemplate in setUpAll first');
+    }
     return Process.run(
       Platform.resolvedExecutable,
-      ['run', 'tool/release.dart', ...args],
+      [template.snapshot.path, ...args],
       workingDirectory: work.path,
-      environment: {
-        ...cleanGitEnvironment(),
-        'PATH': '${_stubs.path}:${Platform.environment['PATH'] ?? ''}',
-        ...gh,
-      },
+      environment: {...cleanGitEnvironment(), ...stubEnvironment, ...gh},
       includeParentEnvironment: false,
     );
   }
@@ -179,6 +248,18 @@ final class ReleaseRepo {
         '&& git -C "\$dir" push -q origin $branch';
   }
 
+  Future<void> _copyFrom(Directory fixture) async {
+    final copy = await Process.run('cp', [
+      '-Rp',
+      '${fixture.path}/.',
+      root.path,
+    ]);
+    if (copy.exitCode != 0) {
+      throw StateError('copying the release template failed: ${copy.stderr}');
+    }
+    await git(['remote', 'set-url', 'origin', origin.path]);
+  }
+
   Future<void> _create(String version, Map<String, String> files) async {
     await origin.create();
     await git(['init', '-q', '--bare', '-b', 'main'], at: origin);
@@ -264,7 +345,7 @@ dependencies:
   Future<void> _writeGhStub() async {
     await _stubs.create();
     final stub = File('${_stubs.path}/gh');
-    await stub.writeAsString(_ghStub(root.path));
+    await stub.writeAsString(_ghStub());
     final chmod = await Process.run('chmod', ['+x', stub.path]);
     if (chmod.exitCode != 0) {
       throw StateError('chmod failed on the gh stub: ${chmod.stderr}');
@@ -272,11 +353,10 @@ dependencies:
   }
 }
 
-String _ghStub(String root) =>
-    '''
+String _ghStub() => r'''
 #!/bin/sh
-root='$root'
-echo "\$*" >> "\$root/gh.log"
+root="${GH_STUB_ROOT:?GH_STUB_ROOT is not set}"
+echo "$*" >> "$root/gh.log"
 log_in() {
   echo 'To get started with GitHub CLI, please run:' >&2
   echo '  gh auth login' >&2
@@ -284,62 +364,62 @@ log_in() {
 }
 # Runs a test hook; a hook that fails fails the gh call, naming the hook.
 run_hook() {
-  [ -z "\$2" ] && return 0
-  if ! sh -c "\$2"; then
-    echo "gh stub: hook \$1 failed: \$2" >&2
+  [ -z "$2" ] && return 0
+  if ! sh -c "$2"; then
+    echo "gh stub: hook $1 failed: $2" >&2
     exit 3
   fi
 }
-case "\$1 \$2" in
+case "$1 $2" in
   "auth status")
-    [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
+    [ "${GH_STUB_AUTH:-ok}" = none ] && log_in
     echo 'Logged in to github.com'
     ;;
   "api repos/{owner}/{repo}/actions/runs?head_sha="*)
-    [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
-    if [ "\${GH_STUB_AUTH:-ok}" = broken ]; then
+    [ "${GH_STUB_AUTH:-ok}" = none ] && log_in
+    if [ "${GH_STUB_AUTH:-ok}" = broken ]; then
       echo 'gh: network down' >&2
       exit 1
     fi
     decoy='{"id": 1, "html_url": "https://github.com/nontravis/specstone/actions/runs/1", "path": ".github/workflows/other.yaml", "status": "completed", "conclusion": "failure"}'
-    runs="\$decoy"
+    runs="$decoy"
     # A run's path carries @<ref> when its workflow ran on a ref.
     path_ref=''
-    [ -n "\$GH_STUB_PATH_REF" ] && path_ref='@refs/heads/release/0.2.0'
+    [ -n "$GH_STUB_PATH_REF" ] && path_ref='@refs/heads/release/0.2.0'
     # The ci run of the branch head, left out of the first answer when late.
-    if [ -n "\$GH_STUB_BRANCH_CI_LATE" ] && [ ! -e "\$root/ci_listed" ]; then
-      touch "\$root/ci_listed"
+    if [ -n "$GH_STUB_BRANCH_CI_LATE" ] && [ ! -e "$root/ci_listed" ]; then
+      touch "$root/ci_listed"
     else
-      runs="\$runs"', {"id": 223456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/223456789", "path": ".github/workflows/ci.yaml'"\$path_ref"'"}'
+      runs="$runs"', {"id": 223456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/223456789", "path": ".github/workflows/ci.yaml'"$path_ref"'"}'
       # A second, older ci run of the same commit comes after the newest.
-      if [ -n "\$GH_STUB_CI_OLDER" ]; then
-        runs="\$runs"', {"id": 223456788, "html_url": "https://github.com/nontravis/specstone/actions/runs/223456788", "path": ".github/workflows/ci.yaml'"\$path_ref"'"}'
+      if [ -n "$GH_STUB_CI_OLDER" ]; then
+        runs="$runs"', {"id": 223456788, "html_url": "https://github.com/nontravis/specstone/actions/runs/223456788", "path": ".github/workflows/ci.yaml'"$path_ref"'"}'
       fi
     fi
-    run_state="\$GH_STUB_RUN_STATE"
-    if [ -n "\$GH_STUB_RUN_STATE_AFTER_CI" ] && [ -e "\$root/ci_watched" ]; then
-      run_state="\$GH_STUB_RUN_STATE_AFTER_CI"
+    run_state="$GH_STUB_RUN_STATE"
+    if [ -n "$GH_STUB_RUN_STATE_AFTER_CI" ] && [ -e "$root/ci_watched" ]; then
+      run_state="$GH_STUB_RUN_STATE_AFTER_CI"
     fi
     state=''
-    if [ -n "\$run_state" ]; then
-      state=', "status": "'"\$run_state"'", "conclusion": "'"\${GH_STUB_RUN:-success}"'"'
+    if [ -n "$run_state" ]; then
+      state=', "status": "'"$run_state"'", "conclusion": "'"${GH_STUB_RUN:-success}"'"'
     fi
     # The release.yaml run, left out of the first answer after the ci watch
     # when late.
-    if [ -n "\$GH_STUB_RUN_LATE" ] && [ -e "\$root/ci_watched" ] && [ ! -e "\$root/run_listed" ]; then
-      touch "\$root/run_listed"
+    if [ -n "$GH_STUB_RUN_LATE" ] && [ -e "$root/ci_watched" ] && [ ! -e "$root/run_listed" ]; then
+      touch "$root/run_listed"
     else
-      runs="\$runs"', {"id": 123456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/123456789", "path": ".github/workflows/release.yaml'"\$path_ref"'"'"\$state"'}'
+      runs="$runs"', {"id": 123456789, "html_url": "https://github.com/nontravis/specstone/actions/runs/123456789", "path": ".github/workflows/release.yaml'"$path_ref"'"'"$state"'}'
     fi
-    echo '{"total_count": 3, "workflow_runs": ['"\$runs"']}'
+    echo '{"total_count": 3, "workflow_runs": ['"$runs"']}'
     ;;
   "run list")
-    [ "\${GH_STUB_AUTH:-ok}" = none ] && log_in
-    if [ "\${GH_STUB_AUTH:-ok}" = broken ]; then
+    [ "${GH_STUB_AUTH:-ok}" = none ] && log_in
+    if [ "${GH_STUB_AUTH:-ok}" = broken ]; then
       echo 'gh: network down' >&2
       exit 1
     fi
-    case "\$*" in
+    case "$*" in
       *release.yaml*)
         # Real gh resolves --workflow by file name on the default branch, which
         # does not hold release.yaml until the first release lands.
@@ -347,7 +427,7 @@ case "\$1 \$2" in
         exit 1
         ;;
       *)
-        case "\${GH_STUB_CI:-success}" in
+        case "${GH_STUB_CI:-success}" in
           success) echo '[{"status":"completed","conclusion":"success"}]' ;;
           failure) echo '[{"status":"completed","conclusion":"failure"}]' ;;
           empty) echo '[]' ;;
@@ -358,21 +438,21 @@ case "\$1 \$2" in
     esac
     ;;
   "run watch")
-    if [ "\$3" = 223456789 ]; then
-      run_hook GH_STUB_ON_CI_WATCH "\$GH_STUB_ON_CI_WATCH"
-      touch "\$root/ci_watched"
-      if [ "\${GH_STUB_BRANCH_CI_VIEW:-ok}" = broken ]; then
+    if [ "$3" = 223456789 ]; then
+      run_hook GH_STUB_ON_CI_WATCH "$GH_STUB_ON_CI_WATCH"
+      touch "$root/ci_watched"
+      if [ "${GH_STUB_BRANCH_CI_VIEW:-ok}" = broken ]; then
         echo 'gh: network down' >&2
         exit 1
       fi
-      if [ "\${GH_STUB_BRANCH_CI:-success}" != success ]; then
+      if [ "${GH_STUB_BRANCH_CI:-success}" != success ]; then
         echo 'ci failed' >&2
         exit 1
       fi
     else
-      run_hook GH_STUB_ON_WATCH "\$GH_STUB_ON_WATCH"
-      if [ "\${GH_STUB_RUN:-success}" = success ]; then
-        touch "\$root/released"
+      run_hook GH_STUB_ON_WATCH "$GH_STUB_ON_WATCH"
+      if [ "${GH_STUB_RUN:-success}" = success ]; then
+        touch "$root/released"
       else
         echo 'release.yaml failed' >&2
         exit 1
@@ -380,18 +460,18 @@ case "\$1 \$2" in
     fi
     ;;
   "run view")
-    if [ "\$3" = 223456789 ]; then
-      if [ "\${GH_STUB_BRANCH_CI_VIEW:-ok}" = broken ]; then
+    if [ "$3" = 223456789 ]; then
+      if [ "${GH_STUB_BRANCH_CI_VIEW:-ok}" = broken ]; then
         echo 'gh: network down' >&2
         exit 1
       fi
-      case "\${GH_STUB_BRANCH_CI:-success}" in
+      case "${GH_STUB_BRANCH_CI:-success}" in
         success) echo '{"status":"completed","conclusion":"success"}' ;;
-        *) echo '{"status":"completed","conclusion":"'"\$GH_STUB_BRANCH_CI"'"}' ;;
+        *) echo '{"status":"completed","conclusion":"'"$GH_STUB_BRANCH_CI"'"}' ;;
       esac
       exit 0
     fi
-    case "\${GH_STUB_VIEW:-failure}" in
+    case "${GH_STUB_VIEW:-failure}" in
       broken)
         echo 'gh: network down' >&2
         exit 1
@@ -399,8 +479,8 @@ case "\$1 \$2" in
       cancelled) echo '{"status":"completed","conclusion":"cancelled"}' ;;
       garbage) echo 'this is not json' ;;
       later_success)
-        if [ ! -e "\$root/viewed" ]; then
-          touch "\$root/viewed"
+        if [ ! -e "$root/viewed" ]; then
+          touch "$root/viewed"
           echo '{"status":"in_progress","conclusion":""}'
         else
           echo '{"status":"completed","conclusion":"success"}'
@@ -410,19 +490,19 @@ case "\$1 \$2" in
     esac
     ;;
   "release view")
-    if [ "\${GH_STUB_RELEASE:-absent}" = broken ]; then
+    if [ "${GH_STUB_RELEASE:-absent}" = broken ]; then
       echo 'gh: network down' >&2
       exit 1
     fi
-    if [ "\${GH_STUB_RELEASE:-absent}" = present ] || [ -e "\$root/released" ]; then
-      echo "https://github.com/nontravis/specstone/releases/tag/\$3"
+    if [ "${GH_STUB_RELEASE:-absent}" = present ] || [ -e "$root/released" ]; then
+      echo "https://github.com/nontravis/specstone/releases/tag/$3"
     else
       echo 'release not found' >&2
       exit 1
     fi
     ;;
   *)
-    echo "gh stub: unexpected call: \$*" >&2
+    echo "gh stub: unexpected call: $*" >&2
     exit 2
     ;;
 esac

@@ -62,14 +62,15 @@ void main() {
     ci = _load('ci.yaml');
   });
 
-  test('no leg of the ci test or timing job can pass while its tests fail', () {
-    for (final name in ['test', 'timing']) {
+  test('no leg of the ci test, timing, or baseline job can pass while its '
+      'tests fail', () {
+    for (final name in ['test', 'timing', 'baseline']) {
       final job = _job(ci, name);
       expect(job.containsKey('continue-on-error'), isFalse, reason: name);
       expect(job.containsKey('if'), isFalse, reason: name);
       for (final s in _steps(job)) {
         expect(s.containsKey('continue-on-error'), isFalse, reason: '$s');
-        if (name == 'timing') {
+        if (name != 'test') {
           expect(s.containsKey('if'), isFalse, reason: '$s');
         }
       }
@@ -216,6 +217,30 @@ void main() {
     ]);
     for (final s in _steps(_job(ci, 'test'))) {
       expect('${s['run'] ?? ''}', isNot(contains('--tags timing')));
+    }
+  });
+
+  test('the baseline gate runs in its own job on the three runners', () {
+    final baseline = _job(ci, 'baseline');
+    expect((baseline['strategy'] as YamlMap)['fail-fast'], isFalse);
+    expect(baseline['timeout-minutes'], 20);
+    final matrix = (baseline['strategy'] as YamlMap)['matrix'] as YamlMap;
+    expect(matrix['os'], ['ubuntu-latest', 'macos-latest', 'windows-latest']);
+    expect(
+      _steps(baseline)
+          .map((s) => '${s['run'] ?? ''}')
+          .where((r) => r.contains('--tags baseline')),
+      ['dart test --tags baseline test/baseline_write_waits_test.dart'],
+    );
+    final cliRuns = [
+      for (final s in _steps(_job(ci, 'test')))
+        if (s['working-directory'] == 'packages/specstone') '${s['run']}',
+    ];
+    expect(cliRuns, isNotEmpty);
+    for (final run in cliRuns) {
+      final match = RegExp(r'--exclude-tags (\S+)').firstMatch(run);
+      expect(match, isNotNull, reason: run);
+      expect(match![1]!.split(','), contains('baseline'), reason: run);
     }
   });
 

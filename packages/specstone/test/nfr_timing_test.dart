@@ -6,17 +6,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
-import 'package:specstone_core/src/index_query/index_store.dart'
-    show indexFilePath;
 import 'package:test/test.dart';
 
-import '../../specstone_core/test/helpers/git_repo.dart' show git;
-import '../../specstone_core/test/helpers/index_fixture.dart' show openSession;
 import '../../specstone_core/test/helpers/no_generators.dart';
-import '../../specstone_core/test/helpers/shape_matrix.dart';
 import '../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../specstone_core/test/helpers/write_fixture.dart' show testHome;
 import 'helpers/baseline_tree.dart';
+import 'helpers/baseline_work_tree.dart';
 import 'helpers/best_of.dart';
 import 'helpers/built_cli.dart';
 import 'helpers/children_cpu_time.dart';
@@ -117,11 +113,11 @@ void main() {
   late Directory project;
   late String exe;
   late ReferenceScale scale;
-  late _BaselineWorkTree baselineWork;
+  late BaselineWorkTree baselineWork;
 
   setUpAll(() async {
     project = await writeBaselineTree();
-    baselineWork = await _BaselineWorkTree.build();
+    baselineWork = await BaselineWorkTree.build();
     exe = await buildSpecstone();
     scale = ReferenceScale.measure();
   });
@@ -919,21 +915,6 @@ void main() {
       lessThanOrEqualTo(watch.elapsed * Platform.numberOfProcessors + _tick),
     );
   }, testOn: 'mac-os || linux');
-
-  // D8: every write command on the baseline tree adds only content waits.
-  test(
-    'every write command adds only content waits on the baseline tree',
-    () async {
-      final red = <String>[];
-      for (final command in writeCommands) {
-        final added = await newFindingsOf(baselineWork.reset(), command);
-        red.addAll([
-          for (final line in unallowedLines(command, added)) '$command $line',
-        ]);
-      }
-      expect(red, isEmpty);
-    },
-  );
 }
 
 int _residueSum(int count) {
@@ -942,61 +923,4 @@ int _residueSum(int count) {
     sum += i % _residueModulus;
   }
   return sum;
-}
-
-/// The baseline tree as a git work tree, written, committed, and indexed once,
-/// that each write test puts back at its commit instead of building again.
-final class _BaselineWorkTree {
-  const new _(this.root, this._base, this._docPaths);
-
-  /// Writes the baseline tree and makes it a committed, indexed work tree.
-  static Future<_BaselineWorkTree> build() async {
-    final root = makeWorkTree(await writeBaselineTree());
-    return _BaselineWorkTree._(root, headOf(root), _indexedPathsOf(root));
-  }
-
-  final Directory root;
-  final String _base;
-  final List<String> _docPaths;
-
-  /// Puts [root] back at its commit and returns it: the gitignored index is
-  /// kept, so it refreshes only the files the last writes touched.
-  ///
-  /// Expects the work tree to hold the commit's bytes and nothing else but
-  /// the index, the refreshed index to list the commit's docs, and the test's
-  /// home to hold no file, such as a journal record of [root].
-  Directory reset() {
-    expect(
-      testHome().listSync(recursive: true).whereType<File>(),
-      isEmpty,
-      reason: 'no record of an earlier write is kept for the reused root',
-    );
-    expect(git(root, ['reset', '-q', '--hard', _base]).exitCode, 0);
-    expect(
-      git(root, ['clean', '-q', '-fdx', '-e', '$indexFilePath*']).exitCode,
-      0,
-    );
-    expect(headOf(root), _base);
-    final status = git(root, ['status', '--porcelain', '--ignored']);
-    expect(status.exitCode, 0);
-    expect(
-      [
-        for (final line in LineSplitter.split('${status.stdout}'))
-          if (!line.startsWith('!! $indexFilePath')) line,
-      ],
-      isEmpty,
-      reason: 'the work tree holds the commit and the index only',
-    );
-    expect(_indexedPathsOf(root), _docPaths);
-    return root;
-  }
-
-  static List<String> _indexedPathsOf(Directory root) {
-    final session = openSession(root);
-    try {
-      return [for (final doc in session.index.docs) doc.docPath];
-    } finally {
-      session.close();
-    }
-  }
 }

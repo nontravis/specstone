@@ -10,6 +10,8 @@ const _blocks = [
   PendingBlock(hash: 'h1', text: 'sequenceDiagram\n  A->>B: x;y'),
 ];
 
+const _shortDefault = Duration(milliseconds: 400);
+
 const _twoResultLines = '''
   stdout.writeln('{"i":0,"diagram":"sequence","parses":true}');
   stdout.writeln(
@@ -51,13 +53,19 @@ void main() {
     },
   );
 
-  test('a hang keeps the answered blocks and names the timeout', () async {
+  test('a hang keeps the answered blocks, names the timeout, and kills the '
+      'child', () async {
+    final beat = File.fromUri(temp.uri.resolve('beat.txt'))..createSync();
     final outcome = await MermaidNodeRun(
-      start: fake('''
+      start: fake("""
 $_twoResultLines
   await stdout.flush();
-  await Future<void>.delayed(const Duration(minutes: 5));
-'''),
+  final beat = File(r'${beat.path}');
+  while (true) {
+    beat.writeAsStringSync('x', mode: FileMode.append, flush: true);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+"""),
       timeout: const Duration(seconds: 5),
     ).parse(_blocks);
 
@@ -69,39 +77,39 @@ $_twoResultLines
     expect(outcome.answered['h1']!.message, 'boom');
     expect(outcome.answered['h1']!.blockLine, 2);
     expect(outcome.answered['h1']!.blockHash, 'h1');
+    final sizeAtReturn = beat.lengthSync();
+    expect(
+      sizeAtReturn,
+      greaterThan(0),
+      reason: 'the child beat before the cut',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    expect(beat.lengthSync(), sizeAtReturn);
   });
 
-  test(
-    'with no timeout given a hang is cut after 10 s and the child is killed',
-    () async {
-      final beat = File.fromUri(temp.uri.resolve('beat.txt'))..createSync();
-      final stopwatch = Stopwatch()..start();
+  test('the shipped default timeout is 10 s', () {
+    expect(MermaidNodeRun.defaultTimeout, const Duration(seconds: 10));
+  });
 
-      final outcome = await MermaidNodeRun(
-        start: fake("""
-$_twoResultLines
-  final beat = File(r'${beat.path}');
-  while (true) {
-    beat.writeAsStringSync('x', mode: FileMode.append, flush: true);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-  }
-"""),
-      ).parse(_blocks);
-      stopwatch.stop();
+  test('a runner built with no timeout cuts a hang at the default '
+      'timeout', () async {
+    final shipped = MermaidNodeRun.defaultTimeout;
+    MermaidNodeRun.defaultTimeout = _shortDefault;
+    addTearDown(() => MermaidNodeRun.defaultTimeout = shipped);
+    final stopwatch = Stopwatch()..start();
 
-      expect(outcome.skipReason, 'node timed out after 10 s');
-      expect(
-        stopwatch.elapsed,
-        greaterThanOrEqualTo(const Duration(seconds: 10)),
-      );
-      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 20)));
-      expect(outcome.answered.keys, ['h0', 'h1']);
-      final sizeAtReturn = beat.lengthSync();
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      expect(beat.lengthSync(), sizeAtReturn);
-    },
-    timeout: const Timeout(Duration(seconds: 60)),
-  );
+    final outcome = await MermaidNodeRun(
+      start: fake('  await Future<void>.delayed(const Duration(minutes: 5));'),
+    ).parse(_blocks);
+    stopwatch.stop();
+
+    expect(outcome.skipReason, 'node timed out after 0 s');
+    expect(
+      stopwatch.elapsed,
+      greaterThanOrEqualTo(const Duration(milliseconds: 350)),
+    );
+    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
+  });
 
   test('a hang mid-line drops the cut line and keeps the whole ones', () async {
     final outcome = await MermaidNodeRun(
