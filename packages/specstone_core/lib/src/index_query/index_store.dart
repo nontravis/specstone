@@ -111,8 +111,11 @@ const _notWritableMessage =
 /// rebuilt. Layout 41 stores only the typed address link texts, so an index of
 /// layout 40, whose line facts hold bare ones, is rebuilt. Layout 42 stores
 /// each code file's label candidate texts with its mention texts, so an index
-/// of layout 41, whose rows hold none, is rebuilt.
-const indexLayoutVersion = 42;
+/// of layout 41, whose rows hold none, is rebuilt. Layout 43 keeps each doc's
+/// parent and order in the narrow `doc_tree` table, so a refresh rewrites a
+/// few small rows, not every wide `docs` row; an index of layout 42, which
+/// holds them in `docs`, is rebuilt.
+const indexLayoutVersion = 43;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -129,14 +132,11 @@ CREATE TABLE docs (
   doc_type_id TEXT,
   name TEXT NOT NULL,
   target TEXT,
-  parent_path TEXT,
-  parent_warning TEXT,
   title TEXT,
   frontmatter TEXT NOT NULL,
   tokens INTEGER NOT NULL,
   formatted INTEGER,
   approval_hash TEXT,
-  ord INTEGER NOT NULL,
   warnings TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   search_hash TEXT,
@@ -152,6 +152,12 @@ CREATE TABLE docs (
   stat_ctime INTEGER,
   stat_mode INTEGER
 );
+CREATE TABLE doc_tree (
+  doc_path TEXT PRIMARY KEY,
+  ord INTEGER NOT NULL,
+  parent_path TEXT,
+  parent_warning TEXT
+) WITHOUT ROWID;
 CREATE TABLE sections (
   doc_path TEXT NOT NULL,
   position INTEGER NOT NULL,
@@ -220,6 +226,7 @@ const int _searchRowsPerDoc = 1 << 32;
 const _tables = [
   'meta',
   'docs',
+  'doc_tree',
   'sections',
   'links',
   'item_words',
@@ -711,8 +718,8 @@ final class IndexStore {
 
   /// Replaces every row of the doc [parsed] describes, but its search rows.
   ///
-  /// The doc ends with no search rows and no `search_hash`; [fillSearchRows]
-  /// writes them.
+  /// The doc ends with no search rows and no `search_hash`, which
+  /// [fillSearchRows] writes, and with order 0 and no parent until [setTree].
   void putDoc(ParsedDoc parsed) {
     final doc = parsed.doc;
     final content = parsed.content;
@@ -720,10 +727,10 @@ final class IndexStore {
     deleteDoc(doc.docPath);
     _exec(
       'INSERT INTO docs (doc_path, doc_type_id, name, target, title, '
-      'frontmatter, tokens, formatted, approval_hash, ord, warnings, '
+      'frontmatter, tokens, formatted, approval_hash, warnings, '
       'content_hash, text, frontmatter_text, head, line_facts, '
       'banned_matches, item_facts, matrix_lines) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -737,7 +744,6 @@ final class IndexStore {
           null => null,
         },
         doc.approvalHash,
-        doc.order,
         jsonEncode(doc.warnings),
         parsed.contentHash,
         content.text,
@@ -1042,35 +1048,58 @@ final class IndexStore {
     _markDocsChanged();
     _deleteSearchRows(ids.single['id'] as int);
     _exec('DELETE FROM docs WHERE doc_path = ?', [docPath]);
+    _exec('DELETE FROM doc_tree WHERE doc_path = ?', [docPath]);
     _exec('DELETE FROM sections WHERE doc_path = ?', [docPath]);
     _exec('DELETE FROM links WHERE source = ?', [docPath]);
     _exec('DELETE FROM item_words WHERE doc_path = ?', [docPath]);
   }
 
-  /// Stores the parent of each doc and the order of the docs.
+  /// Stores the parent of each doc and the order of the docs, writing only the
+  /// rows that differ from the stored ones.
   ///
-  /// A doc missing from [parents] ends with no parent. [order] lists docPaths
-  /// in tree order.
+  /// [order] lists docPaths in tree order; one no stored doc holds is skipped.
+  /// A doc missing from [parents] ends with no parent, and one missing from
+  /// [order] with order 0 and no parent.
   void setTree({
     required Map<String, String> parents,
     required Map<String, String> parentWarnings,
     required List<String> order,
   }) {
     _markDocsChanged();
-    _db.execute('UPDATE docs SET parent_path = NULL, parent_warning = NULL');
+    final stored = _storedTree();
     for (final (position, docPath) in order.indexed) {
-      _exec('UPDATE docs SET ord = ? WHERE doc_path = ?', [position, docPath]);
+      if (!stored.containsKey(docPath)) continue;
+      final row = _TreeRow(position, parents[docPath], parentWarnings[docPath]);
+      if (stored.remove(docPath) == row) continue;
+      _exec(
+        'INSERT OR REPLACE INTO doc_tree (doc_path, ord, parent_path, '
+        'parent_warning) VALUES (?, ?, ?, ?)',
+        [docPath, row.order, row.parentPath, row.parentWarning],
+      );
     }
-    for (final MapEntry(:key, :value) in parents.entries) {
-      _exec('UPDATE docs SET parent_path = ? WHERE doc_path = ?', [value, key]);
-    }
-    for (final MapEntry(:key, :value) in parentWarnings.entries) {
-      _exec('UPDATE docs SET parent_warning = ? WHERE doc_path = ?', [
-        value,
-        key,
-      ]);
+    for (final MapEntry(key: docPath, value: row) in stored.entries) {
+      if (row != null) {
+        _exec('DELETE FROM doc_tree WHERE doc_path = ?', [docPath]);
+      }
     }
   }
+
+  /// Returns the `doc_tree` row of every stored doc by docPath; null for a doc
+  /// with none.
+  Map<String, _TreeRow?> _storedTree() => {
+    for (final row in _db.select(
+      'SELECT doc_path, ord, parent_path, parent_warning FROM docs '
+      'LEFT JOIN doc_tree USING (doc_path)',
+    ))
+      row['doc_path'] as String: switch (row['ord']) {
+        final int order => _TreeRow(
+          order,
+          row['parent_path'] as String?,
+          row['parent_warning'] as String?,
+        ),
+        _ => null,
+      },
+  };
 
   /// Starts a read transaction so every later read sees one state.
   ///
@@ -1109,7 +1138,8 @@ final class IndexStore {
     for (final row in _db.select(
       'SELECT doc_path, doc_type_id, name, target, parent_path, '
       'parent_warning, title, frontmatter, tokens, formatted, approval_hash, '
-      'ord, warnings, matrix_lines FROM docs ORDER BY ord, doc_path',
+      'coalesce(ord, 0) AS ord, warnings, matrix_lines FROM docs '
+      'LEFT JOIN doc_tree USING (doc_path) ORDER BY ord, doc_path',
     ))
       IndexedDoc(
         docPath: row['doc_path'] as String,
@@ -1337,6 +1367,27 @@ void _createUnderLock(Database db, Directory folder) {
     if (!db.autocommit) db.execute('ROLLBACK');
     rethrow;
   }
+}
+
+/// One doc's `doc_tree` row: its place in tree order and its parent.
+final class _TreeRow {
+  const new(this.order, this.parentPath, this.parentWarning);
+
+  final int order;
+  final String? parentPath;
+  final String? parentWarning;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _TreeRow &&
+      other.order == order &&
+      other.parentPath == parentPath &&
+      other.parentWarning == parentWarning;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(order, parentPath, parentWarning);
 }
 
 Set<String> _tableNames(Database db) => {
