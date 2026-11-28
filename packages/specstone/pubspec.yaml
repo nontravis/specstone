@@ -1,6 +1,6 @@
 name: specstone
 description: Specstone keeps PRD and spec documents for spec-driven development, with a CLI and an MCP server.
-version: 2.0.0
+version: 2.1.0
 repository: https://github.com/nontravis/specstone/tree/main/packages/specstone
 
 environment:
@@ -13,7 +13,7 @@ executables:
 
 dependencies:
   args: ^2.7.0
-  specstone_core: ^2.0.0
+  specstone_core: ^2.1.0
 
 dev_dependencies:
   crypto: ^3.0.8
