@@ -30,7 +30,7 @@ Dispatch only once no `specstone-bootstrap-prd` batch runs: this skill takes the
 
 With a subagent, split this skill's gate findings by doc path: one batch per feature folder, and one for the rest. A
 `retrim_due` or `code_blocks_over_limit` finding makes its feature folder batch, or the rest batch, a trim batch. In the
-first round the rest batch always runs and names each spec draft the migration left empty, which only it fills, by step 6. Later it
+first round the rest batch always runs and names each spec draft the migration left empty, which only it fills, by the procedure's step 5. Later it
 runs only when findings it owns remain. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:`
 the batch's paths and each line handed to it, by either skill, `check:` the latest check file, never a `--repeats` one,
@@ -49,7 +49,7 @@ that batch.
 
 ## 3. After the reports
 
-If you ran the procedure yourself, its report stands in for item 1; on no batch, its step 5.3 delete stands
+If you ran the procedure yourself, its report stands in for item 1; on no batch, its step 4.3 delete stands
 in for item 4.
 
 1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes. In a round

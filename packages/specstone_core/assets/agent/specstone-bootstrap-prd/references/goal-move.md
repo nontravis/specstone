@@ -15,7 +15,7 @@ with the batch; its glossary section asks the Owner nothing.
 - **`prds/GOAL.md`:** run `specstone new goal`, then title it as section 2's first step says. With no goals section
   left in PROJECT, stop there: its three sections stay empty, and no goal moves.
 - **`prds/GLOSSARY.md`:** `glossary-move.md` takes it.
-- **Any other DocPath**, such as the features doc's: run `specstone new <type>`, then fill it as the procedure's step 6
+- **Any other DocPath**, such as the features doc's: run `specstone new <type>`, then fill it as the procedure's step 5
   fills a skeleton.
 
 ## 2. Move each answered goal

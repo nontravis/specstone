@@ -1,4 +1,3 @@
-Step 1, the gate, runs in `engineer.md`'s workflow, so this file starts at step 2.
 Your batch's findings are in the `check:` file, else in your gate's file.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
@@ -10,7 +9,7 @@ naming every type you write; a later type gets its call before its first write.
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed.
 
-## 2. One finding at a time
+## 1. One finding at a time
 
 Fix the first unhandled finding of your batch, then run
 `specstone check --out "<folder>/reports/check.bootstrap.<XXXXXX>.txt"` again and search it.
@@ -24,29 +23,29 @@ the Owner only when no text bears on a whole section.
 | Finding | Fix |
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
-| `singular_doc_missing` | `specstone new <type>`, then step 6 |
+| `singular_doc_missing` | `specstone new <type>`, then step 5 |
 | `section_undeclared` | move each statement to the home the finding's `fix` names, else into the section that takes it, else the closest, even if another doc holds it, so none is lost, then drop the section |
-| `field_undeclared` on `implements` | step 3 |
+| `field_undeclared` on `implements` | step 2 |
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
-| `untyped_doc` whose content goes into a `specs/` doc | step 4 |
+| `untyped_doc` whose content goes into a `specs/` doc | step 3 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `retrim_due`, `code_blocks_over_limit`, `field_value_mismatch` on `retrim` | `../../specstone-expert-sdd/references/trim.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit`, `item_lines_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
-| any other of this skill | rewrite what it names per the loaded guide; one clearing with no write goes to step 6 |
+| any other of this skill | rewrite what it names per the loaded guide; one clearing with no write goes to step 5 |
 
-## 3. Point and cover code
+## 2. Point and cover code
 
 - **`implements` on a spec doc:** move each entry to the record entry of the story or FR it serves
   with `specstone set <record address> --field implements --base <hash>`, per
   `../../specstone-expert-sdd/references/write.md`, then drop the key.
 
-## 4. Merge an old file
+## 3. Merge an old file
 
-That `untyped_doc`: follow `merge-untyped.md`; its step 6 is this file's.
+That `untyped_doc`: follow `merge-untyped.md`; its fill is this file's step 5.
 
-## 5. Retire the old files
+## 4. Retire the old files
 
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
@@ -60,7 +59,7 @@ On a batch, delete nothing: hand that line to `specstone-bootstrap-spec`'s step 
 Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
-## 6. Fill the empty drafts, then ask for approval
+## 5. Fill the empty drafts, then ask for approval
 
 With the Owner, fill each spec draft the migration left empty per the guide you loaded, each `code` entry a code
 folder under that target's code root in the config's `targets:`, or `code_root` for an unnamed one, else the project
@@ -68,4 +67,4 @@ root.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
-Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then get each approved through step 5's Owner confirmation.
+Name per draft each change, moved pointer, dropped key or section, and finding that clears with no write; then get each approved through step 4's Owner confirmation.

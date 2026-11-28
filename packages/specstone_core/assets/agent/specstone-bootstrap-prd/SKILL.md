@@ -31,7 +31,7 @@ specstone check --out "<folder>/reports/check.gate.<XXXXXX>.txt"
 With a subagent, split the gate file's findings this skill takes by doc path: one batch per feature folder, and one for
 the rest. A `retrim_due` or `code_blocks_over_limit` finding joins its doc's feature folder batch, or the rest batch, a
 trim batch. In the first round the rest batch always runs, even with no finding, and names the project, goal, glossary,
-features, and gnfr docs, which only it fills, by the procedure's step 6. Later it runs only when findings it owns
+features, and gnfr docs, which only it fills, by the procedure's step 5. Later it runs only when findings it owns
 remain. When it holds the `section_undeclared` on PROJECT's goals section, first ask the Owner as
 `references/goal-move.md` gives, and send the answers with the batch. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-prd`, `batch:` the
@@ -51,7 +51,7 @@ after a failed dispatch, over that batch.
 
 ## 3. After the reports
 
-When you followed the procedure yourself, its report stands in for item 1; on no batch, its step 5.3 delete stands
+When you followed the procedure yourself, its report stands in for item 1; on no batch, its step 4.3 delete stands
 in for item 4.
 
 1. Show the Owner each agent's `Report:` line, then its relay block word for word, before your own notes. In a round

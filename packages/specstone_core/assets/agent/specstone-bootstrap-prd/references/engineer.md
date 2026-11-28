@@ -3,8 +3,8 @@ Scope Boundaries stay yours; `procedure.md` names `goal-move.md`, `glossary-move
 `merge-untyped.md` at the step that needs each.
 
 1. **Gate**: Workflow step 1 of `specstone-sdd-engineer` ran it; in bootstrap mode with `check` passed it ran none:
-   your `check` file is your gate. Start at step 2.
-2. **Bootstrap**: follow `procedure.md` from its step 2 on `batch`'s lines of your gate file, its step 6 only for docs
+   your `check` file is your gate. Go on to step 2 of this file.
+2. **Bootstrap**: follow `procedure.md` from its step 1 on `batch`'s lines of your gate file, its step 5 only for docs
    `batch` names, each write through `--base`; list other findings. Then step 3 of
    this file.
    - A `batch: repeats` follows `../../specstone-expert-sdd/references/repeats.md` in place of the procedure, then step
