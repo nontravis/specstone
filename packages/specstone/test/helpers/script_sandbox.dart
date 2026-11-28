@@ -632,8 +632,10 @@ Future<void> _printHolders(Directory folder, String? failedPath) async {
     final encoded = base64.encode([
       for (final unit in _holderScript.codeUnits) ...[unit & 0xff, unit >> 8],
     ]);
-    final result = await runPowerShell(
-      'trace-holder',
+    // Not runPowerShell: its module cache folder registers a teardown, which
+    // would trace again and never end.
+    final result = await Process.run(
+      'powershell',
       ['-NoProfile', '-EncodedCommand', encoded],
       environment: {
         'SPECSTONE_TRACE_FILES': base64.encode(utf8.encode(files.join('\n'))),

@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/models/file_stat_key.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/trace_phases.dart';
 
 /// How much older than `checked_at` a file's mtime must be before its stat
 /// key vouches for its stored hash.
@@ -56,9 +57,13 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
       : null;
   final current = store.readStamp() == stamp;
   final stored = current ? _Stored.of(store) : _Stored.none;
-  final listing = _Listing(DateTime.now().microsecondsSinceEpoch)
-    ..list(project, stored);
-  if (current && !listing.differsFrom(stored, store)) {
+  final listing = _Listing(DateTime.now().microsecondsSinceEpoch);
+  tracePhase('refresh list', () => listing.list(project, stored));
+  final differs = tracePhase(
+    'refresh differs check',
+    () => !current || listing.differsFrom(stored, store),
+  );
+  if (!differs) {
     return RefreshResult(
       warnings: listing.warnings,
       reindexed: 0,
@@ -69,15 +74,21 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
   var reindexed = 0;
   var fullBuild = false;
   final idPrefixes = itemIdPrefixesOf(project.set.docTypes);
+  final lockWait = Stopwatch()..start();
+  final commit = Stopwatch();
+  final writeWatch = Stopwatch()..start();
   store.write(() {
+    printTrace('refresh lock wait', lockWait);
     // A peer may have rebuilt or reindexed while this call waited for the
     // lock, so the stamp, the stat keys, and the hashes are read again here.
     fullBuild = store.readStamp() != stamp;
-    if (fullBuild) store.reset(stamp);
+    if (fullBuild) tracePhase('refresh reset', () => store.reset(stamp));
     final stored = _Stored.of(store);
-    listing.readUnvouched(stored);
+    tracePhase('refresh read unvouched', () => listing.readUnvouched(stored));
     final hashes = store.hashes();
     final files = listing.files;
+    final putWatch = Stopwatch()..start();
+    final parse = Stopwatch();
     for (final docPath in hashes.keys.where((p) => !files.containsKey(p))) {
       store.deleteDoc(docPath);
       reindexed++;
@@ -86,47 +97,78 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
       final content = file.content;
       final changed = content != null && content.hash != hashes[docPath];
       if (changed) {
-        store.putDoc(
-          parseIndexedDoc(
-            docPath: docPath,
-            bytes: content.bytes,
-            contentHash: content.hash,
-            match: project.matcher.match(docPath),
-            codeTarget: singleTarget,
-            idPrefixes: idPrefixes,
-          ),
+        parse.start();
+        final parsed = parseIndexedDoc(
+          docPath: docPath,
+          bytes: content.bytes,
+          contentHash: content.hash,
+          match: project.matcher.match(docPath),
+          codeTarget: singleTarget,
+          idPrefixes: idPrefixes,
         );
+        parse.stop();
+        store.putDoc(parsed);
         reindexed++;
       }
       if (changed || stored.stats[docPath] != file.stat) {
         store.setStatKey(docPath, file.stat);
       }
     }
+    printTrace('refresh parse', parse);
+    printTrace(
+      'refresh delete, put, and stat keys ($reindexed docs, '
+      '${files.length} files)',
+      putWatch,
+    );
     // With no doc put or deleted, the parents, the order, and the cited-by
     // lines still hold. A cite's place depends on the target doc's items and
     // sections and on the source's name and type, so a change can move the
     // lines of other docs: the table is written whole, never by doc.
     if (reindexed > 0) {
-      final docs = store.loadDocs();
-      final tree = resolveParents(docs, project.set);
-      final order = files.keys.toList();
-      store.setTree(
-        parents: tree.parents,
-        parentWarnings: tree.warnings,
-        order: order,
+      final docs = tracePhase('refresh loadDocs', store.loadDocs);
+      final tree = tracePhase(
+        'refresh resolveParents',
+        () => resolveParents(docs, project.set),
       );
-      final byPath = {for (final doc in docs) doc.docPath: doc};
-      store.putCitedBy(
-        scanCitedBy(
-          [for (final docPath in order) ?byPath[docPath]],
-          set: project.set,
-          contentOf: (doc) => store.loadContent(doc.docPath),
-          links: store.loadLinks(),
+      final order = files.keys.toList();
+      tracePhase(
+        'refresh setTree',
+        () => store.setTree(
+          parents: tree.parents,
+          parentWarnings: tree.warnings,
+          order: order,
         ),
       );
+      final byPath = {for (final doc in docs) doc.docPath: doc};
+      final links = tracePhase('refresh loadLinks', store.loadLinks);
+      final loadContent = Stopwatch();
+      final citedBy = tracePhase(
+        'refresh scanCitedBy (with loadContent)',
+        () => scanCitedBy(
+          [for (final docPath in order) ?byPath[docPath]],
+          set: project.set,
+          contentOf: (doc) {
+            loadContent.start();
+            try {
+              return store.loadContent(doc.docPath);
+            } finally {
+              loadContent.stop();
+            }
+          },
+          links: links,
+        ),
+      );
+      printTrace('refresh loadContent (inside scanCitedBy)', loadContent);
+      tracePhase('refresh putCitedBy', () => store.putCitedBy(citedBy));
     }
-    store.setCheckedAt(listing.checkedAt);
+    tracePhase(
+      'refresh setCheckedAt',
+      () => store.setCheckedAt(listing.checkedAt),
+    );
+    commit.start();
   });
+  if (commit.isRunning) printTrace('refresh commit', commit);
+  printTrace('refresh write total', writeWatch);
   return RefreshResult(
     warnings: listing.warnings,
     reindexed: reindexed,
