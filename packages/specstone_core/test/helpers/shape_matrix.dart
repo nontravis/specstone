@@ -103,7 +103,7 @@ Future<Directory> writeShapeTree(ProjectShape shape) async =>
 /// Makes [root] a git work tree holding one commit of every file, the
 /// `.specstone/.gitignore` a first session writes included, and returns it.
 Directory makeWorkTree(Directory root) {
-  expect(git(root, ['init', '-q']).exitCode, 0);
+  initTestRepo(root);
   try {
     openSession(root).close();
   } on TemplateFault catch (fault) {

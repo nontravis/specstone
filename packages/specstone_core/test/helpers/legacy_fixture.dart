@@ -188,9 +188,7 @@ Future<Directory> gitFixture(Map<String, String> files) async {
 
 /// Makes [root] a git repo and commits every file under it.
 void commitRepo(Directory root) {
-  expect(git(root, ['init', '-q']).exitCode, 0);
-  expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
-  expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+  initTestRepo(root);
   expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
   commitAll(root, 'legacy');
 }

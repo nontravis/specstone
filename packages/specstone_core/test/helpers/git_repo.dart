@@ -52,6 +52,14 @@ ProcessResult git(Directory dir, List<String> args) => Process.runSync(
   includeParentEnvironment: false,
 );
 
+/// Makes [root] a git repo whose own config names the fixed test author, so a
+/// commit the code under test makes needs no global git identity.
+void initTestRepo(Directory root) {
+  expect(git(root, ['init', '-q']).exitCode, 0);
+  expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+  expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+}
+
 /// Whether a `git` program runs on this machine.
 final bool hasGit = () {
   try {
