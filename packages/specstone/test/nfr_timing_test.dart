@@ -566,6 +566,45 @@ void main() {
     );
   });
 
+  // Trace branch only: prints where the time of one new goes, per phase, so
+  // the Windows and Linux job logs can be compared line by line.
+  test('five new calls on the baseline tree print their trace lines', () {
+    final root = baselineWork.reset();
+    final environment = {
+      'HOME': testHome().path,
+      'USERPROFILE': testHome().path,
+      'SPECSTONE_TRACE_PHASES': '1',
+    };
+    for (var run = 1; run <= 5; run++) {
+      final watch = Stopwatch()..start();
+      final result = runSpecstoneSync(
+        exe,
+        [
+          'new',
+          'user_story',
+          '--parent',
+          'feature:feature_1',
+          '--slug',
+          'trace_$run',
+        ],
+        workingDirectory: root.path,
+        environment: environment,
+      );
+      watch.stop();
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final lines = [
+        for (final line in LineSplitter.split('${result.stderr}'))
+          if (line.startsWith('trace ')) line,
+      ];
+      expect(lines, isNotEmpty, reason: '${result.stderr}');
+      // ignore: avoid_print, the job log is where the trace branch reads them.
+      print(
+        'trace run $run wall: ${watch.elapsedMilliseconds} ms\n'
+        '${lines.map((line) => 'trace run $run $line').join('\n')}',
+      );
+    }
+  });
+
   test('specstone context for a story whose FR cites an item of another FR '
       'appends the item and answers within 500 ms in the fastest of five '
       'calls', () {

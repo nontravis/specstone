@@ -14,13 +14,22 @@ Future<Never> runProcess(
   List<String> args, {
   UpdateNotice? updateNotice,
 }) async {
+  final watch = Stopwatch()..start();
   final courtesy = CourtesyWrites(stderr);
   final status = await guardOutput(
-    () => SpecstoneCommandRunner(
-      console: SystemConsole(),
-      courtesy: courtesy.writeln,
-      updateNotice: updateNotice,
-    ).run(args),
+    () async {
+      final status = await SpecstoneCommandRunner(
+        console: SystemConsole(),
+        courtesy: courtesy.writeln,
+        updateNotice: updateNotice,
+      ).run(args);
+      // Trace branch only; written here since guardOutput then closes stderr.
+      if (Platform.environment['SPECSTONE_TRACE_PHASES'] == '1') {
+        final ms = (watch.elapsedMicroseconds / 1000).toStringAsFixed(1);
+        stderr.writeln('trace main: $ms ms');
+      }
+      return status;
+    },
     out: stdout,
     err: stderr,
     courtesy: courtesy,

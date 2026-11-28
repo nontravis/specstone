@@ -28,6 +28,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show projectConfigPath;
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/trace_phases.dart';
 
 /// How many times [WriteSession.run] runs a command whose read snapshot a peer
 /// commit keeps making stale before it gives up.
@@ -89,6 +90,7 @@ final class WriteSession {
         busyTimeout,
         collected,
       );
+      session._bodyWatch.start();
       try {
         return body(session);
       } on _StaleSnapshot {
@@ -162,8 +164,12 @@ final class WriteSession {
     Directory? homeDirectory,
     Duration busyTimeout,
     List<String> warnings,
-  ) {
-    refuseMigratePending(workingDirectory, homeDirectory: homeDirectory);
+  ) => tracePhase('session open', () {
+    tracePhase(
+      'migrate journal check',
+      () =>
+          refuseMigratePending(workingDirectory, homeDirectory: homeDirectory),
+    );
     return WriteSession._(
       _openReplayed(
         templates: templates,
@@ -178,7 +184,7 @@ final class WriteSession {
       busyTimeout,
       warnings,
     ).._collectSnapshotWarnings();
-  }
+  });
 
   static void _requireAnotherAttempt(int attempt) {
     if (attempt == _runAttempts) {
@@ -198,6 +204,9 @@ final class WriteSession {
   bool _snapshotOpen = true;
   bool _closed = false;
   bool _inLockedAsync = false;
+
+  /// Runs from [run]'s call of its body to the first [locked] call.
+  final _bodyWatch = Stopwatch();
 
   /// The view [index] answers with while [withPlannedDocs] runs its body.
   DocIndex? _plannedView;
@@ -368,14 +377,22 @@ final class WriteSession {
   /// Throws [IndexFault] `index_busy` when another call holds the lock past
   /// the busy timeout.
   T locked<T>(T Function() act) {
-    final endsSnapshot = _endSnapshot();
+    if (_bodyWatch.isRunning) {
+      printTrace('body before lock', _bodyWatch..stop());
+    }
+    final endsSnapshot = tracePhase('snapshot end', _endSnapshot);
     late T result;
+    final lockWait = Stopwatch()..start();
+    final commit = Stopwatch();
     _read.store.write(() {
+      printTrace('lock wait', lockWait);
       if (endsSnapshot && _read.store.snapshotIsStale) {
         throw const _StaleSnapshot();
       }
-      result = act();
+      result = tracePhase('locked body', act);
+      commit.start();
     });
+    if (commit.isRunning) printTrace('index commit', commit);
     return result;
   }
 
@@ -545,11 +562,13 @@ final class WriteSession {
   void _close() {
     if (_closed) return;
     _closed = true;
-    if (_snapshotOpen) {
-      _read.close();
-    } else {
-      _read.store.close();
-    }
+    tracePhase('close', () {
+      if (_snapshotOpen) {
+        _read.close();
+      } else {
+        _read.store.close();
+      }
+    });
   }
 }
 
@@ -613,22 +632,28 @@ ReadSession _openReplayed({
   );
 
   final read = open();
-  if (!MoveJournal.pending(read.project.projectRoot)) return read;
+  final isPending = tracePhase(
+    'journal pending check',
+    () => MoveJournal.pending(read.project.projectRoot),
+  );
+  if (!isPending) return read;
   _addUnlisted(warnings, read.warnings);
-  try {
-    read.store.endSnapshot();
-    read.store.write(
-      () => MoveJournal.replay(
-        JournalTarget.of(
-          read.project,
-          homeDirectory: homeDirectory,
-          warn: warnings.add,
+  tracePhase('journal replay', () {
+    try {
+      read.store.endSnapshot();
+      read.store.write(
+        () => MoveJournal.replay(
+          JournalTarget.of(
+            read.project,
+            homeDirectory: homeDirectory,
+            warn: warnings.add,
+          ),
         ),
-      ),
-    );
-  } finally {
-    read.store.close();
-  }
+      );
+    } finally {
+      read.store.close();
+    }
+  });
   return open();
 }
 

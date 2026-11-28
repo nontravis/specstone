@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:specstone_core/src/trace_phases.dart';
+
 /// Source of the random part of a temp name; one per isolate.
 final _random = Random.secure();
 
@@ -133,9 +135,16 @@ T renameSyncRetrying<T extends FileSystemEntity>(T entity, String newPath) {
 ///
 /// Throws [FileSystemException] when the folder is missing or the rename fails.
 void writeFileAtomic(File target, List<int> bytes) {
-  final temp = writeTempSibling(target, bytes);
+  final name = target.uri.pathSegments.last;
+  final temp = tracePhase(
+    'file write $name',
+    () => writeTempSibling(target, bytes),
+  );
   try {
-    renameSyncRetrying(temp, target.path);
+    tracePhase(
+      'file rename $name',
+      () => renameSyncRetrying(temp, target.path),
+    );
   } on FileSystemException {
     if (temp.existsSync()) temp.deleteSync();
     rethrow;
@@ -156,7 +165,10 @@ void restrictToOwner(Directory folder) {
   if (Platform.isWindows) return;
   final ProcessResult result;
   try {
-    result = Process.runSync(chmodPath, [_ownerOnlyFolderMode, folder.path]);
+    result = traceSpawn(
+      chmodPath,
+      () => Process.runSync(chmodPath, [_ownerOnlyFolderMode, folder.path]),
+    );
   } on ProcessException catch (error) {
     throw FileSystemException(
       'cannot start chmod: ${error.message}',
@@ -183,7 +195,10 @@ void _copyMode(File target, File temp) {
   if (mode == temp.statSync().mode & _permissionBits) return;
   final ProcessResult result;
   try {
-    result = Process.runSync(chmodPath, [mode.toRadixString(8), temp.path]);
+    result = traceSpawn(
+      chmodPath,
+      () => Process.runSync(chmodPath, [mode.toRadixString(8), temp.path]),
+    );
   } on ProcessException catch (error) {
     throw FileSystemException(
       'cannot start chmod: ${error.message}',

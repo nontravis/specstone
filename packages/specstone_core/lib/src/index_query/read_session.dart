@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/trace_phases.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 /// How many times [ReadSession.readFrom] refreshes before it gives up on a
@@ -53,11 +54,18 @@ final class ReadSession {
       homeDirectory: homeDirectory,
     );
     try {
-      return readFrom(
-        project,
-        IndexStore.open(project.projectRoot, busyTimeout: busyTimeout),
-        workingDirectory: workingDirectory,
-        fillSearchRows: fillSearchRows,
+      final store = tracePhase(
+        'index open',
+        () => IndexStore.open(project.projectRoot, busyTimeout: busyTimeout),
+      );
+      return tracePhase(
+        'freshness check',
+        () => readFrom(
+          project,
+          store,
+          workingDirectory: workingDirectory,
+          fillSearchRows: fillSearchRows,
+        ),
       );
     } on SqliteException catch (e) {
       if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);

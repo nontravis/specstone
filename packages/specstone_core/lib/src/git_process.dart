@@ -5,6 +5,7 @@ import 'package:specstone_core/src/executable_lookup.dart';
 import 'package:specstone_core/src/models/git_floor.dart';
 import 'package:specstone_core/src/models/git_version.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/trace_phases.dart';
 
 /// Runs `git` with [arguments] in [workingDirectory].
 ///
@@ -118,19 +119,26 @@ ProcessResult _startGitWith(
   required String workingDirectory,
   required Map<String, String>? environment,
   required Encoding? stdoutEncoding,
-}) => Process.runSync(
-  _gitProgram(arguments),
-  [..._explicitBareRepository, ...arguments],
-  workingDirectory: workingDirectory,
-  environment: gitChildEnvironment(
+}) {
+  final program = _gitProgram(arguments);
+  final childEnvironment = gitChildEnvironment(
     inherited: Platform.environment,
     localVariables: _localEnvVars(),
     own: environment,
     ignoresCase: Platform.isWindows,
-  ),
-  includeParentEnvironment: false,
-  stdoutEncoding: stdoutEncoding,
-);
+  );
+  return traceSpawn(
+    'git ${arguments.take(2).join(' ')}',
+    () => Process.runSync(
+      program,
+      [..._explicitBareRepository, ...arguments],
+      workingDirectory: workingDirectory,
+      environment: childEnvironment,
+      includeParentEnvironment: false,
+      stdoutEncoding: stdoutEncoding,
+    ),
+  );
+}
 
 /// Returns the one `git` this process starts, found on its absolute `PATH`
 /// entries only.
@@ -229,11 +237,15 @@ List<String> _localEnvVars() {
 /// cached for every folder, so it must depend on git alone.
 _LocalEnvVars _queryLocalEnvVars() {
   try {
-    final result = Process.runSync(
-      _gitProgram(_localEnvVarsArguments),
-      _localEnvVarsArguments,
-      workingDirectory: Directory.systemTemp.path,
-      stdoutEncoding: utf8,
+    final program = _gitProgram(_localEnvVarsArguments);
+    final result = traceSpawn(
+      'git rev-parse --local-env-vars',
+      () => Process.runSync(
+        program,
+        _localEnvVarsArguments,
+        workingDirectory: Directory.systemTemp.path,
+        stdoutEncoding: utf8,
+      ),
     );
     return _LocalEnvVars(names: localEnvVarsFrom(result), failure: null);
   } on ProcessException catch (failure) {

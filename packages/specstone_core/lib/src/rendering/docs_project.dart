@@ -14,6 +14,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/matrix_mode.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:specstone_core/src/trace_phases.dart';
 
 final String _separator = Platform.pathSeparator;
 
@@ -64,15 +65,18 @@ final class DocsProject {
     required Directory workingDirectory,
     required Directory? homeDirectory,
   }) {
-    final trust = RootTrust.locate(
-      workingDirectory,
-      homeDirectory: homeDirectory,
+    final trust = tracePhase(
+      'project find',
+      () => RootTrust.locate(workingDirectory, homeDirectory: homeDirectory),
     );
-    final set = templates.resolve(
-      workingDirectory: workingDirectory,
-      homeDirectory: homeDirectory,
+    final set = tracePhase(
+      'template resolve',
+      () => templates.resolve(
+        workingDirectory: workingDirectory,
+        homeDirectory: homeDirectory,
+      ),
     );
-    return DocsProject._of(trust, set);
+    return tracePhase('project config read', () => DocsProject._of(trust, set));
   }
 
   /// Opens the project holding [workingDirectory] on [set], the merged doc

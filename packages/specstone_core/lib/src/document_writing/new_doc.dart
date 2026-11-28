@@ -30,6 +30,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:specstone_core/src/trace_phases.dart';
 
 /// Refuses [lfText] whose frontmatter holds an `approved` key of any value.
 ///
@@ -90,12 +91,15 @@ ReadAnswer answerNew(
   required GeneratorRegistry<DocIndex> generators,
   NewDocFill? firstConfirmations,
 }) {
-  final place = planNewDoc(
-    session,
-    docTypeId: docTypeId,
-    parent: parent,
-    slug: slug,
-    codeTarget: codeTarget,
+  final place = tracePhase(
+    'new plan',
+    () => planNewDoc(
+      session,
+      docTypeId: docTypeId,
+      parent: parent,
+      slug: slug,
+      codeTarget: codeTarget,
+    ),
   );
   final NewDocPlace(:docType, shape: placed, :parentValues, :placedIn) = place;
   if (text.isNotEmpty) {
@@ -108,8 +112,14 @@ ReadAnswer answerNew(
   final lineEnding = LineEnding.of(text);
 
   return session.locked(() {
-    final highest = place.highestOnDisk(session);
-    final records = plannedLineEditsOf(session, [place.itemAt(highest + 1)]);
+    final highest = tracePhase(
+      'new siblings on disk',
+      () => place.highestOnDisk(session),
+    );
+    final records = tracePhase(
+      'new record edits plan',
+      () => plannedLineEditsOf(session, [place.itemAt(highest + 1)]),
+    );
     final created = <Directory>[];
     File? claimed;
     var isJournalSaved = false;
@@ -117,18 +127,22 @@ ReadAnswer answerNew(
     var lfText = given;
     var refresh = BlockRefresh.none;
     try {
-      final claim = _claim(
-        session,
-        placed,
-        docType,
-        parentValues,
-        place.slug,
-        highest + 1,
-        created,
-        placedIn,
+      final claim = tracePhase(
+        'new claim',
+        () => _claim(
+          session,
+          placed,
+          docType,
+          parentValues,
+          place.slug,
+          highest + 1,
+          created,
+          placedIn,
+        ),
       );
       docPath = claim.docPath;
       claimed = claim.file;
+      final fillWatch = Stopwatch()..start();
       lfText = fillGeneratedBlocks(
         lfText,
         docType,
@@ -140,32 +154,41 @@ ReadAnswer answerNew(
         lfText = firstConfirmations(lfText, docType, session.index);
       }
       final laidOut = layOutDoc(lfText, docType);
-      refresh = blockRefreshOf(
-        session,
-        generators,
-        WrittenDocs(
-          texts: {
-            docPath: laidOut,
-            for (final record in records)
-              record.docPath: layOutDoc(
-                record.lfText,
-                session.docTypeAt(record.docPath),
-              ),
-          },
+      printTrace('new fill and lay out', fillWatch);
+      refresh = tracePhase(
+        'generated-block refresh',
+        () => blockRefreshOf(
+          session,
+          generators,
+          WrittenDocs(
+            texts: {
+              docPath: laidOut,
+              for (final record in records)
+                record.docPath: layOutDoc(
+                  record.lfText,
+                  session.docTypeAt(record.docPath),
+                ),
+            },
+          ),
         ),
       );
       lfText = refresh.ownTexts[docPath] ?? laidOut;
-      lfText = records.isEmpty && refresh.steps.isEmpty
-          ? session.writeDoc(docPath, lfText, lineEnding)
-          : _writeWithRecords(
-              session,
-              docPath,
-              lfText,
-              lineEnding,
-              records,
-              steps: refresh.steps,
-              onSaved: () => isJournalSaved = true,
-            );
+      final ownText = lfText;
+      lfText = tracePhase(
+        'new write (${records.length} records, '
+        '${refresh.steps.length} block steps)',
+        () => records.isEmpty && refresh.steps.isEmpty
+            ? session.writeDoc(docPath, ownText, lineEnding)
+            : _writeWithRecords(
+                session,
+                docPath,
+                ownText,
+                lineEnding,
+                records,
+                steps: refresh.steps,
+                onSaved: () => isJournalSaved = true,
+              ),
+      );
     } on Object {
       // A journal this run saved finishes the doc and its records on the next
       // write.
