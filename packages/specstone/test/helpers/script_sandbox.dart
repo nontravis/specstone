@@ -21,9 +21,8 @@ Directory repoRoot() {
 /// Creates a [ScriptSandbox] under a new temp folder.
 ///
 /// The folder is deleted by `addTearDown`, through [deleteNamingHolders]. On
-/// POSIX a `uname` stub answers
-/// `STUB_UNAME_S` (default `Linux`) for `-s` and `STUB_UNAME_M` (default
-/// `x86_64`) for `-m`.
+/// POSIX a `uname` stub answers `STUB_UNAME_S` (default `Linux`) for `-s` and
+/// `STUB_UNAME_M` (default `x86_64`) for `-m`.
 Future<ScriptSandbox> createScriptSandbox() async {
   // The scripts report the long, resolved form of the temp folder, so the
   // sandbox root uses that form too (on Windows, `RUNNER~1` is `runneradmin`).
