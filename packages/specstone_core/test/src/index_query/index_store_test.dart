@@ -1273,15 +1273,15 @@ void main() {
     });
   });
 
-  test('is at layout 42, and rebuilds an index stamped 41, whose code-file '
-      'rows hold no number label texts', () async {
-    // D8: layout 42 stores each label candidate's text with the mentions.
+  test('is at layout 43, and rebuilds an index stamped 42, whose docs rows '
+      'hold the parents and the order', () async {
+    // D6: layout 43 keeps the parents and the order in `doc_tree`.
     final r = await root();
     final store = IndexStore.open(r);
     addTearDown(store.close);
     const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
     store.write(() => store.reset(stamp));
-    expect(indexLayoutVersion, 42);
+    expect(indexLayoutVersion, 43);
     expect(store.readStamp(), stamp);
     final raw = sqlite3.open(file(r, indexFilePath).path);
     addTearDown(raw.close);
@@ -1302,6 +1302,7 @@ void main() {
       39,
       40,
       41,
+      42,
     ]) {
       raw.execute('UPDATE meta SET layout = $layout');
       expect(store.readStamp(), isNull, reason: 'layout $layout');

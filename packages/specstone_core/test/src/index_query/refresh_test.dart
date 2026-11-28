@@ -109,6 +109,26 @@ void main() {
     return () => dataVersion() != before;
   }
 
+  /// Logs the docPath of each `docs` row a later write to the index of
+  /// [project] inserts, updates, or deletes, and returns a reader of the log.
+  Set<String> Function() logDocsRowWrites(Directory project) {
+    final raw = sqlite3.open('${project.path}/$indexFilePath');
+    addTearDown(raw.close);
+    raw.execute('''
+CREATE TABLE written (doc_path TEXT NOT NULL);
+CREATE TRIGGER written_insert AFTER INSERT ON docs
+  BEGIN INSERT INTO written VALUES (NEW.doc_path); END;
+CREATE TRIGGER written_update AFTER UPDATE ON docs
+  BEGIN INSERT INTO written VALUES (NEW.doc_path); END;
+CREATE TRIGGER written_delete AFTER DELETE ON docs
+  BEGIN INSERT INTO written VALUES (OLD.doc_path); END;
+''');
+    return () => {
+      for (final row in raw.select('SELECT doc_path FROM written'))
+        row['doc_path'] as String,
+    };
+  }
+
   group('refreshIndex', () {
     test('a first refresh builds one entry per .md file', () async {
       final (:result, :store) = refresh(await writeLoginProject());
@@ -166,6 +186,40 @@ void main() {
         expect(docAt(again.store, featureDoc).title, 'Login v2');
       },
     );
+    const lockRule =
+        'prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md';
+    const newRule = 'prds/features/f01_login/us01_email_login/fr03_new_rule.md';
+    for (final (change, docPath, apply)
+        in <(String, String, void Function(Directory))>[
+          (
+            'an edit',
+            lockRule,
+            (p) =>
+                File('${p.path}/docs/$lockRule')
+                    .writeAsStringSync('# Lock v2\n'),
+          ),
+          (
+            'an added doc',
+            newRule,
+            (p) =>
+                File('${p.path}/docs/$newRule')
+                    .writeAsStringSync('# New rule\n'),
+          ),
+          (
+            'a deleted doc',
+            lockRule,
+            (p) => File('${p.path}/docs/$lockRule').deleteSync(),
+          ),
+        ]) {
+      test('$change writes the docs row of that doc alone', () async {
+        final project = await writeLoginProject();
+        refresh(project);
+        final written = logDocsRowWrites(project);
+        apply(project);
+        expect(refresh(project).result.reindexed, 1);
+        expect(written(), {docPath});
+      });
+    }
     test(
       'a warm refresh with no change hashes no file and writes nothing',
       () async {
