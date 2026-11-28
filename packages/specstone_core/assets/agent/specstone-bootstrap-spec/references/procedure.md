@@ -1,3 +1,4 @@
+Step 1, the gate, runs in `engineer.md`'s workflow, so this file starts at step 2.
 Your batch's findings are in the `check:` file, else in your gate's file.
 As `specstone-sdd-engineer`, ask the Owner nothing: each Owner step goes in your report.
 
