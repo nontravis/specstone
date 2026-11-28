@@ -8,6 +8,6 @@ sections:
     header: Accessibility bar
     required: true
     description: |-
-      Write one checkable rule per item every component meets, such as contrast ratio or focus.
+      Write one checkable rule per item components meet, such as contrast ratio or focus order.
 lint:
   title_no_number: true

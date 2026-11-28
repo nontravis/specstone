@@ -13,6 +13,6 @@ sections:
     header: Grids
     required: true
     description: |-
-      List each grid with its columns, its gutters, and its margins.
+      List each grid with its columns, gutters, and margins.
 lint:
   title_no_number: true

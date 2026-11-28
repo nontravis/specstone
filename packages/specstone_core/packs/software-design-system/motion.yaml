@@ -13,6 +13,6 @@ sections:
     header: Easings
     required: true
     description: |-
-      Write one row per easing: its name, its use, and a link to its row in the tokens doc.
+      Write one row per easing: its name, use, and a link to its row in the tokens doc.
 lint:
   title_no_number: true
