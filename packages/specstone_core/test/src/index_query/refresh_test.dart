@@ -109,25 +109,33 @@ void main() {
     return () => dataVersion() != before;
   }
 
-  /// Logs the docPath of each `docs` row a later write to the index of
+  /// Logs the docPath of each row of [table] a later write to the index of
   /// [project] inserts, updates, or deletes, and returns a reader of the log.
-  Set<String> Function() logDocsRowWrites(Directory project) {
+  Set<String> Function() logRowWrites(Directory project, String table) {
     final raw = sqlite3.open('${project.path}/$indexFilePath');
     addTearDown(raw.close);
+    final log = 'written_$table';
     raw.execute('''
-CREATE TABLE written (doc_path TEXT NOT NULL);
-CREATE TRIGGER written_insert AFTER INSERT ON docs
-  BEGIN INSERT INTO written VALUES (NEW.doc_path); END;
-CREATE TRIGGER written_update AFTER UPDATE ON docs
-  BEGIN INSERT INTO written VALUES (NEW.doc_path); END;
-CREATE TRIGGER written_delete AFTER DELETE ON docs
-  BEGIN INSERT INTO written VALUES (OLD.doc_path); END;
+CREATE TABLE $log (doc_path TEXT NOT NULL);
+CREATE TRIGGER ${log}_insert AFTER INSERT ON $table
+  BEGIN INSERT INTO $log VALUES (NEW.doc_path); END;
+CREATE TRIGGER ${log}_update AFTER UPDATE ON $table
+  BEGIN INSERT INTO $log VALUES (NEW.doc_path); END;
+CREATE TRIGGER ${log}_delete AFTER DELETE ON $table
+  BEGIN INSERT INTO $log VALUES (OLD.doc_path); END;
 ''');
     return () => {
-      for (final row in raw.select('SELECT doc_path FROM written'))
+      for (final row in raw.select('SELECT doc_path FROM $log'))
         row['doc_path'] as String,
     };
   }
+
+  /// Returns each stored doc's docPath, parent, warnings, and order, in tree
+  /// order.
+  List<String> treeOf(IndexStore s) => [
+    for (final d in s.loadDocs())
+      '${d.docPath} | ${d.parentPath} | ${d.warnings} | ${d.order}',
+  ];
 
   group('refreshIndex', () {
     test('a first refresh builds one entry per .md file', () async {
@@ -214,11 +222,61 @@ CREATE TRIGGER written_delete AFTER DELETE ON docs
       test('$change writes the docs row of that doc alone', () async {
         final project = await writeLoginProject();
         refresh(project);
-        final written = logDocsRowWrites(project);
+        final written = logRowWrites(project, 'docs');
         apply(project);
         expect(refresh(project).result.reindexed, 1);
         expect(written(), {docPath});
       });
+    }
+    test(
+      'an edit that moves no doc writes the tree row of that doc alone',
+      () async {
+        final project = await writeLoginProject();
+        refresh(project);
+        final written = logRowWrites(project, 'doc_tree');
+        File('${project.path}/docs/$lockRule').writeAsStringSync('# Lock v2\n');
+        expect(refresh(project).result.reindexed, 1);
+        expect(written(), {lockRule});
+      },
+    );
+    const secondLogin = 'docs/prds/features/f03_login/FEATURE.md';
+    for (final (change, before, after) in [
+      (
+        'a second login feature added',
+        <String, String>{},
+        {secondLogin: '# Login again\n'},
+      ),
+      (
+        'a second login feature deleted',
+        {secondLogin: '# Login again\n'},
+        <String, String>{},
+      ),
+      (
+        'a doc added mid-order',
+        <String, String>{},
+        {'docs/$newRule': '# New rule\n'},
+      ),
+    ]) {
+      test(
+        '$change: an incremental refresh stores the parents, warnings, and order a full build stores',
+        () async {
+          final project = await writeLoginProject(extra: before);
+          refresh(project);
+          for (final path in before.keys.where((p) => !after.containsKey(p))) {
+            File('${project.path}/$path').deleteSync();
+          }
+          for (final MapEntry(key: path, value: text) in after.entries) {
+            File('${project.path}/$path')
+              ..parent.createSync(recursive: true)
+              ..writeAsStringSync(text);
+          }
+          final incremental = refresh(project);
+          expect(incremental.result.fullBuild, isFalse);
+          final full = refresh(await writeLoginProject(extra: after));
+          expect(full.result.fullBuild, isTrue);
+          expect(treeOf(incremental.store), treeOf(full.store));
+        },
+      );
     }
     test(
       'a warm refresh with no change hashes no file and writes nothing',
