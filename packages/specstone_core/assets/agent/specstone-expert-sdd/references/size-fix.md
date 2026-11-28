@@ -58,7 +58,8 @@ A size finding with `candidates` or `split`, or an FR still over a cap after ste
 - `split`: the sub-feature split above; when none can form, the finding keeps `No split applies`.
 - An FR still over a cap, in place of `No split applies`: one `new fr --parent <story> --slug <slug>` line per new FR
   in the same story, then one `<fr>#<edge case ID> -> <new fr>` line per edge case that moves. In author or sync mode,
-  the engineer applies it at once by `../../specstone-brainstorming-sdd/references/author-size.md`.
+  the engineer applies it at once by `../../specstone-brainstorming-sdd/references/author.md`
+  `## 7. Split an FR past its edge-case cap`.
 
 ## No split applies
 

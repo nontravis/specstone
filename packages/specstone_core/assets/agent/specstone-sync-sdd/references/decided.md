@@ -1,6 +1,6 @@
 The decided-line steps of a sync run given a `change note`, at a plan's last sync and its reruns. The note's decided
 lines are its `D<n> (decided): <text>` decisions. One decided engineer drafts every one; each group engineer only
-judges its links against them. The procedure's other steps stay as they are.
+judges its links against them. The other steps of `engineer.md` stay as they are.
 
 ## 1. Judge against the decided lines
 
@@ -13,13 +13,13 @@ For a group engineer with a `change note`.
 - Work that departs from a line: one `Mismatches:` point per difference, naming the line's `D<n>`, what the line
   states, and what the work does, with nothing written for that behavior until the Owner's pick. A judged link's point
   is its `mismatch` line.
-- A behavior no decided line states keeps the procedure's own route.
+- A behavior no decided line states keeps its own route in `engineer.md`.
 - Write no decided draft and no decided report line; the decided engineer owns both.
 
 ## Decided-only run
 
-A brief with `decided` and no group file; it runs in place of `procedure.md`. It is the decided engineer's whole run,
-sent once per sync run before the group engineers.
+A brief with `decided` and no group file; it runs in place of `engineer.md` steps 1 to 5. It is the decided engineer's
+whole run, sent once per sync run before the group engineers.
 
 - Draft each `decided` id's decision from its decided line alone; no judged link, work list, or Owner pick. Read code
   only where a doc's own link names it.
@@ -38,9 +38,9 @@ sent once per sync run before the group engineers.
 
 ## Report
 
-The decided engineer's lines only, each in the form
-`../../specstone-brainstorming-sdd/references/author-report.md` gives. Write a `Decision:` line, naming each section,
-per id a draft took or an approved section carries, and a `Not landed:` line per id neither holds:
+The decided engineer's lines only, each in the form `../../specstone-brainstorming-sdd/references/author.md`
+`## 6. Report` gives. Write a `Decision:` line, naming each section, per id a draft took or an approved section
+carries, and a `Not landed:` line per id neither holds:
 
 ```
 Decision: D<n> -> <type>:<name>#<key>, …

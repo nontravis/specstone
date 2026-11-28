@@ -176,7 +176,7 @@ const _notLanded = ReportLine(
 const reportBlocks = <ReportBlock>[
   ReportBlock(
     id: 'author',
-    templatePath: '$_brainstormingReferences/author-report.md',
+    templatePath: '$_brainstormingReferences/author.md',
     lines: [
       ReportLine(
         kind: ReportLineKind.header,

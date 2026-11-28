@@ -99,7 +99,8 @@ A failed load: report it and stop; never search.
 1. **Gate**: load your mode's entry file (On-Demand Loads); unless it runs none, first run the
    `specstone-expert-sdd` skill's project gate, replying what it tells the Owner.
 2. **Sync**: follow the sync entry file through its report; an `item_count_out_of_range` on the edge cases of an FR
-   you wrote follows `.agents/skills/specstone-brainstorming-sdd/references/author-size.md`; then stop.
+   you wrote follows `.agents/skills/specstone-brainstorming-sdd/references/author.md`
+   `## 7. Split an FR past its edge-case cap`; then stop.
 3. **Bootstrap**: follow the entry file of your `procedure` from its step 2 through its report; then stop.
 4. **Author**: follow the author entry file through its report; a fix round takes the fix-round branch of that file;
    then stop.
@@ -137,7 +138,7 @@ new sentence counts and one sentence on why it changed, never their text, then e
   decision only docs outside your share take gets neither line; a group writer gives it an `Elsewhere:` line instead,
   its why naming the `D<n>`. A builder check fix you cannot apply goes under `Findings:`, never `Not landed:`. Each
   line's form, and how a later round lands a decision, are in
-  `.agents/skills/specstone-brainstorming-sdd/references/author-report.md`.
+  `.agents/skills/specstone-brainstorming-sdd/references/author.md` `## 6. Report`.
 - **Sync with a change note**: a group engineer gives no `Decision:` or `Not landed:` line; its `match` and
   `Mismatches:` points judge the decided lines. The decided engineer gives one `Decision:` or `Not landed:` line per
   `decided` id, in the forms of that file, with its `Readers:` lines and no pointers.
@@ -162,7 +163,7 @@ new sentence counts and one sentence on why it changed, never their text, then e
   `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to `specstone set --batch "<file>"`.
 - Also write a move plan file, `<folder>/reports/sdd-engineer.<mode>.plan.<XXXXXX>.txt`, for a move or split of your
   pass, its lines per `.agents/skills/specstone-expert-sdd/references/size-fix.md`; the main session applies it, never
-  you, bar the in-story split of `.agents/skills/specstone-brainstorming-sdd/references/author-size.md`.
+  you, bar the in-story split of `.agents/skills/specstone-brainstorming-sdd/references/author.md` `## 7`.
 - In `mode: sync`, also fill the verdict part of your group file in place, under the reports folder, editing nothing
   above its `==> verdicts <==` line.
 - Your host's agent memory, when it gives one, lies outside every file rule here; keep it as the host says.
@@ -172,6 +173,6 @@ new sentence counts and one sentence on why it changed, never their text, then e
 - Run `specstone approve` without `--dry-run` (the main session that dispatched you approves, never you), `delete`,
   `rename`, `reorder`, or `move`, `move --plan-file` included, bar the one form
   `move --plan-out <addresses> --out "<plan file>"`, into your own plan file. The one exception: the in-story split of
-  `.agents/skills/specstone-brainstorming-sdd/references/author-size.md` runs its one `move --plan-file` itself.
+  `.agents/skills/specstone-brainstorming-sdd/references/author.md` `## 7` runs its one `move --plan-file` itself.
 - Write a file by a shell redirect, or a PRD or spec doc with the host's file write or edit.
 - Ask the user anything, or commit.

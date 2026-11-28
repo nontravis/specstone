@@ -15,7 +15,7 @@ Run `specstone context --for sync --out` first, before git, a file read, or any 
 - Else stdout prints one line per group: its scope, its route word, and its group file's path.
 - This call alone gives the work list and groups, never the task's path list, so code changed outside it counts.
 - `<folder>`: the folder holding the reports folder of those group files. Never look for `.specstone/`.
-- **A plan that deferred its record writes:** before the first call, put every `tests` line its implementers reported, then every `row` line, in one sync file `<folder>/reports/<agent>.sync.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints and `<agent>` your agent name. Write it by one `specstone set --sync <sync file>`, with `--target <name>` when the plan names one, answering a refused line by `references/procedure.md` step 4; then make the first call, which pre-fills each new row's `match` line.
+- **A plan that deferred its record writes:** before the first call, put every `tests` line its implementers reported, then every `row` line, in one sync file `<folder>/reports/<agent>.sync.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints and `<agent>` your agent name. Write it by one `specstone set --sync <sync file>`, with `--target <name>` when the plan names one, answering a refused line by `references/engineer.md` step 4; then make the first call, which pre-fills each new row's `match` line.
 - **A `change note`:** run `specstone folder`, then dispatch one `specstone-sdd-engineer` by `../specstone-expert-sdd/references/dispatch.md`, beside the deferred write and before the first call, with `mode: sync`, `report:` `<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, `change note:`, and `decided:` every `(decided)` id of the note, and no `scope:`, `feature:`, or `group file:`. The `engineer` groups of step 2 go out once its report is in.
 
 ## 2. Route each group
@@ -28,7 +28,7 @@ Run `specstone context --for sync --out` first, before git, a file read, or any 
 - Send no path list and no doc text.
 - Work no group yourself while a dispatch can run, but a `small` one.
 - Rerun any `specstone` command that ends `index_busy`.
-- No subagent: follow the `specstone-expert-sdd` skill, then `references/procedure.md` per group in route order, each from its group file, with a `change note` also `references/decided.md`; after a failed dispatch, both for that group alone. With a `change note`, first work `decided.md` `## Decided-only run` for every `(decided)` id, then each group.
+- No subagent: follow the `specstone-expert-sdd` skill, then `references/engineer.md` steps 1 to 5 and `## Report` per group in route order, each from its group file, with a `change note` also `references/decided.md`; after a failed dispatch, both for that group alone. With a `change note`, first work `decided.md` `## Decided-only run` for every `(decided)` id, then each group.
 
 ## 3. After the report
 
@@ -42,7 +42,7 @@ Run `specstone context --for sync --out` first, before git, a file read, or any 
    - With a `change note`, dispatch one fresh `specstone-sdd-auditor` by `../specstone-expert-sdd/references/dispatch.md`, with `job: build-first-audit`, the change note's path, every draft the sync wrote, and the decided engineer's report.
    - Follow `../specstone-expert-sdd/references/approve.md` once, with that audit's report as its one `--audit`, or `--no-audit` with no `change note`, before the branch lands.
 4. Once a waiting line's draft is approved, write it, with the report's `--target <name>` when two or more:
-   - Run `specstone set --sync` again on the same group file: it writes the waiting lines, each waiting `remove-task` line included; name to the Owner the tasks it removes, found as `references/task-refs.md` finds them.
+   - Run `specstone set --sync` again on the same group file: it writes the waiting lines, each waiting `remove-task` line included; name to the Owner the tasks it removes, found as `references/engineer.md` `## Report` finds them.
    - A waiting line it refuses then: leave it out, write the rest again, a pointer fix included; write no fingerprint or status for its entry; report it; its finding stays.
-   - A new spec's waiting pointer: `references/procedure.md` step 5's `--field covers` or `--field implements` write, with no fingerprint.
+   - A new spec's waiting pointer: `references/engineer.md` step 5's `--field covers` or `--field implements` write, with no fingerprint.
 5. Follow the `specstone-brainstorming-sdd` skill for each handed behavior, each change-the-PRD pick, and each story or FR pick; write no PRD doc but a decided line's drafts, through its engineer.

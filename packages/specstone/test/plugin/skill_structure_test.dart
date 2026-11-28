@@ -69,20 +69,14 @@ const _agentNames = [
 
 /// The reference files the shipped skills name, each of which must exist.
 const _requiredReferences = <String>[
-  'specstone-sync-sdd/references/procedure.md',
+  _syncEntry,
   'specstone-sync-sdd/references/routes.md',
-  'specstone-sync-sdd/references/task-refs.md',
-  'specstone-sync-sdd/references/matrix-rows.md',
   _syncDecided,
   'specstone-bootstrap-prd/references/procedure.md',
   'specstone-bootstrap-spec/references/procedure.md',
   _trimRound,
   _goalMove,
   'specstone-brainstorming-sdd/references/author.md',
-  'specstone-brainstorming-sdd/references/author-report.md',
-  'specstone-brainstorming-sdd/references/author-recovery.md',
-  'specstone-brainstorming-sdd/references/author-size.md',
-  _authorReaders,
   'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/trim-audit.md',
@@ -124,8 +118,6 @@ const _agentFileNames = <String, List<String>>{
   ],
   'specstone-brainstorming-sdd/references/author.md': [
     'sdd-engineer.author.batch.<XXXXXX>.txt',
-  ],
-  'specstone-brainstorming-sdd/references/author-report.md': [
     'sdd-engineer.author.plan.<XXXXXX>.txt',
   ],
   'specstone-brainstorming-sdd/references/source.md': [
@@ -619,10 +611,6 @@ void _syncRouteTests() {
 
 // MARK: - sync procedure
 
-const _syncProcedure = 'specstone-sync-sdd/references/procedure.md';
-
-const _syncMatrixRows = 'specstone-sync-sdd/references/matrix-rows.md';
-
 /// The decided-line steps of a sync engineer given a change note.
 const _syncDecided = 'specstone-sync-sdd/references/decided.md';
 
@@ -630,7 +618,7 @@ void _syncProcedureTests() {
   test(
     'sync procedure judges a group file and writes it by one set --sync',
     () {
-      final procedure = _pluginText(_syncProcedure);
+      final procedure = _pluginText(_syncEntry);
       expect(procedure, contains('`==> verdicts <==`'));
       expect(
         '`specstone set --sync <group file>`'.allMatches(procedure),
@@ -638,7 +626,7 @@ void _syncProcedureTests() {
       );
       expect('context --code'.allMatches(procedure), hasLength(1));
       expect('specstone check'.allMatches(procedure), hasLength(1));
-      for (final file in [_syncSkill, _syncProcedure, _syncMatrixRows]) {
+      for (final file in [_syncSkill, _syncEntry]) {
         expect(_pluginText(file), isNot(contains('--stamp')), reason: file);
       }
     },
@@ -647,7 +635,7 @@ void _syncProcedureTests() {
   test(
     'sync procedure lists a covers path outside entry and never repoints it',
     () {
-      final procedure = _pluginText(_syncProcedure);
+      final procedure = _pluginText(_syncEntry);
       final judging = _sectionOf(
         procedure,
         '## 2. Judge each line',
@@ -662,7 +650,7 @@ void _syncProcedureTests() {
         isTrue,
       );
       expect(
-        _sectionOf(procedure, '## Report to the Owner'),
+        _sectionOf(procedure, '## Report'),
         contains("step 2's `covers` report lines"),
       );
     },
@@ -670,7 +658,7 @@ void _syncProcedureTests() {
 
   test('sync procedure shows a repoint line with an optional new symbol', () {
     final judging = _sectionOf(
-      _pluginText(_syncProcedure),
+      _pluginText(_syncEntry),
       '## 2. Judge each line',
     );
     expect(
@@ -683,7 +671,7 @@ void _syncProcedureTests() {
     'sync names an unstated behavior point and routes it to a PRD change',
     () {
       final judging = _sectionOf(
-        _pluginText(_syncProcedure),
+        _pluginText(_syncEntry),
         '## 2. Judge each line',
       ).split('\n');
       expect(
@@ -712,7 +700,7 @@ void _syncProcedureTests() {
   test(
     'matrix rows write row lines, each stamped by a following match line',
     () {
-      final rows = _pluginText(_syncMatrixRows);
+      final rows = _sectionOf(_pluginText(_syncEntry), '## Matrix rows');
       expect(rows, contains('`row <record> <item>[ <edge case>]: '));
       expect(rows, isNot(contains('--replace')));
       expect(rows, isNot(contains('specstone get')));
@@ -726,7 +714,6 @@ void _syncProcedureTests() {
       ..._requiredReferences.where(
         (file) => file.startsWith('specstone-sync-sdd/'),
       ),
-      _syncEntry,
       _engineer,
     ];
     final removed = [
@@ -781,15 +768,7 @@ void _syncEngineerTests() {
     }
   });
 
-  test('each mode entry file names its mode files', () {
-    final sync = _pluginText(_syncEntry);
-    for (final name in [
-      '`procedure.md`',
-      '`task-refs.md`',
-      '`matrix-rows.md`',
-    ]) {
-      expect(sync, contains(name), reason: name);
-    }
+  test('each bootstrap entry file names its mode files', () {
     for (final (entry, modeFiles) in [
       (_bootstrapEntries[0], ['`goal-move.md`', '`glossary-move.md`']),
       (_bootstrapEntries[1], ['`merge-untyped.md`']),
@@ -807,11 +786,16 @@ void _syncEngineerTests() {
     }
   });
 
-  test('the sync engineer points at the procedure steps by number', () {
-    final procedure = _pluginText(_syncProcedure).split('\n');
+  test('the sync entry file holds its numbered steps and its matrix rows', () {
+    final lines = _pluginText(_syncEntry).split('\n');
     expect(
-      procedure,
-      containsAll(['## 1. Read the group file', '## 5. Spec drafts']),
+      lines,
+      containsAll([
+        '## 1. Read the group file',
+        '## 5. Spec drafts',
+        '## Matrix rows',
+        '## Report',
+      ]),
     );
   });
 
@@ -1008,17 +992,30 @@ void _tokenBudgetTests() {
     ]);
   });
 
-  test('every shipped skill file stays within 1,500 est. tokens', () {
+  test('every shipped skill file but the merged references stays within '
+      '1,500 est. tokens', () {
     final files = contentFiles();
     expect(files.where((file) => file.isSkillFile), isNotEmpty);
     expect(files.map((file) => file.path), contains(_reReviewReference));
-    expect(oversizedSkillFiles(files), isEmpty);
+    expect(
+      oversizedSkillFiles([
+        for (final file in files)
+          if (!_mergedReferenceTokens.keys.any(
+            (path) => file.path == path || file.path.endsWith('/$path'),
+          ))
+            file,
+      ]),
+      isEmpty,
+    );
   });
 
-  test('each bootstrap procedure stays within its est. tokens', () {
+  test('each bootstrap procedure and merged reference stays within its '
+      'est. tokens', () {
     final paths = contentFiles().map((file) => file.path);
-    for (final MapEntry(key: file, value: tokens)
-        in _bootstrapProcedureTokens.entries) {
+    for (final MapEntry(key: file, value: tokens) in {
+      ..._bootstrapProcedureTokens,
+      ..._mergedReferenceTokens,
+    }.entries) {
       expect(paths, contains(file), reason: file);
       expect(
         oversizedSkillFiles(
@@ -1037,6 +1034,13 @@ void _tokenBudgetTests() {
 const _bootstrapProcedureTokens = {
   'specstone-bootstrap-prd/references/procedure.md': 1494,
   'specstone-bootstrap-spec/references/procedure.md': 1416,
+};
+
+/// Each reference that took in its split family as one file, by the Owner's
+/// ruling, and its est. tokens: at most 10,000 characters.
+const _mergedReferenceTokens = <String, int>{
+  _authorReference: 2500,
+  _syncEntry: 2500,
 };
 
 // MARK: - references resolve
@@ -3431,7 +3435,7 @@ void _authorModeTests() {
   });
 
   test('the author report template holds one line per Output row in order', () {
-    final report = _pluginText(_authorReport);
+    final report = _pluginText(_authorReference);
     final open = report.indexOf('```');
     final template = report.substring(open, report.indexOf('```', open + 3));
     var last = -1;
@@ -3469,20 +3473,17 @@ void _authorModeTests() {
   test(
     'the reader step reads a narrowed rule and searches its old wording',
     () {
-      final steps = _pluginText(_authorReaders);
-      expect(
-        _hasSentenceWith(steps, [
-          'current text',
-          'saved bundle files',
-          'no `get`',
-        ]),
-        isTrue,
+      final steps = _sectionOf(
+        _pluginText(_authorReference),
+        '## 2. Find the readers',
       );
       expect(
         _hasSentenceWith(steps, [
-          'no saved file',
+          'current text',
+          'never by `get`',
+          'saved bundle files',
+          'else',
           '`specstone context <doc> --for design --out`',
-          'never `get`',
         ]),
         isTrue,
       );
@@ -3492,12 +3493,7 @@ void _authorModeTests() {
       );
       expect(_hasSentenceWith(steps, ['hit', 'reader']), isTrue);
       expect(steps, contains('`specstone refs`'));
-      final pointer = _sectionOf(
-        _pluginText(_authorReference),
-        '## 2. Find the readers',
-      );
-      expect(pointer, contains('Follow `author-readers.md`'));
-      expect(pointer, isNot(contains('`specstone refs`')));
+      expect(steps, contains('once per decision before your first write'));
     },
   );
 
@@ -3521,11 +3517,18 @@ void _authorModeTests() {
       _pluginText(_authorReference),
       '## 4. Recover a refused batch',
     );
-    expect(step, contains('`author-recovery.md`'));
+    for (final fault in [
+      '`output_not_writable`',
+      'Stale block',
+      'Gone block',
+      'rerun the batch',
+    ]) {
+      expect(step, contains(fault), reason: fault);
+    }
   });
 
   test('author report names its plan file in place of commands', () {
-    final report = _pluginText(_authorReport);
+    final report = _pluginText(_authorReference);
     final open = report.indexOf('```');
     final template = report.substring(open, report.indexOf('```', open + 3));
     expect(template, contains('Move: <plan file path>'));
@@ -3534,7 +3537,7 @@ void _authorModeTests() {
 
   // D11
   test('an engineer splits an FR past its edge-case cap inside its story', () {
-    final steps = _pluginText(_authorSize);
+    final steps = _sectionOf(_pluginText(_authorReference), _authorSplit);
     const order = [
       'specstone new fr --parent <story>',
       'specstone move --plan-out <fr>',
@@ -3544,10 +3547,10 @@ void _authorModeTests() {
       [order[0]],
       ['Save one plan file', order[1]],
       [order[2]],
-      ['new FR', '`author.md` section 3', '`<mode>`'],
-      ['later-write bare check', '`Check:`'],
+      ['new FR', 'section 3', '`<mode>`'],
+      ['author mode', "section 5's later-write bare check"],
       ['sync mode', 'specstone check <doc> --out', 'per FR'],
-      ['old and the new FR', '`specstone approve --dry-run --json`'],
+      ['old and the new FR', 'drafts list'],
       ['`Move:`', '`Findings:`', 'draft line'],
       ['Owner', 'story or feature'],
     ]) {
@@ -3557,21 +3560,24 @@ void _authorModeTests() {
     expect(at, orderedEquals([...at]..sort()));
     expect(steps, isNot(contains('run no `new` or `move`')));
     final engineer = _pluginText(_engineer);
-    expect(_sectionOf(engineer, '## Workflow'), contains('author-size.md'));
+    expect(
+      _sectionOf(engineer, '## Workflow'),
+      contains('$_authorEntryPath` `$_authorSplit`'),
+    );
     final scope = _sectionOf(engineer, '## Scope Boundaries');
     for (final words in [
       [
         'the main session applies it',
         'bar the in-story split',
-        'author-size.md',
+        '$_authorEntryPath` `## 7`',
       ],
-      ['exception', 'move --plan-file', 'author-size.md'],
+      ['exception', 'move --plan-file', '$_authorEntryPath` `## 7`'],
     ]) {
       expect(_hasSentenceWith(scope, words), isTrue, reason: words.join(', '));
     }
     expect(
       scope,
-      isNot(contains(' `author-size.md`')),
+      isNot(contains(' `author.md`')),
       reason: 'the engineer names a skill file by its full path',
     );
     expect(
@@ -3579,19 +3585,16 @@ void _authorModeTests() {
         _pluginText(_sizeFix),
         '## A finding that names items to move',
       ),
-      contains('author-size.md'),
+      contains('references/author.md` `$_authorSplit`'),
     );
   });
 }
 
-const _authorReport = 'specstone-brainstorming-sdd/references/author-report.md';
+/// The author entry file as the engineer names it, from the project root.
+const _authorEntryPath = '.agents/skills/$_authorEntry';
 
-/// The author mode's reader step reference, under the plugin folder.
-const _authorReaders =
-    'specstone-brainstorming-sdd/references/author-readers.md';
-
-/// The author mode's edge-case cap step, under the plugin folder.
-const _authorSize = 'specstone-brainstorming-sdd/references/author-size.md';
+/// The author entry file's edge-case cap step, which sync mode runs too.
+const _authorSplit = '## 7. Split an FR past its edge-case cap';
 
 // MARK: - small edit
 

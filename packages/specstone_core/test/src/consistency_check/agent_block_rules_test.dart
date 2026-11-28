@@ -465,8 +465,8 @@ void main() {
 
   group('skill and agent files', () {
     const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
-    const procedure =
-        '.agents/skills/specstone-sync-sdd/references/procedure.md';
+    const syncEngineer =
+        '.agents/skills/specstone-sync-sdd/references/engineer.md';
     const planAgent = '.claude/agents/specstone-plan-engineer.md';
 
     /// The `path:line` of each finding of a check over the fixture project
@@ -505,11 +505,11 @@ void main() {
 
     test('a file missing inside a skill folder is one finding at '
         'its path', () async {
-      expect(skillFileTexts(), contains(procedure));
+      expect(skillFileTexts(), contains(syncEngineer));
 
-      final found = await staleSkillFiles({procedure: null});
+      final found = await staleSkillFiles({syncEngineer: null});
 
-      expect(found.map(where), ['$procedure:1']);
+      expect(found.map(where), ['$syncEngineer:1']);
       expect(found.single.waitsFor, WaitsFor.owner);
       expect(
         found.single.message,
@@ -554,11 +554,11 @@ void main() {
     test(
       'a skill file differing in line endings alone has no finding',
       () async {
-        final text = skillFileTexts()[procedure]!;
+        final text = skillFileTexts()[syncEngineer]!;
         expect(text, contains('\n'));
 
         expect(
-          await staleSkillFiles({procedure: text.replaceAll('\n', '\r\n')}),
+          await staleSkillFiles({syncEngineer: text.replaceAll('\n', '\r\n')}),
           isEmpty,
         );
       },
