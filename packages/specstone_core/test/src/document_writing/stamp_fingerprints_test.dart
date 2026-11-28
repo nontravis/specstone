@@ -1,6 +1,9 @@
 // A matrix row matches a test name as one literal, so long names stay whole.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

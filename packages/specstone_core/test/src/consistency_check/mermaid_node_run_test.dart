@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/mermaid_node_run.dart';

@@ -1,5 +1,8 @@
 // Label literals are built from parts so this file holds no number label.
 
+@Tags(['integration'])
+library;
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 

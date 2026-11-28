@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 

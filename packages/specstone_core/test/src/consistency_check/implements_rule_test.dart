@@ -1,5 +1,8 @@
 // The expected texts are plan literals kept as written.
 
+@Tags(['integration'])
+library;
+
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';

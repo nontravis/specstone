@@ -1,4 +1,4 @@
-@Tags(['ps1'])
+@Tags(['ps1', 'integration'])
 library;
 
 import 'dart:io';

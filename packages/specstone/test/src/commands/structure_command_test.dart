@@ -1,6 +1,9 @@
 // The expected values are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,6 +12,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 
 import '../../helpers/built_cli.dart';
@@ -184,7 +188,7 @@ void main() {
   });
   test(
     'a read-only .specstone/ exits 73 with the JSON envelope',
-    skip: readOnlySkipReason(),
+    skip: unreadablePathSkipReason(),
     () async {
       final project = await writeReadProject();
       final dot = Directory('${project.path}/.specstone');

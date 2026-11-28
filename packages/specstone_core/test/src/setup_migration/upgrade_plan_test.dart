@@ -1,6 +1,9 @@
 // Test names stay one literal so `specstone check` finds them by exact text.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

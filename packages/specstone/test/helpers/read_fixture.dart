@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-import '../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../../specstone_core/test/helpers/rulebook_fixture.dart';
 import '../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../specstone_core/test/helpers/write_fixture.dart' show testHome;
@@ -67,6 +66,3 @@ readRunner(
   );
   return (runner: runner, out: out, err: err);
 }
-
-/// Returns why a read-only folder cannot stop a write here, else null.
-String? readOnlySkipReason() => unreadablePathSkipReason();

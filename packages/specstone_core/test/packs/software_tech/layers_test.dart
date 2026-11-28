@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/models/merged_field.dart'

@@ -1,6 +1,9 @@
 // The expected texts are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:collection';
 import 'dart:convert';
 

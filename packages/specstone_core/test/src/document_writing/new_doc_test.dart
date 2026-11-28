@@ -1,6 +1,9 @@
 // Test names carry the story, FR, and edge-case IDs on one line.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';

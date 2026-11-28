@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'dart:io';
 
 // markdown exports no case-folding table, so this reads its source.

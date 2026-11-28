@@ -1,3 +1,6 @@
+@Tags(['integration'])
+library;
+
 import 'dart:io';
 
 import 'package:specstone_core/src/executable_lookup.dart';

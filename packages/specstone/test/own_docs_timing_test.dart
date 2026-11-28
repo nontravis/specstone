@@ -1,4 +1,4 @@
-@Tags(['timing'])
+@Tags(['timing', 'integration'])
 @Timeout(Duration(minutes: 10))
 library;
 

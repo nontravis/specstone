@@ -1,6 +1,9 @@
 // The test titles and literals are plan values kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +15,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/posix_modes.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart'
     show shippedPinsConfig;
 import '../../../../specstone_core/test/helpers/skill_doc_fixture.dart';
@@ -1412,7 +1416,7 @@ void main() {
         );
         expect(File('${locked.path}/bundle.txt').readAsStringSync(), 'old\n');
       },
-      skip: readOnlySkipReason(),
+      skip: unreadablePathSkipReason(),
     );
 
     test('--out with --code names the file code-<path>; --for query writes the query bundle', () async {
@@ -1688,7 +1692,7 @@ void main() {
         73,
       );
       expect(_errorOf(run.err)['code'], 'output_not_writable');
-    }, skip: readOnlySkipReason());
+    }, skip: unreadablePathSkipReason());
 
     test('a refused .git path names the file from the project root, also through a link', () async {
       final project = await writeReadProject(

@@ -1,3 +1,4 @@
+@Tags(['integration'])
 @TestOn('!windows')
 library;
 

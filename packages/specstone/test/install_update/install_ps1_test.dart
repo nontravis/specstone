@@ -1,5 +1,5 @@
 @TestOn('windows')
-@Tags(['ps1'])
+@Tags(['ps1', 'integration'])
 @Timeout(Duration(minutes: 3))
 library;
 

@@ -1,3 +1,4 @@
+@Tags(['integration'])
 @TestOn('windows')
 @Timeout(Duration(minutes: 3))
 library;

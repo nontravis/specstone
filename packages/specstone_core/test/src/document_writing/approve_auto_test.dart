@@ -1,6 +1,9 @@
 // A test name is one literal so the sync matrix reads it whole.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';

@@ -1,6 +1,9 @@
 // The plan's test literals are kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+@Tags(['integration'])
+library;
+
 import 'dart:io';
 import 'dart:isolate';
 
