@@ -8,7 +8,7 @@ sections:
     header: Durations
     required: true
     description: |-
-      Write one row per duration: its name, its use, and a link to its row in the tokens doc.
+      Write one row per duration: its name, use, and a link to its row in the tokens doc.
   - id: easings
     header: Easings
     required: true

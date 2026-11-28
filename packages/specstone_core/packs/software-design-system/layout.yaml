@@ -8,7 +8,7 @@ sections:
     header: Layouts
     required: true
     description: |-
-      List each page layout with its name, its regions, and when to use it.
+      List each page layout with its name, regions, and when to use it.
   - id: grids
     header: Grids
     required: true

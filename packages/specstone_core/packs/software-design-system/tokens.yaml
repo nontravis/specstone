@@ -8,7 +8,7 @@ sections:
     header: Source of truth
     required: false
     description: |-
-      Name the code file that holds the token values.
+      Name the code file of the token values.
   - id: token_list
     header: Token list
     required: true

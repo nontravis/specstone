@@ -10,7 +10,7 @@ sections:
     header: Finding a component
     required: true
     description: |-
-      Write how a reader picks a component: by its group, its purpose, and its lifecycle.
+      Write how a reader picks a component: by its group, purpose, and lifecycle.
   - id: component_catalog
     header: Component catalog
     required: true

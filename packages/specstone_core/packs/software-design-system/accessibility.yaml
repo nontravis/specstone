@@ -1,6 +1,6 @@
 id: accessibility
 description: |-
-  The accessibility doc: the library-wide accessibility bar.
+  The accessibility doc: the design-system-wide accessibility bar.
 title: Accessibility
 path: specs/design_system/ACCESSIBILITY.md
 sections:
@@ -8,6 +8,6 @@ sections:
     header: Accessibility bar
     required: true
     description: |-
-      Write one checkable rule per item every component meets, such as a contrast ratio or a focus rule.
+      Write one checkable rule per item every component meets, such as contrast ratio or focus.
 lint:
   title_no_number: true

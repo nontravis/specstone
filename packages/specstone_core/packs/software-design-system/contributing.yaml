@@ -8,6 +8,6 @@ sections:
     header: Definition of done
     required: true
     description: |-
-      Write one checkable item per condition a component meets before it is done.
+      Write one checkable item per condition that makes a component done.
 lint:
   title_no_number: true

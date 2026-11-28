@@ -130,7 +130,7 @@ void main() {
   setUpAll(() async => set = await resolveSoftwareDesignSystem());
 
   group('manifest', () {
-    test('ships at 1.7.0 over software-tech with its nineteen doc types', () {
+    test('ships at 1.7.1 over software-tech with its nineteen doc types', () {
       final bytes = shippedPackFiles['software-design-system/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -138,7 +138,7 @@ void main() {
         file: 'packs/software-design-system/pack.yaml',
       );
       expect(manifest.name, 'software-design-system');
-      expect(manifest.version.toString(), '1.7.0');
+      expect(manifest.version.toString(), '1.7.1');
       expect(manifest.extendsPack, 'software-tech');
       expect(
         shippedPackFiles.keys.where(
@@ -199,6 +199,33 @@ void main() {
       );
     });
 
+    test('a project pinned at 1.7.0 upgrades to 1.7.1 with no step and no doc rewrite', () async {
+      final versions = shippedPackVersions();
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n'
+            '  prd-core: ${versions['prd-core']}\n'
+            '  software-tech: ${versions['software-tech']}\n'
+            '  software-design-system: 1.7.0\n',
+        'docs/$_root/foundations/COLOR.md':
+            '# Color\n\n## Color roles\n\n'
+            '- **Primary** marks the one main action.\n',
+      });
+      final plan = planUpgradeRun(
+        project,
+        templates: TemplateResolver(),
+        homeDirectory: await writeTree({}),
+        generators: shippedGenerators(),
+      );
+
+      expect(plan.header, contains('software-design-system 1.7.0 -> 1.7.1'));
+      expect(plan.lists.toJson()['steps'], isEmpty);
+      expect(
+        plan.rewrites.where((rewrite) => rewrite.path.startsWith('docs/')),
+        isEmpty,
+      );
+    });
+
     test('ships the shared lines serve_library_builders, library_spec_scope, and library_code_detail_home, naming nineteen doc types, and no shared field', () {
       final shared = _manifest().shared;
       expect(
@@ -213,6 +240,21 @@ void main() {
         expect(line.forDocTypes, softwareDesignSystemIds, reason: line.id);
       }
       expect(shared.fields, isEmpty);
+    });
+
+    test('the first shared line serves the builders of any design system on every guide', () {
+      const text =
+          'These docs serve the team that builds the design system, not the code that uses it.';
+      final first = _manifest().shared.lines.first;
+      expect(first.id, 'serve_library_builders');
+      expect(first.text, text);
+      for (final id in softwareDesignSystemIds) {
+        expect(
+          prdCoreDocType(set, id).renderGuide(),
+          contains(text),
+          reason: id,
+        );
+      }
     });
 
     test("library_spec_scope and library_code_detail_home hold the text of software-tech's spec_scope and code_detail_home", () {
@@ -638,6 +680,71 @@ void main() {
   });
 
   group('guides', () {
+    test('the guidelines guide words its hard rules and its code rule for the design system', () {
+      final guidelines = prdCoreDocType(set, 'guidelines');
+      final rules = sectionOf(guidelines, 'hard_rules').description;
+      expect(
+        guidelines.description,
+        contains("the design system's hard rules"),
+      );
+      expect(
+        guidelines.description,
+        isNot(contains("the library's hard rules")),
+      );
+      expect(rules, contains('code using the design system'));
+      expect(rules, isNot(contains("the library's code")));
+    });
+
+    test('the accessibility and component guides word the accessibility bar for the design system', () {
+      expect(
+        prdCoreDocType(set, 'accessibility').description,
+        contains('the design-system-wide accessibility bar'),
+      );
+      expect(
+        sectionOf(
+          prdCoreDocType(set, 'component'),
+          'accessibility',
+        ).description,
+        contains('the design-system-wide accessibility bar'),
+      );
+    });
+
+    test(
+      'the component guide words its any-language rule for the design system',
+      () {
+        expect(
+          prdCoreDocType(set, 'component').description,
+          contains('serves the design system in any language'),
+        );
+      },
+    );
+
+    test('no guide line of the pack names a library or its consumers', () {
+      final words = RegExp(r'\blibrar|\bconsumer', caseSensitive: false);
+      for (final id in softwareDesignSystemIds) {
+        expect(
+          prdCoreDocType(set, id).renderGuide(),
+          isNot(contains(words)),
+          reason: id,
+        );
+      }
+    });
+
+    test('the setup guide describes the setup of code that uses the design system under its kept header', () {
+      final setup = prdCoreDocType(set, 'setup');
+      expect(
+        setup.description,
+        'The setup doc: the setup contract of code using the design system.\n'
+        "The install contract is what a skill's install steps follow.",
+      );
+      final section = sectionOf(setup, 'install_contract');
+      expect(
+        section.description,
+        'State how code using the design system sets it up and what it gives, in steps a reader repeats.',
+      );
+      expect(section.header, 'Install contract');
+    });
+
     test('a doc that breaks a hard rule gets no check finding, since no rule '
         'reads the library code', () async {
       const guidelines =

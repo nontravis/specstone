@@ -8,7 +8,7 @@ sections:
     header: Icon set
     required: true
     description: |-
-      Name the icon set and how a component picks an icon from it.
+      Name the icon set and how a component picks from it.
   - id: sizes
     header: Sizes
     required: true

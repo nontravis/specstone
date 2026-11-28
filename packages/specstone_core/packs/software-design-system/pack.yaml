@@ -1,5 +1,5 @@
 name: software-design-system
-version: 1.7.0
+version: 1.7.1
 extends: software-tech
 migrations:
   - from: 1.5.0
@@ -9,7 +9,7 @@ migrations:
           sections: [accessibility_bar, color_roles, purpose, when_to_use, anatomy, variants, states, props, examples, keyboard, accessibility, writing_rules, definition_of_done, finding_a_component, component_catalog, elevation_levels, reading_order, hard_rules, icon_set, sizes, naming, layouts, grids, durations, easings, install_contract, shapes, spacing_scale, themes, token_mapping, token_list, type_scale, components_used, composition]
 shared_lines:
   - id: serve_library_builders
-    text: These docs serve the team that builds the library, not the library's consumers.
+    text: These docs serve the team that builds the design system, not the code that uses it.
     for_doc_types: [accessibility, color, component, component_group, content, contributing, discovery, elevation, guidelines, icon, layout, motion, setup, shape, spacing, theme, tokens, typography, ui_pattern]
   - id: library_spec_scope
     text: 'Write only what a plan needs and code cannot show: a decision and its why, a contract callers rely on, a constraint code honors.'

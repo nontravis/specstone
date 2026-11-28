@@ -25,6 +25,6 @@ sections:
     header: Composition
     required: true
     description: |-
-      Write how the components sit together: their order, their spacing, and what each does.
+      Write how the components sit together: their order, spacing, and what each does.
 lint:
   title_no_number: true

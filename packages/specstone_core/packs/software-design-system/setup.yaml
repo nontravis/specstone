@@ -1,6 +1,6 @@
 id: setup
 description: |-
-  The setup doc: the install contract that the library's code meets.
+  The setup doc: the setup contract of code using the design system.
   The install contract is what a skill's install steps follow.
 title: Setup
 path: specs/design_system/SETUP.md
@@ -9,6 +9,6 @@ sections:
     header: Install contract
     required: true
     description: |-
-      State what a consumer does to install the library and what the install gives, in steps a reader repeats.
+      State how code using the design system sets it up and what it gives, in steps a reader repeats.
 lint:
   title_no_number: true

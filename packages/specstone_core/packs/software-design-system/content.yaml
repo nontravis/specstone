@@ -8,6 +8,6 @@ sections:
     header: Writing rules
     required: true
     description: |-
-      Write one rule per item for the text a component shows, such as its case, its length, and its tone.
+      Write one rule per item for the text a component shows, such as its case, length, and tone.
 lint:
   title_no_number: true

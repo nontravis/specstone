@@ -1,6 +1,6 @@
 id: component_group
 description: |-
-  A component group: what its components share and when a reader looks in it.
+  A component group: what its components share.
   Title it `# <Group name>`, with no number.
 path: specs/design_system/components/{slug}/GROUP.md
 sections:
